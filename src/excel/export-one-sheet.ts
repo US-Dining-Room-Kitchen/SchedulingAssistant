@@ -366,14 +366,32 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     for (const name of names) {
       const info = people[name];
 
-      // Days string is union across AM/PM for this group
-      const daySet = new Set<DayLetter>([...info.AM, ...info.PM]);
-      const dayList = DAY_ORDER.filter(d=>daySet.has(d));
-      const days = dayList.length === DAY_ORDER.length ? 'Full-Time' : dayList.join('/');
-
       // Shift column: blank if both AM & PM somewhere in the week
       const hasAM = info.AM.size > 0;
       const hasPM = info.PM.size > 0;
+
+      // Track AM/PM coverage separately so we can show day-specific assignments
+      const amList = DAY_ORDER.filter(d => info.AM.has(d));
+      const pmList = DAY_ORDER.filter(d => info.PM.has(d));
+      const amText = amList.length === DAY_ORDER.length ? 'Full-Time' : amList.join('/');
+      const pmText = pmList.length === DAY_ORDER.length ? 'Full-Time' : pmList.join('/');
+      const daySet = new Set<DayLetter>([...info.AM, ...info.PM]);
+      const dayList = DAY_ORDER.filter(d => daySet.has(d));
+      let days: string;
+      if (hasAM && hasPM) {
+        const sameDays =
+          amList.length === pmList.length &&
+          amList.every((d, idx) => pmList[idx] === d);
+        if (sameDays) {
+          days = dayList.length === DAY_ORDER.length ? 'Full-Time' : dayList.join('/');
+        } else {
+          const amDisplay = amText || '—';
+          const pmDisplay = pmText || '—';
+          days = `AM: ${amDisplay}; PM: ${pmDisplay}`;
+        }
+      } else {
+        days = dayList.length === DAY_ORDER.length ? 'Full-Time' : dayList.join('/');
+      }
 
       ws.getCell(r, startCol).value = name;
 
@@ -391,7 +409,11 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
         ws.getCell(r, startCol + 2).value = 'PM';
       }
 
-      ws.getCell(r, startCol + 3).value = days;
+      const dayCell = ws.getCell(r, startCol + 3);
+      dayCell.value = days;
+      if (days.includes(';')) {
+        dayCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
+      }
       // Apply font to each cell individually to avoid interfering with other
       // panes that may use the same worksheet row.
       for (let c = startCol; c <= startCol + 3; c++) {
