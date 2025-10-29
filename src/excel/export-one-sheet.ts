@@ -79,7 +79,7 @@ type Buckets = Record<'regular'|'commuter',
 >;
 
 type LunchBuckets = Record<'regular'|'commuter',
-  Record<string, Record<string, { days: Set<DayLetter>; roles: Set<string> }>>
+  Record<string, Record<string, { days: Set<DayLetter>; roles: Set<string>; roleDays: Map<string, Set<DayLetter>> }>>
 >;
 
 // ---------- DB helpers ----------
@@ -513,8 +513,18 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     if (!code) continue;
     const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
     const groupBucket = lunchBuckets[kind][code] || (lunchBuckets[kind][code] = {});
-    const personBucket = groupBucket[row.person] || (groupBucket[row.person] = { days: new Set<DayLetter>(), roles: new Set<string>() });
+    const personBucket = groupBucket[row.person] || (groupBucket[row.person] = {
+      days: new Set<DayLetter>(),
+      roles: new Set<string>(),
+      roleDays: new Map<string, Set<DayLetter>>()
+    });
     personBucket.roles.add(row.role_name);
+    let roleDaySet = personBucket.roleDays.get(row.role_name);
+    if (!roleDaySet) {
+      roleDaySet = new Set<DayLetter>();
+      personBucket.roleDays.set(row.role_name, roleDaySet);
+    }
+    roleDaySet.add(dayLetter);
     personBucket.days.add(dayLetter);
     let dayMap = lunchPerDayMap.get(row.person_id);
     if (!dayMap) {
@@ -539,9 +549,21 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     if (keepLetters.length === 0) continue;
     const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
     const groupBucket = lunchBuckets[kind][code] || (lunchBuckets[kind][code] = {});
-    const personBucket = groupBucket[row.person] || (groupBucket[row.person] = { days: new Set<DayLetter>(), roles: new Set<string>() });
+    const personBucket = groupBucket[row.person] || (groupBucket[row.person] = {
+      days: new Set<DayLetter>(),
+      roles: new Set<string>(),
+      roleDays: new Map<string, Set<DayLetter>>()
+    });
     personBucket.roles.add(row.role_name);
-    for (const d of keepLetters) personBucket.days.add(d);
+    for (const d of keepLetters) {
+      personBucket.days.add(d);
+      let roleDaySet = personBucket.roleDays.get(row.role_name);
+      if (!roleDaySet) {
+        roleDaySet = new Set<DayLetter>();
+        personBucket.roleDays.set(row.role_name, roleDaySet);
+      }
+      roleDaySet.add(d);
+    }
   }
 
   const wsL = wb.addWorksheet('Lunch Jobs', {
@@ -559,7 +581,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
 
   let lunchRow = 2;
 
-  function renderLunchBlock(group: string, people: Record<string, { days: Set<DayLetter>; roles: Set<string> }>) {
+  function renderLunchBlock(group: string, people: Record<string, { days: Set<DayLetter>; roles: Set<string>; roleDays: Map<string, Set<DayLetter>> }>) {
     if (!people || !Object.keys(people).length) return;
     wsL.mergeCells(lunchRow, 1, lunchRow, 4);
     const hcell = wsL.getCell(lunchRow, 1);
@@ -593,8 +615,41 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       wsL.getCell(r, 2).value = roleText;
       wsL.getCell(r, 3).value = 'Lunch';
       const dayList = DAY_ORDER.filter(d => info.days.has(d));
-      const days = dayList.length === DAY_ORDER.length ? 'Full-Time' : dayList.join('/');
-      wsL.getCell(r, 4).value = days;
+      const simplifiedRoleDayMap = new Map<string, Set<DayLetter>>();
+      for (const [roleName, daySet] of info.roleDays.entries()) {
+        const simplified = simplifyRole(roleName) ?? 'Lunch';
+        let mapSet = simplifiedRoleDayMap.get(simplified);
+        if (!mapSet) {
+          mapSet = new Set<DayLetter>();
+          simplifiedRoleDayMap.set(simplified, mapSet);
+        }
+        for (const d of daySet) mapSet.add(d);
+      }
+      const roleDayEntries = Array.from(simplifiedRoleDayMap.entries());
+      const hasMixedAssignments =
+        roleDayEntries.length > 1 &&
+        roleDayEntries.some(([, set]) => set.size !== info.days.size);
+      let days: string;
+      if (hasMixedAssignments) {
+        const perDay: string[] = [];
+        for (const d of DAY_ORDER) {
+          if (!info.days.has(d)) continue;
+          const rolesForDay: string[] = [];
+          for (const [role, daySet] of roleDayEntries) {
+            if (daySet.has(d)) rolesForDay.push(role);
+          }
+          if (!rolesForDay.length) continue;
+          perDay.push(`${d}: ${rolesForDay.sort().join(' & ')}`);
+        }
+        days = perDay.join('; ');
+      } else {
+        days = dayList.length === DAY_ORDER.length ? 'Full-Time' : dayList.join('/');
+      }
+      const dayCell = wsL.getCell(r, 4);
+      dayCell.value = days;
+      if (days.includes(';') || days.includes(':')) {
+        dayCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
+      }
       for (let c = 1; c <= 4; c++) {
         wsL.getCell(r, c).font = { size: 16 };
       }
