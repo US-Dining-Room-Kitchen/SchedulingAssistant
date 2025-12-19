@@ -362,6 +362,145 @@
                     </div>
                 </section>
 
+                <!-- Section 5: Database Management -->
+                <section id="db-management">
+                    <h2 class="text-2xl font-bold mb-8 text-[#242424]">5. Database Management</h2>
+                    
+                    <h3 class="font-bold text-[#242424] mb-4 flex items-center gap-2">
+                        <i class="fas fa-database text-[#0078d4]"></i>
+                        Creating &amp; Opening Databases
+                    </h3>
+                    <p class="text-sm text-[#616161] mb-6">The application uses local SQLite databases stored as <code>.db</code> files on your machine. All data remains on your workstation—nothing is uploaded to the cloud.</p>
+                    
+                    <div class="table-container mb-8">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                <tr>
+                                    <th class="p-3 font-semibold">Action</th>
+                                    <th class="p-3 font-semibold">Description</th>
+                                    <th class="p-3 font-semibold">When to Use</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                <tr>
+                                    <td class="p-3 font-semibold">New DB</td>
+                                    <td class="p-3">Creates a fresh database in memory with initial schema.</td>
+                                    <td class="p-3">Starting a new scheduling system or semester.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Open DB</td>
+                                    <td class="p-3">Loads an existing <code>.db</code> file for editing.</td>
+                                    <td class="p-3">Regular daily use to modify schedules.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Open Read-Only</td>
+                                    <td class="p-3">Opens database without acquiring edit lock.</td>
+                                    <td class="p-3">Viewing schedules when someone else is editing.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 class="font-bold text-[#242424] mb-4 flex items-center gap-2">
+                        <i class="fas fa-save text-[#0078d4]"></i>
+                        Saving Data
+                    </h3>
+                    <p class="text-sm text-[#616161] mb-4">Changes are held in memory until you explicitly save them.</p>
+                    
+                    <div class="grid md:grid-cols-2 gap-6 mb-8">
+                        <div class="p-6 bg-[#fdfdfd] border border-[#e0e0e0] rounded-lg shadow-sm">
+                            <h4 class="font-bold text-[#242424] mb-2 text-sm">Save (Ctrl+S)</h4>
+                            <p class="text-xs text-[#616161] mb-3">Writes all changes back to the currently opened file.</p>
+                            <ul class="text-xs text-[#616161] space-y-1">
+                                <li>• Requires write permission on the file</li>
+                                <li>• Only available if you hold the edit lock</li>
+                                <li>• Use frequently to avoid data loss</li>
+                            </ul>
+                        </div>
+                        <div class="p-6 bg-[#f0f7ff] border border-[#0078d4] rounded-lg shadow-sm">
+                            <h4 class="font-bold text-[#0078d4] mb-2 text-sm">Save As</h4>
+                            <p class="text-xs text-[#005a9e] mb-3">Creates a new copy of the database at a different location.</p>
+                            <ul class="text-xs text-[#005a9e] space-y-1">
+                                <li>• Use to create backups</li>
+                                <li>• Required if file is locked by another user</li>
+                                <li>• Prompts for new file location</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <h3 class="font-bold text-[#242424] mb-4 flex items-center gap-2">
+                        <i class="fas fa-lock text-[#0078d4]"></i>
+                        Single-Editor Model
+                    </h3>
+                    <p class="text-sm text-[#616161] mb-4">To prevent data conflicts, <strong>only one person should edit the database at a time</strong>. The app enforces this through a soft lock system stored in the <code>meta</code> table.</p>
+                    
+                    <div class="message-bar message-bar-warning mb-6">
+                        <i class="fas fa-exclamation-triangle mt-1"></i>
+                        <div>
+                            <p class="text-xs font-semibold mb-1">IMPORTANT: Collaborative Editing</p>
+                            <p class="text-xs">When opening a database, you'll be prompted to enter your Work Email to acquire the edit lock. If someone else already has the lock, you can:</p>
+                            <ul class="text-xs mt-2 space-y-1">
+                                <li>• Open in <strong>Read-Only mode</strong> to view without editing</li>
+                                <li>• Use <strong>Save As</strong> to create your own copy</li>
+                                <li>• Wait for the other person to finish and release the lock</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-8">
+                        <h5 class="font-bold text-sm text-[#242424] mb-3">How the Lock System Works</h5>
+                        <ol class="text-xs text-[#616161] space-y-2">
+                            <li><strong>1. Open Database:</strong> When you click "Open DB," the app checks the <code>meta</code> table for an active lock.</li>
+                            <li><strong>2. Lock Status:</strong> If unlocked, you're prompted to enter your email to claim the lock. If locked, you're shown who has it.</li>
+                            <li><strong>3. Read-Only Mode:</strong> If locked by someone else, the app opens in read-only mode (Save/Edit buttons disabled).</li>
+                            <li><strong>4. Releasing Lock:</strong> The lock persists in the file until manually changed. There's no automatic timeout.</li>
+                        </ol>
+                    </div>
+
+                    <h3 class="font-bold text-[#242424] mb-4 flex items-center gap-2">
+                        <i class="fas fa-arrow-up text-[#0078d4]"></i>
+                        Automatic Migrations
+                    </h3>
+                    <p class="text-sm text-[#616161] mb-4">Older database files are automatically upgraded to the latest schema when opened. This ensures compatibility across application versions.</p>
+                    
+                    <div class="table-container mb-8">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                <tr>
+                                    <th class="p-3 font-semibold">Feature</th>
+                                    <th class="p-3 font-semibold">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                <tr>
+                                    <td class="p-3 font-semibold">Backward Compatible</td>
+                                    <td class="p-3">Old databases open seamlessly in new versions.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Schema Updates</td>
+                                    <td class="p-3">Migrations add new tables/columns without data loss.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Zero User Action</td>
+                                    <td class="p-3">Migration happens automatically on database open.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">No Downgrade</td>
+                                    <td class="p-3">Once migrated, file may not work in older app versions.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="p-4 bg-[#f0f7ff] border border-[#cce5ff] rounded-lg flex gap-3 items-start">
+                        <i class="fas fa-lightbulb text-[#0078d4] mt-1"></i>
+                        <div>
+                            <p class="text-xs text-[#005a9e] font-semibold mb-1">Best Practice</p>
+                            <p class="text-xs text-[#005a9e]">Always make a backup copy (Save As) before major schema migrations, especially if working with critical historical data.</p>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Section 6: Core Features -->
                 <section id="core-features">
                     <h2 class="text-3xl font-bold mb-12 text-[#242424]">6. Core Features</h2>
@@ -422,6 +561,102 @@
                         </div>
                     </div>
 
+                    <!-- 6.2 People Management -->
+                    <div id="people-mgmt" class="mb-24">
+                        <h3 class="text-xl font-bold mb-4 text-[#0078d4]">People Management</h3>
+                        <p class="text-sm text-[#616161] mb-8">The People tab is your staff roster management interface. Add, edit, and manage all employee data including availability and personal details.</p>
+                        
+                        <h4 class="font-bold text-[#242424] mb-4">Person Fields</h4>
+                        <div class="table-container mb-8">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                    <tr>
+                                        <th class="p-3 font-semibold">Field</th>
+                                        <th class="p-3 font-semibold">Description</th>
+                                        <th class="p-3 font-semibold">Values</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                    <tr>
+                                        <td class="p-3 font-semibold">Last Name</td>
+                                        <td class="p-3">Employee surname for sorting and display.</td>
+                                        <td class="p-3">Text</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">First Name</td>
+                                        <td class="p-3">Employee given name.</td>
+                                        <td class="p-3">Text</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Work Email</td>
+                                        <td class="p-3">Required for Teams Shifts export and user identification.</td>
+                                        <td class="p-3">Email format</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Brother/Sister</td>
+                                        <td class="p-3">Classification field for organizational hierarchy.</td>
+                                        <td class="p-3">B or S</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Commuter</td>
+                                        <td class="p-3">Indicates off-campus residence status.</td>
+                                        <td class="p-3">Yes/No checkbox</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Active</td>
+                                        <td class="p-3">Whether person is currently available for scheduling.</td>
+                                        <td class="p-3">Yes/No checkbox</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Weekday Availability</td>
+                                        <td class="p-3">Default availability per day (Mon-Fri).</td>
+                                        <td class="p-3">U (Unavailable), AM, PM, B (Both)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h4 class="font-bold text-[#242424] mb-4">Available Actions</h4>
+                        <div class="grid md:grid-cols-2 gap-6 mb-8">
+                            <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                                <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                    <i class="fas fa-plus-circle text-[#107c10]"></i>
+                                    Add Person
+                                </h5>
+                                <p class="text-xs text-[#616161]">Click "Add Person" button to create a new staff record. Fill in all required fields before saving.</p>
+                            </div>
+                            <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                                <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                    <i class="fas fa-edit text-[#0078d4]"></i>
+                                    Edit
+                                </h5>
+                                <p class="text-xs text-[#616161]">Click on any person's name to open their profile modal. Update fields and save changes.</p>
+                            </div>
+                            <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                                <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                    <i class="fas fa-trash text-[#d13438]"></i>
+                                    Delete
+                                </h5>
+                                <p class="text-xs text-[#616161]">Remove person from roster. Use cautiously—this removes all associated assignments and training records.</p>
+                            </div>
+                            <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                                <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                    <i class="fas fa-tasks text-[#0078d4]"></i>
+                                    Bulk Edit Qualifications
+                                </h5>
+                                <p class="text-xs text-[#616161]">Select multiple people and assign training qualifications simultaneously. Efficient for onboarding groups.</p>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-[#f0f7ff] border border-[#cce5ff] rounded-lg flex gap-3 items-start">
+                            <i class="fas fa-lightbulb text-[#0078d4] mt-1"></i>
+                            <div>
+                                <p class="text-xs text-[#005a9e] font-semibold mb-1">Filtering Tip</p>
+                                <p class="text-xs text-[#005a9e]">Use the "Active only" filter to hide inactive staff members from your view and keep the roster clean.</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- 6.3 Training & Qualifications -->
                     <div id="training" class="mb-24">
                         <h3 class="text-xl font-bold mb-6 text-[#0078d4]">Training & Qualifications</h3>
@@ -447,6 +682,589 @@
                             <p class="text-xs text-[#616161]">Assigning staff in <strong>Monthly Defaults</strong> automatically qualifies them for that role in this matrix.</p>
                         </div>
                     </div>
+
+                    <!-- 6.4 Baseline Needs -->
+                    <div id="baseline" class="mb-24">
+                        <h3 class="text-xl font-bold mb-4 text-[#0078d4]">Baseline Needs</h3>
+                        <p class="text-sm text-[#616161] mb-8">Define minimum staffing requirements for each role and segment. These baselines feed into coverage dashboards and warnings on the Daily Run Board.</p>
+                        
+                        <h4 class="font-bold text-[#242424] mb-4">Setting Staffing Levels</h4>
+                        <p class="text-xs text-[#616161] mb-6">For each combination of Group, Role, and Segment, specify the minimum number of staff required. The system will warn you when assignments fall below this threshold.</p>
+                        
+                        <div class="table-container mb-8">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                    <tr>
+                                        <th class="p-3 font-semibold">Group</th>
+                                        <th class="p-3 font-semibold">Role</th>
+                                        <th class="p-3 font-semibold">Segment</th>
+                                        <th class="p-3 text-center font-semibold">Required</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                    <tr>
+                                        <td class="p-3">Dining Room</td>
+                                        <td class="p-3">DR Supervisor</td>
+                                        <td class="p-3">AM</td>
+                                        <td class="p-3 text-center font-semibold">2</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3">Kitchen</td>
+                                        <td class="p-3">Line Cook</td>
+                                        <td class="p-3">Lunch</td>
+                                        <td class="p-3 text-center font-semibold">3</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3">Prepack</td>
+                                        <td class="p-3">Prep Worker</td>
+                                        <td class="p-3">PM</td>
+                                        <td class="p-3 text-center font-semibold">1</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h4 class="font-bold text-[#242424] mb-4">Date-Specific Overrides</h4>
+                        <p class="text-xs text-[#616161] mb-4">Sometimes you need different staffing levels on specific dates (e.g., campus events, holidays). Create date-specific overrides that take precedence over baseline needs.</p>
+                        
+                        <div class="grid md:grid-cols-2 gap-6 mb-8">
+                            <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                                <h5 class="font-bold text-sm text-[#242424] mb-2">Example: Special Event</h5>
+                                <p class="text-xs text-[#616161] mb-3">Graduation Day requires double kitchen staff.</p>
+                                <ul class="text-xs text-[#616161] space-y-1">
+                                    <li>• Date: 2025-05-15</li>
+                                    <li>• Role: Line Cook (Lunch)</li>
+                                    <li>• Override Required: 6 (vs baseline 3)</li>
+                                </ul>
+                            </div>
+                            <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                                <h5 class="font-bold text-sm text-[#242424] mb-2">Example: Low Attendance</h5>
+                                <p class="text-xs text-[#616161] mb-3">Winter break needs minimal staffing.</p>
+                                <ul class="text-xs text-[#616161] space-y-1">
+                                    <li>• Date Range: 2025-01-05 to 2025-01-20</li>
+                                    <li>• All Roles: Reduced by 50%</li>
+                                    <li>• Override individually per role</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <h4 class="font-bold text-[#242424] mb-4">Integration with Daily Run Board</h4>
+                        <div class="message-bar message-bar-warning">
+                            <i class="fas fa-exclamation-triangle mt-1"></i>
+                            <div>
+                                <p class="text-xs font-semibold mb-1">Coverage Warnings</p>
+                                <p class="text-xs">When actual assignments fall below baseline needs, the Daily Run Board displays warning indicators (⚠️) on role cards. Review these warnings before finalizing schedules.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 6.5 Monthly Defaults -->
+                    <div id="monthly" class="mb-24">
+                        <h3 class="text-xl font-bold mb-4 text-[#0078d4]">Monthly Defaults</h3>
+                        <p class="text-sm text-[#616161] mb-8">Create template role assignments for an entire month. Set default schedules per person and segment, then apply them to the actual Daily Run Board with one click.</p>
+                        
+                        <h4 class="font-bold text-[#242424] mb-4">Key Features</h4>
+                        <div class="table-container mb-8">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                    <tr>
+                                        <th class="p-3 font-semibold">Feature</th>
+                                        <th class="p-3 font-semibold">Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                    <tr>
+                                        <td class="p-3 font-semibold">Month Selector</td>
+                                        <td class="p-3">Choose which month to configure (e.g., January 2025).</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Default Role Assignments</td>
+                                        <td class="p-3">Assign default roles per person and segment for the entire month.</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Weekday Overrides</td>
+                                        <td class="p-3">Specify different roles for specific weekdays (Mon-Fri).</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Notes per Person</td>
+                                        <td class="p-3">Add scheduling notes or reminders for individual staff members.</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Copy From Previous</td>
+                                        <td class="p-3">Duplicate a previous month's configuration as starting point.</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Apply Defaults</td>
+                                        <td class="p-3">Push default assignments to actual Daily Run Board dates.</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Export to Excel</td>
+                                        <td class="p-3">Generate spreadsheet preview of monthly assignments.</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Coverage Dashboard</td>
+                                        <td class="p-3">View required vs. assigned counts per segment/role.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h4 class="font-bold text-[#242424] mb-4">Workflow Example</h4>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-8">
+                            <ol class="text-xs text-[#616161] space-y-3">
+                                <li><strong>1. Select Month:</strong> Choose "February 2025" from the month picker.</li>
+                                <li><strong>2. Copy Template:</strong> Click "Copy From" and select January 2025 to reuse last month's setup.</li>
+                                <li><strong>3. Adjust Assignments:</strong> Review and modify role assignments for each person/segment.</li>
+                                <li><strong>4. Set Weekday Overrides:</strong> Mark that John Smith works Kitchen on Mondays instead of Dining Room.</li>
+                                <li><strong>5. Add Notes:</strong> Note that Sarah Jones is on vacation Feb 10-14.</li>
+                                <li><strong>6. Review Dashboard:</strong> Check Coverage Dashboard to ensure all roles are adequately staffed.</li>
+                                <li><strong>7. Apply to Board:</strong> Click "Apply Defaults" to populate the Daily Run Board for all February dates.</li>
+                                <li><strong>8. Fine-Tune Daily:</strong> Switch to Daily Run Board to handle day-specific adjustments.</li>
+                            </ol>
+                        </div>
+
+                        <div class="p-4 bg-[#f0f7ff] border border-[#cce5ff] rounded-lg flex gap-3 items-start">
+                            <i class="fas fa-lightbulb text-[#0078d4] mt-1"></i>
+                            <div>
+                                <p class="text-xs text-[#005a9e] font-semibold mb-1">Efficiency Tip</p>
+                                <p class="text-xs text-[#005a9e]">Use "Copy From" feature at the start of each month to save hours of manual data entry. Most months follow similar patterns.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 6.6 Crew History -->
+                    <div id="history" class="mb-24">
+                        <h3 class="text-xl font-bold mb-4 text-[#0078d4]">Crew History</h3>
+                        <p class="text-sm text-[#616161] mb-8">View and edit historical assignments across multiple months. Perfect for reviewing past schedules, generating reports, or making retroactive corrections.</p>
+                        
+                        <h4 class="font-bold text-[#242424] mb-4">Filtering Options</h4>
+                        <div class="table-container mb-8">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                    <tr>
+                                        <th class="p-3 font-semibold">Filter</th>
+                                        <th class="p-3 font-semibold">Purpose</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                    <tr>
+                                        <td class="p-3 font-semibold">Date Range</td>
+                                        <td class="p-3">Start/End month to limit the view (e.g., Jan 2025 to Mar 2025).</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Segment Filter</td>
+                                        <td class="p-3">Show only specific segments (AM, PM, Lunch, etc.).</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Group Filter</td>
+                                        <td class="p-3">Narrow to a single work group (Dining Room, Kitchen, Prepack).</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Sort Options</td>
+                                        <td class="p-3">Name, B/S, Commuter, Active, or Segment Role.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h4 class="font-bold text-[#242424] mb-4">Inline Editing</h4>
+                        <p class="text-xs text-[#616161] mb-4">With "Edit Past Months" toggle enabled, you can modify historical assignments directly in the table using dropdown selectors.</p>
+                        
+                        <div class="grid md:grid-cols-2 gap-6 mb-8">
+                            <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                                <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                    <i class="fas fa-lock-open text-[#107c10]"></i>
+                                    Edit Past Months: Enabled
+                                </h5>
+                                <p class="text-xs text-[#616161]">Click any cell to change role assignments. Useful for corrections or reconciling discrepancies.</p>
+                            </div>
+                            <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                                <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                    <i class="fas fa-lock text-[#616161]"></i>
+                                    Edit Past Months: Disabled
+                                </h5>
+                                <p class="text-xs text-[#616161]">View-only mode. Prevents accidental changes to historical data. Recommended for reporting.</p>
+                            </div>
+                        </div>
+
+                        <div class="message-bar message-bar-warning">
+                            <i class="fas fa-exclamation-triangle mt-1"></i>
+                            <div>
+                                <p class="text-xs font-semibold mb-1">Caution: Historical Edits</p>
+                                <p class="text-xs">Changes made in Crew History directly update the database. If you've already exported those schedules to Teams Shifts, manual reconciliation may be required.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 6.7 Export Preview -->
+                    <div id="export" class="mb-24">
+                        <h3 class="text-xl font-bold mb-4 text-[#0078d4]">Export Preview</h3>
+                        <p class="text-sm text-[#616161] mb-8">Generate and preview Microsoft Teams Shifts-compatible XLSX files. The export includes all assigned shifts with automatic time-off handling.</p>
+                        
+                        <h4 class="font-bold text-[#242424] mb-4">Export Configuration</h4>
+                        <div class="grid md:grid-cols-2 gap-6 mb-8">
+                            <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                                <h5 class="font-bold text-sm text-[#242424] mb-2">Date Range Selection</h5>
+                                <p class="text-xs text-[#616161] mb-3">Specify start and end dates for the export period.</p>
+                                <ul class="text-xs text-[#616161] space-y-1">
+                                    <li>• Export Start: First date to include</li>
+                                    <li>• Export End: Last date to include</li>
+                                    <li>• Typically one month at a time</li>
+                                </ul>
+                            </div>
+                            <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                                <h5 class="font-bold text-sm text-[#242424] mb-2">Preview Table</h5>
+                                <p class="text-xs text-[#616161] mb-3">Review shifts before exporting to catch errors.</p>
+                                <ul class="text-xs text-[#616161] space-y-1">
+                                    <li>• Date, Member, Work Email</li>
+                                    <li>• Group, Start/End Time</li>
+                                    <li>• Custom Label, Theme</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <h4 class="font-bold text-[#242424] mb-4">Preview Table Columns</h4>
+                        <div class="table-container mb-8">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                    <tr>
+                                        <th class="p-3 font-semibold">Column</th>
+                                        <th class="p-3 font-semibold">Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                    <tr>
+                                        <td class="p-3 font-semibold">Date</td>
+                                        <td class="p-3">Shift date in M/D/YYYY format.</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Member</td>
+                                        <td class="p-3">Full name (Last, First) of assigned person.</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Work Email</td>
+                                        <td class="p-3">Person's work email for Teams integration.</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Group</td>
+                                        <td class="p-3">Work group (Dining Room, Kitchen, etc.).</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Start Time</td>
+                                        <td class="p-3">Shift start in HH:MM 24-hour format.</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">End Time</td>
+                                        <td class="p-3">Shift end in HH:MM 24-hour format.</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Custom Label</td>
+                                        <td class="p-3">Role code (e.g., "DR", "LC") for display in Teams.</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Theme</td>
+                                        <td class="p-3">Color-coded group identifier for visual grouping.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h4 class="font-bold text-[#242424] mb-4">Time-Off Handling</h4>
+                        <p class="text-xs text-[#616161] mb-4">When a person has time-off scheduled during a shift, the export automatically splits the shift around the time-off interval.</p>
+                        
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-8">
+                            <h5 class="font-bold text-sm text-[#242424] mb-3">Example: Split Shift</h5>
+                            <ul class="text-xs text-[#616161] space-y-2">
+                                <li><strong>Original Shift:</strong> AM Segment (08:00 - 11:00)</li>
+                                <li><strong>Time-Off Block:</strong> 09:00 - 10:00 (Doctor appointment)</li>
+                                <li><strong>Exported as:</strong>
+                                    <ul class="ml-4 mt-1 space-y-1">
+                                        <li>• Shift 1: 08:00 - 09:00</li>
+                                        <li>• Shift 2: 10:00 - 11:00</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <h4 class="font-bold text-[#242424] mb-4">Exporting to XLSX</h4>
+                        <p class="text-xs text-[#616161] mb-4">Click the "Export to XLSX" button to download a formatted spreadsheet compatible with Microsoft Teams Shifts bulk import.</p>
+                        
+                        <div class="p-4 bg-[#f0f7ff] border border-[#cce5ff] rounded-lg flex gap-3 items-start">
+                            <i class="fas fa-lightbulb text-[#0078d4] mt-1"></i>
+                            <div>
+                                <p class="text-xs text-[#005a9e] font-semibold mb-1">Import Tip</p>
+                                <p class="text-xs text-[#005a9e]">After downloading the XLSX file, use Teams Shifts' "Import" feature to bulk-upload all shifts. Verify group mappings match your Teams structure.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section 7: Admin Configuration -->
+                <section id="admin-config">
+                    <h2 class="text-2xl font-bold mb-10 text-[#242424]">7. Admin Configuration</h2>
+                    <p class="text-sm text-[#616161] mb-12">The Admin tab provides access to all system configuration components. These settings define the structure of your scheduling system.</p>
+                    
+                    <h3 class="text-xl font-bold mb-6 text-[#0078d4] flex items-center gap-2">
+                        <i class="fas fa-calendar-times"></i>
+                        Time-Off Manager
+                    </h3>
+                    <p class="text-sm text-[#616161] mb-6">Import and manage employee time-off entries. The system prevents assignments during time-off periods and automatically splits shifts around time-off blocks during export.</p>
+                    
+                    <div class="grid md:grid-cols-3 gap-6 mb-12">
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                <i class="fas fa-file-import text-[#0078d4]"></i>
+                                Import from XLSX
+                            </h5>
+                            <p class="text-xs text-[#616161]">Upload a CSV/XLSX file exported from Microsoft Teams with time-off records. Format: Person Email, Start Date/Time, End Date/Time.</p>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                <i class="fas fa-plus-circle text-[#107c10]"></i>
+                                Manual Add
+                            </h5>
+                            <p class="text-xs text-[#616161]">Create individual time-off entries manually. Select person, date range, and times. Useful for ad-hoc requests.</p>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                <i class="fas fa-list text-[#616161]"></i>
+                                View/Delete Entries
+                            </h5>
+                            <p class="text-xs text-[#616161]">Browse all time-off records. Delete entries that are no longer relevant or were imported in error.</p>
+                        </div>
+                    </div>
+
+                    <h3 class="text-xl font-bold mb-6 text-[#0078d4] flex items-center gap-2">
+                        <i class="fas fa-clock"></i>
+                        Segments
+                    </h3>
+                    <p class="text-sm text-[#616161] mb-6">Define the time segments used throughout the day (e.g., Early, AM, Lunch, PM). Each segment has a name, start time, end time, and ordering for display.</p>
+                    
+                    <div class="table-container mb-12">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                <tr>
+                                    <th class="p-3 font-semibold">Field</th>
+                                    <th class="p-3 font-semibold">Description</th>
+                                    <th class="p-3 font-semibold">Example</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                <tr>
+                                    <td class="p-3 font-semibold">Name</td>
+                                    <td class="p-3">Display name for the segment.</td>
+                                    <td class="p-3">AM, Lunch, PM</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Start Time</td>
+                                    <td class="p-3">Segment start in HH:MM format (24-hour).</td>
+                                    <td class="p-3">08:00, 11:00, 14:00</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">End Time</td>
+                                    <td class="p-3">Segment end in HH:MM format (24-hour).</td>
+                                    <td class="p-3">11:00, 13:00, 17:00</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Order</td>
+                                    <td class="p-3">Numeric ordering for display sequence (0, 1, 2...).</td>
+                                    <td class="p-3">0 (Early), 1 (AM), 2 (Lunch), 3 (PM)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 class="text-xl font-bold mb-6 text-[#0078d4] flex items-center gap-2">
+                        <i class="fas fa-sliders-h"></i>
+                        Segment Adjustments
+                    </h3>
+                    <p class="text-sm text-[#616161] mb-6">Create dynamic time adjustments for segments based on conditions. For example, if Lunch is scheduled, extend AM's end time to match Lunch's start.</p>
+                    
+                    <div class="table-container mb-8">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                <tr>
+                                    <th class="p-3 font-semibold">Field</th>
+                                    <th class="p-3 font-semibold">Purpose</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                <tr>
+                                    <td class="p-3 font-semibold">Target Segment</td>
+                                    <td class="p-3">Which segment's time to adjust.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Adjust Start/End</td>
+                                    <td class="p-3">Whether to modify the segment's start or end time.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Condition Segment</td>
+                                    <td class="p-3">The segment that triggers the adjustment (must be assigned on that date).</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Condition Role</td>
+                                    <td class="p-3">Optional: Require a specific role in the condition segment.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Offset Minutes</td>
+                                    <td class="p-3">Number of minutes to add/subtract (positive or negative).</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Preview</td>
+                                    <td class="p-3">Test the adjustment on a sample date to verify behavior.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-12">
+                        <h5 class="font-bold text-sm text-[#242424] mb-3">Example: Link AM to Lunch</h5>
+                        <ul class="text-xs text-[#616161] space-y-2">
+                            <li><strong>Target Segment:</strong> AM</li>
+                            <li><strong>Adjust:</strong> End Time</li>
+                            <li><strong>Condition Segment:</strong> Lunch</li>
+                            <li><strong>Baseline:</strong> condition.start (Lunch's start time)</li>
+                            <li><strong>Offset:</strong> 0 minutes</li>
+                            <li><strong>Result:</strong> AM's end time dynamically matches Lunch's start time on days when Lunch is assigned.</li>
+                        </ul>
+                    </div>
+
+                    <h3 class="text-xl font-bold mb-6 text-[#0078d4] flex items-center gap-2">
+                        <i class="fas fa-layer-group"></i>
+                        Groups
+                    </h3>
+                    <p class="text-sm text-[#616161] mb-6">Organize roles into work groups (e.g., Dining Room, Kitchen, Prepack). Each group has a name, theme color, and optional custom color override.</p>
+                    
+                    <div class="table-container mb-12">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                <tr>
+                                    <th class="p-3 font-semibold">Field</th>
+                                    <th class="p-3 font-semibold">Description</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                <tr>
+                                    <td class="p-3 font-semibold">Name</td>
+                                    <td class="p-3">Group display name (e.g., "Dining Room", "Kitchen").</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Theme</td>
+                                    <td class="p-3">Predefined color palette (Purple, Pink, DarkYellow, Green, etc.).</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Custom Color</td>
+                                    <td class="p-3">Optional hex color override for UI theming (e.g., #FF5733).</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 class="text-xl font-bold mb-6 text-[#0078d4] flex items-center gap-2">
+                        <i class="fas fa-id-badge"></i>
+                        Roles
+                    </h3>
+                    <p class="text-sm text-[#616161] mb-6">Define all job roles available for assignment. Each role belongs to a group and is available for specific segments.</p>
+                    
+                    <div class="table-container mb-12">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                <tr>
+                                    <th class="p-3 font-semibold">Field</th>
+                                    <th class="p-3 font-semibold">Description</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                <tr>
+                                    <td class="p-3 font-semibold">Code</td>
+                                    <td class="p-3">Short identifier for the role (e.g., "DR", "LC", "PP").</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Name</td>
+                                    <td class="p-3">Full role title (e.g., "Dining Room Supervisor", "Line Cook").</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Group</td>
+                                    <td class="p-3">Which work group this role belongs to.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Segments Checkboxes</td>
+                                    <td class="p-3">Select which segments this role is active for (AM, PM, Lunch, etc.).</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 class="text-xl font-bold mb-6 text-[#0078d4] flex items-center gap-2">
+                        <i class="fas fa-file-export"></i>
+                        Export Groups
+                    </h3>
+                    <p class="text-sm text-[#616161] mb-6">Map scheduling groups to Microsoft Teams Shifts groups for export. Define custom color codes in ARGB hex format and column groupings.</p>
+                    
+                    <div class="table-container mb-12">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                <tr>
+                                    <th class="p-3 font-semibold">Field</th>
+                                    <th class="p-3 font-semibold">Description</th>
+                                    <th class="p-3 font-semibold">Example</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                <tr>
+                                    <td class="p-3 font-semibold">Code</td>
+                                    <td class="p-3">Export group identifier matching Teams group name.</td>
+                                    <td class="p-3">Dining, Kitchen</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Color (ARGB hex)</td>
+                                    <td class="p-3">Color code for Teams Shifts display (Alpha-Red-Green-Blue).</td>
+                                    <td class="p-3">FF6264A7 (Purple)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Column Group</td>
+                                    <td class="p-3">Organizational grouping for multi-column layouts in Teams.</td>
+                                    <td class="p-3">Dining Services</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 class="text-xl font-bold mb-6 text-[#0078d4] flex items-center gap-2">
+                        <i class="fas fa-star"></i>
+                        Skills Catalog
+                    </h3>
+                    <p class="text-sm text-[#616161] mb-6">Manage the catalog of available skills that can be assigned to staff members. Skills supplement role-based training and provide additional granularity for qualification tracking.</p>
+                    
+                    <div class="grid md:grid-cols-2 gap-6 mb-12">
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2">Adding Skills</h5>
+                            <p class="text-xs text-[#616161] mb-3">Create custom skills specific to your operation.</p>
+                            <ul class="text-xs text-[#616161] space-y-1">
+                                <li>• Food Safety Certified</li>
+                                <li>• Allergen Awareness</li>
+                                <li>• Cash Handling</li>
+                                <li>• Equipment Operator</li>
+                            </ul>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2">Assigning to People</h5>
+                            <p class="text-xs text-[#616161] mb-3">Link skills to individuals in their person profile.</p>
+                            <ul class="text-xs text-[#616161] space-y-1">
+                                <li>• Select from skills catalog</li>
+                                <li>• Multiple skills per person</li>
+                                <li>• Remove when no longer applicable</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-[#f0f7ff] border border-[#cce5ff] rounded-lg flex gap-3 items-start">
+                        <i class="fas fa-lightbulb text-[#0078d4] mt-1"></i>
+                        <div>
+                            <p class="text-xs text-[#005a9e] font-semibold mb-1">Configuration Best Practice</p>
+                            <p class="text-xs text-[#005a9e]">Set up Segments, Groups, and Roles during initial system configuration. These foundational settings rarely change and impact all other features. Always test changes in a backup database first.</p>
+                        </div>
+                    </div>
                 </section>
 
                 <!-- Section 8: Workflow Examples -->
@@ -470,6 +1288,160 @@
                                 <li><strong>03</strong> Review Weekday Overrides.</li>
                                 <li><strong>04</strong> <strong>Apply Defaults</strong> to board.</li>
                             </ol>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section 9: Shortcuts & Tips -->
+                <section id="shortcuts-tips">
+                    <h2 class="text-2xl font-bold mb-10 text-[#242424]">9. Shortcuts &amp; Tips</h2>
+                    
+                    <h3 class="text-xl font-bold mb-6 text-[#0078d4] flex items-center gap-2">
+                        <i class="fas fa-keyboard"></i>
+                        Keyboard Shortcuts
+                    </h3>
+                    <div class="table-container mb-12">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                <tr>
+                                    <th class="p-3 font-semibold">Shortcut</th>
+                                    <th class="p-3 font-semibold">Action</th>
+                                    <th class="p-3 font-semibold">Context</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                <tr>
+                                    <td class="p-3 font-mono font-semibold">Ctrl+S</td>
+                                    <td class="p-3">Save database to disk</td>
+                                    <td class="p-3">Anywhere in the app</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-mono font-semibold">Tab</td>
+                                    <td class="p-3">Move to next field</td>
+                                    <td class="p-3">Forms and input fields</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-mono font-semibold">Enter</td>
+                                    <td class="p-3">Confirm selection or submit</td>
+                                    <td class="p-3">Dialogs and dropdowns</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-mono font-semibold">Escape</td>
+                                    <td class="p-3">Close dialog or cancel</td>
+                                    <td class="p-3">Modals and popups</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 class="text-xl font-bold mb-6 text-[#0078d4] flex items-center gap-2">
+                        <i class="fas fa-magic"></i>
+                        Efficiency Tips
+                    </h3>
+                    <div class="grid md:grid-cols-2 gap-6 mb-12">
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                <i class="fas fa-copy text-[#0078d4]"></i>
+                                Use "Copy From" in Monthly Defaults
+                            </h5>
+                            <p class="text-xs text-[#616161]">Don't recreate schedules from scratch each month. Copy the previous month's configuration and adjust only what changed. Saves hours of work.</p>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                <i class="fas fa-filter text-[#0078d4]"></i>
+                                Filter by Active Only
+                            </h5>
+                            <p class="text-xs text-[#616161]">In the People view, toggle "Active only" to hide former employees and keep your roster clean. Focus only on current staff.</p>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                <i class="fas fa-user-circle text-[#0078d4]"></i>
+                                Click Person Names
+                            </h5>
+                            <p class="text-xs text-[#616161]">Throughout the app, person names are clickable. Click to open their profile modal for quick edits to availability, email, or qualifications.</p>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                <i class="fas fa-tasks text-[#0078d4]"></i>
+                                Use Bulk Edit Qualifications
+                            </h5>
+                            <p class="text-xs text-[#616161]">Training multiple people on the same role? Select them all in the People tab and use "Bulk Edit Qualifications" to assign training status in one action.</p>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                <i class="fas fa-calendar-alt text-[#0078d4]"></i>
+                                Set Availability Overrides
+                            </h5>
+                            <p class="text-xs text-[#616161]">Someone has a one-day schedule change? Use Availability Overrides in the Admin tab rather than changing their default weekday availability.</p>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                <i class="fas fa-chart-bar text-[#0078d4]"></i>
+                                Coverage Dashboard
+                            </h5>
+                            <p class="text-xs text-[#616161]">In Monthly Defaults, check the Coverage Dashboard before applying defaults. It highlights under-staffed roles so you can fix them before pushing to the board.</p>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                <i class="fas fa-eye text-[#0078d4]"></i>
+                                Open in Read-Only Mode
+                            </h5>
+                            <p class="text-xs text-[#616161]">If you just need to view schedules without editing, open the database in read-only mode. This avoids accidentally acquiring the edit lock when someone else is working.</p>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2 flex items-center gap-2">
+                                <i class="fas fa-save text-[#0078d4]"></i>
+                                Save Frequently
+                            </h5>
+                            <p class="text-xs text-[#616161]">Use Ctrl+S often while working. Changes are held in memory until you save. Don't risk losing work from a browser crash or accidental close.</p>
+                        </div>
+                    </div>
+
+                    <h3 class="text-xl font-bold mb-6 text-[#0078d4] flex items-center gap-2">
+                        <i class="fas fa-desktop"></i>
+                        Interface Tips
+                    </h3>
+                    <div class="space-y-4 mb-12">
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2">Side Rail Navigation</h5>
+                            <p class="text-xs text-[#616161] mb-3">The left side rail provides quick access to all major views:</p>
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <ul class="text-xs text-[#616161] space-y-1">
+                                    <li>• <strong>Daily Run:</strong> Day-by-day assignments</li>
+                                    <li>• <strong>People:</strong> Staff roster management</li>
+                                    <li>• <strong>Training:</strong> Qualification matrix</li>
+                                    <li>• <strong>Needs:</strong> Baseline staffing requirements</li>
+                                </ul>
+                                <ul class="text-xs text-[#616161] space-y-1">
+                                    <li>• <strong>Monthly:</strong> Default templates</li>
+                                    <li>• <strong>History:</strong> Historical view/edit</li>
+                                    <li>• <strong>Export:</strong> Teams Shifts export</li>
+                                    <li>• <strong>Admin:</strong> System configuration</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2">Theme Toggle</h5>
+                            <p class="text-xs text-[#616161]">Look for the theme switcher (if available) to toggle between light and dark modes. Reduces eye strain during extended sessions.</p>
+                        </div>
+
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2">Help Button</h5>
+                            <p class="text-xs text-[#616161]">The <strong>Help</strong> button (question mark icon) in the top bar opens this documentation in a new tab. Keep it open for reference while working.</p>
+                        </div>
+
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-2">Status Bar</h5>
+                            <p class="text-xs text-[#616161]">The status message at the top right shows current database state, save status, and lock information. Watch for "Saved" confirmations after Ctrl+S.</p>
+                        </div>
+                    </div>
+
+                    <div class="message-bar message-bar-warning">
+                        <i class="fas fa-lightbulb mt-1"></i>
+                        <div>
+                            <p class="text-xs font-semibold mb-1">Pro Tip: Create Backup Workflows</p>
+                            <p class="text-xs">Establish a routine of saving backup copies (Save As) before major operations like applying monthly defaults, importing time-off, or restructuring roles. Name them with dates (e.g., "schedule_2025-02-01_backup.db") for easy recovery.</p>
                         </div>
                     </div>
                 </section>
