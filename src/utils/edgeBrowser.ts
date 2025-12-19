@@ -20,16 +20,23 @@ export function isEdgeBrowser(): boolean {
 }
 
 /**
+ * Detects if the current platform is macOS
+ * @returns true if running on macOS, false otherwise
+ */
+function isMacOS(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return false;
+  }
+  
+  return /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+/**
  * Gets the appropriate keyboard shortcut for opening Copilot based on the OS
  * @returns The keyboard shortcut string
  */
 export function getCopilotShortcut(): string {
-  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
-    return 'Ctrl + Shift + .';
-  }
-  
-  const isMac = /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
-  return isMac ? 'Cmd + Shift + .' : 'Ctrl + Shift + .';
+  return isMacOS() ? 'Cmd + Shift + .' : 'Ctrl + Shift + .';
 }
 
 /**
@@ -37,10 +44,5 @@ export function getCopilotShortcut(): string {
  * @returns The formatted keyboard shortcut string
  */
 export function getFormattedCopilotShortcut(): string {
-  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
-    return 'Ctrl + Shift + .';
-  }
-  
-  const isMac = /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
-  return isMac ? '⌘ + Shift + .' : 'Ctrl + Shift + .';
+  return isMacOS() ? '⌘ + Shift + .' : 'Ctrl + Shift + .';
 }

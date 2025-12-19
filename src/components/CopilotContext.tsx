@@ -1,4 +1,19 @@
 import * as React from "react";
+import { makeStyles } from "@fluentui/react-components";
+
+const useStyles = makeStyles({
+  visuallyHidden: {
+    position: "absolute",
+    width: "1px",
+    height: "1px",
+    padding: "0",
+    margin: "-1px",
+    overflow: "hidden",
+    clip: "rect(0, 0, 0, 0)",
+    whiteSpace: "nowrap",
+    border: "0",
+  },
+});
 
 interface CopilotContextProps {
   activeTab?: string;
@@ -23,17 +38,12 @@ export default function CopilotContext({
   assignmentsCount = 0,
   statusMessage = "",
 }: CopilotContextProps) {
+  const styles = useStyles();
+  
   return (
     <div
-      className="copilot-context"
+      className={styles.visuallyHidden}
       aria-hidden="true"
-      style={{
-        position: "absolute",
-        left: "-9999px",
-        width: "1px",
-        height: "1px",
-        overflow: "hidden",
-      }}
     >
       {/* Dynamic Application State */}
       <div id="app-state">

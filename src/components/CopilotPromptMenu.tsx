@@ -83,7 +83,6 @@ export default function CopilotPromptMenu() {
       setShowToast(true);
       setTimeout(() => setShowToast(false), 4000);
     } catch (err) {
-      console.error("Failed to copy prompt to clipboard:", err);
       // Fallback: show alert if clipboard API fails
       alert(`Prompt ready:\n\n${prompt}\n\nPress ${shortcut} to open Copilot and paste.`);
     }
