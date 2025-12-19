@@ -48,53 +48,61 @@ const useStyles = makeStyles({
  * Copilot Logo SVG Component
  * Renders the Microsoft Copilot colorful sparkle icon inline
  */
-const CopilotLogo = ({ size = 20 }: { size?: number }) => (
-  <svg 
-    width={size} 
-    height={size} 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    xmlns="http://www.w3.org/2000/svg"
-    style={{ display: "inline-block", verticalAlign: "middle" }}
-  >
-    <defs>
-      <linearGradient id="copilot-gradient-1" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style={{ stopColor: "#4CC2FF", stopOpacity: 1 }} />
-        <stop offset="100%" style={{ stopColor: "#0078D4", stopOpacity: 1 }} />
-      </linearGradient>
-      <linearGradient id="copilot-gradient-2" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style={{ stopColor: "#B4A0FF", stopOpacity: 1 }} />
-        <stop offset="100%" style={{ stopColor: "#7B5CFA", stopOpacity: 1 }} />
-      </linearGradient>
-      <linearGradient id="copilot-gradient-3" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style={{ stopColor: "#FF6CE8", stopOpacity: 1 }} />
-        <stop offset="100%" style={{ stopColor: "#C239B3", stopOpacity: 1 }} />
-      </linearGradient>
-      <linearGradient id="copilot-gradient-4" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style={{ stopColor: "#FFB657", stopOpacity: 1 }} />
-        <stop offset="100%" style={{ stopColor: "#FF8C00", stopOpacity: 1 }} />
-      </linearGradient>
-    </defs>
-    {/* Center sparkle */}
-    <circle cx="12" cy="12" r="2" fill="url(#copilot-gradient-1)" />
-    {/* Top ray */}
-    <path d="M12 2 L13 8 L11 8 Z" fill="url(#copilot-gradient-2)" />
-    {/* Right ray */}
-    <path d="M22 12 L16 13 L16 11 Z" fill="url(#copilot-gradient-3)" />
-    {/* Bottom ray */}
-    <path d="M12 22 L11 16 L13 16 Z" fill="url(#copilot-gradient-4)" />
-    {/* Left ray */}
-    <path d="M2 12 L8 11 L8 13 Z" fill="url(#copilot-gradient-1)" />
-    {/* Top-right diagonal */}
-    <path d="M18 6 L13.5 10.5 L14.5 11.5 Z" fill="url(#copilot-gradient-2)" />
-    {/* Bottom-right diagonal */}
-    <path d="M18 18 L13.5 13.5 L14.5 12.5 Z" fill="url(#copilot-gradient-3)" />
-    {/* Bottom-left diagonal */}
-    <path d="M6 18 L10.5 13.5 L9.5 12.5 Z" fill="url(#copilot-gradient-4)" />
-    {/* Top-left diagonal */}
-    <path d="M6 6 L10.5 10.5 L9.5 11.5 Z" fill="url(#copilot-gradient-1)" />
-  </svg>
-);
+const CopilotLogo = ({ size = 20 }: { size?: number }) => {
+  // Generate unique IDs to avoid gradient conflicts when multiple logos are rendered
+  const uniqueId = React.useId();
+  const g1 = `copilot-gradient-1-${uniqueId}`;
+  const g2 = `copilot-gradient-2-${uniqueId}`;
+  const g3 = `copilot-gradient-3-${uniqueId}`;
+  const g4 = `copilot-gradient-4-${uniqueId}`;
+  
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <linearGradient id={g1} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style={{ stopColor: "#4CC2FF", stopOpacity: 1 }} />
+          <stop offset="100%" style={{ stopColor: "#0078D4", stopOpacity: 1 }} />
+        </linearGradient>
+        <linearGradient id={g2} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style={{ stopColor: "#B4A0FF", stopOpacity: 1 }} />
+          <stop offset="100%" style={{ stopColor: "#7B5CFA", stopOpacity: 1 }} />
+        </linearGradient>
+        <linearGradient id={g3} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style={{ stopColor: "#FF6CE8", stopOpacity: 1 }} />
+          <stop offset="100%" style={{ stopColor: "#C239B3", stopOpacity: 1 }} />
+        </linearGradient>
+        <linearGradient id={g4} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style={{ stopColor: "#FFB657", stopOpacity: 1 }} />
+          <stop offset="100%" style={{ stopColor: "#FF8C00", stopOpacity: 1 }} />
+        </linearGradient>
+      </defs>
+      {/* Center sparkle */}
+      <circle cx="12" cy="12" r="2" fill={`url(#${g1})`} />
+      {/* Top ray */}
+      <path d="M12 2 L13 8 L11 8 Z" fill={`url(#${g2})`} />
+      {/* Right ray */}
+      <path d="M22 12 L16 13 L16 11 Z" fill={`url(#${g3})`} />
+      {/* Bottom ray */}
+      <path d="M12 22 L11 16 L13 16 Z" fill={`url(#${g4})`} />
+      {/* Left ray */}
+      <path d="M2 12 L8 11 L8 13 Z" fill={`url(#${g1})`} />
+      {/* Top-right diagonal */}
+      <path d="M18 6 L13.5 10.5 L14.5 11.5 Z" fill={`url(#${g2})`} />
+      {/* Bottom-right diagonal */}
+      <path d="M18 18 L13.5 13.5 L14.5 12.5 Z" fill={`url(#${g3})`} />
+      {/* Bottom-left diagonal */}
+      <path d="M6 18 L10.5 13.5 L9.5 12.5 Z" fill={`url(#${g4})`} />
+      {/* Top-left diagonal */}
+      <path d="M6 6 L10.5 10.5 L9.5 11.5 Z" fill={`url(#${g1})`} />
+    </svg>
+  );
+};
 
 /**
  * CopilotHelper Component
