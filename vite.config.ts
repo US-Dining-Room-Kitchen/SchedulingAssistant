@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  base: "./", // GitHub Pages base path
+  base: process.env.VITE_BASE ?? "./", // GitHub Pages base path
   optimizeDeps: {
     include: ["@fluentui/react-components", "@fluentui/react-icons"],
     exclude: ["sql.js"], // sql.js ships ESM/wasm; avoid prebundling issues
