@@ -37,7 +37,7 @@ export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, c
   const s = useStyles();
   
   const handleHelpClick = () => {
-    window.open(`${import.meta.env.BASE_URL}documentation.html`, '_blank', 'noopener=yes,noreferrer=yes');
+    window.open(`${import.meta.env.BASE_URL}documentation.html`, '_blank', 'noopener,noreferrer');
   };
   
   return (
