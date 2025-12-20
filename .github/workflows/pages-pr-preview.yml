@@ -30,7 +30,7 @@ jobs:
         run: |
           REPO="${{ github.event.repository.name }}"
           PR="${{ github.event.pull_request.number }}"
-          npm run build -- --base="/${REPO}/pr/${PR}/"
+          npm run build -- --base="/${REPO}/pr/pr-${PR}/"
 
       - name: Deploy PR Preview
         uses: rossjrw/pr-preview-action@v1
