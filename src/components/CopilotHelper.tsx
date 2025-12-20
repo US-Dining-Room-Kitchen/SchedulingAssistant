@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useState } from "react";
+import { useState, useId } from "react";
 import { 
   Button, 
   Popover, 
@@ -50,7 +50,7 @@ const useStyles = makeStyles({
  */
 const CopilotLogo = ({ size = 20 }: { size?: number }) => {
   // Generate unique IDs to avoid gradient conflicts when multiple logos are rendered
-  const uniqueId = React.useId();
+  const uniqueId = useId();
   const g1 = `copilot-gradient-1-${uniqueId}`;
   const g2 = `copilot-gradient-2-${uniqueId}`;
   const g3 = `copilot-gradient-3-${uniqueId}`;
