@@ -1,20 +1,19 @@
 import { useEffect, useState, useMemo } from "react";
 import {
-  Dropdown,
-  Option,
+  Button,
   makeStyles,
   tokens,
-  Label,
-  Tab,
-  TabList,
   Card,
   CardHeader,
   Body1,
   Caption1,
   Subtitle2,
   Badge,
+  ProgressBar,
+  Checkbox,
+  Title3,
 } from "@fluentui/react-components";
-import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./filters/PeopleFilters";
+import { CheckmarkCircle20Regular, Circle20Regular, Warning20Regular } from "@fluentui/react-icons";
 
 interface TrainingProps {
   people: any[];
@@ -24,60 +23,11 @@ interface TrainingProps {
   run: (sql: string, params?: any[]) => void;
 }
 
-const qualityDefs = [
-  { key: "work_capabilities", label: "Work Capabilities & Skills" },
-  { key: "work_habits", label: "Work Habits" },
-  { key: "spirituality", label: "Spirituality" },
-  { key: "dealings_with_others", label: "Dealings with Others" },
-  { key: "health", label: "Health" },
-  { key: "dress_grooming", label: "Dress & Grooming" },
-  { key: "attitude_safety", label: "Attitude Toward Safety" },
-  { key: "response_counsel", label: "Response to Counsel" },
-  { key: "training_ability", label: "Training Ability" },
-  { key: "potential_future_use", label: "Potential/Future Use" },
-];
+const REQUIRED_AREAS = ["Dining Room", "Machine Room", "Veggie Room", "Receiving"] as const;
+type RequiredArea = typeof REQUIRED_AREAS[number];
 
-type RatingValue = 1 | 2 | 3 | 4 | 5;
-
-type SkillStat = {
-  skill: { id: number; code: string; name: string; active: number; group_id: number | null };
-  total: number;
-  rated: number;
-  sum: number;
-  avg: number | null;
-  distribution: Record<RatingValue, number>;
-  low: number;
-  missing: number;
-  coverage: number;
-  needScore: number;
-};
-
-type QualityStat = {
-  key: string;
-  label: string;
-  total: number;
-  rated: number;
-  sum: number;
-  avg: number | null;
-  distribution: Record<RatingValue, number>;
-  low: number;
-  missing: number;
-  needScore: number;
-};
-
-const ratingPalette: Record<RatingValue, string> = {
-  1: tokens.colorPaletteRedBackground3,
-  2: tokens.colorPaletteDarkOrangeBackground2,
-  3: tokens.colorPaletteMarigoldBackground2,
-  4: tokens.colorPaletteLightGreenBackground2,
-  5: tokens.colorPaletteGreenBackground2,
-};
-
-const viewTabs = [
-  { key: "dashboard", label: "Dashboard" },
-  { key: "skills", label: "Skill Matrix" },
-  { key: "qualities", label: "Qualities" },
-] as const;
+const SIX_MONTHS_MS = 6 * 30 * 24 * 60 * 60 * 1000; // Approximate 6 months
+const TWO_MONTHS_MS = 2 * 30 * 24 * 60 * 60 * 1000; // Approximate 2 months
 
 const useTrainingStyles = makeStyles({
   root: {
@@ -87,13 +37,6 @@ const useTrainingStyles = makeStyles({
     gap: tokens.spacingVerticalM,
   },
   header: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: tokens.spacingHorizontalM,
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  titleArea: {
     display: "flex",
     flexDirection: "column",
     gap: tokens.spacingVerticalXS,
@@ -106,967 +49,532 @@ const useTrainingStyles = makeStyles({
     color: tokens.colorNeutralForeground3,
     fontSize: tokens.fontSizeBase200,
   },
-  tabList: {
-    marginLeft: "auto",
-  },
-  filters: {
+  filterBar: {
     display: "flex",
     gap: tokens.spacingHorizontalS,
-    alignItems: "stretch",
-    flexWrap: "wrap",
-    width: "100%",
+    alignItems: "center",
+    paddingBottom: tokens.spacingVerticalS,
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
   },
-  groupCell: {
-    display: "grid",
-    gap: tokens.spacingHorizontalXS,
-    minWidth: "220px",
-  },
-  grow: { flex: 1, minWidth: "260px" },
-  tableWrap: {
-    border: `1px solid ${tokens.colorNeutralStroke2}`,
-    borderRadius: tokens.borderRadiusLarge,
-    overflow: "auto",
-    maxHeight: "60vh",
-    width: "100%",
-    boxShadow: tokens.shadow2,
-    backgroundColor: tokens.colorNeutralBackground1,
-  },
-  table: { width: "100%", borderCollapse: "separate", borderSpacing: 0 },
-  headerCell: {
-    padding: tokens.spacingHorizontalS,
-    textAlign: "center",
-    backgroundColor: tokens.colorNeutralBackground2,
-    position: "sticky",
-    top: 0,
-    zIndex: 1,
-  },
-  personCol: {
-    position: "sticky",
-    left: 0,
-    backgroundColor: tokens.colorNeutralBackground1,
-    textAlign: "left",
-    minWidth: "220px",
-    maxWidth: "260px",
-    width: "240px",
-    boxShadow: `1px 0 0 ${tokens.colorNeutralStroke2}`,
-  },
-  skillCol: { minWidth: "80px", width: "80px" },
-  cell: { padding: tokens.spacingHorizontalS, textAlign: "center" },
-  cellDropdown: { width: "60px" },
-  dashboard: {
-    display: "flex",
-    flexDirection: "column",
-    gap: tokens.spacingVerticalL,
-    paddingBottom: tokens.spacingVerticalL,
-  },
-  metricGrid: {
-    display: "grid",
-    gap: tokens.spacingHorizontalM,
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  },
-  metricCard: {
-    height: "100%",
-    backgroundColor: tokens.colorNeutralBackground2,
-  },
-  metricValue: {
-    fontSize: tokens.fontSizeHero700,
-    fontWeight: tokens.fontWeightSemibold,
-    color: tokens.colorNeutralForeground1,
-  },
-  metricCaption: {
-    color: tokens.colorNeutralForeground3,
-  },
-  sectionsGrid: {
-    display: "grid",
-    gap: tokens.spacingHorizontalM,
-    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-  },
-  section: {
+  alertsSection: {
     display: "flex",
     flexDirection: "column",
     gap: tokens.spacingVerticalM,
-    backgroundColor: tokens.colorNeutralBackground1,
-    borderRadius: tokens.borderRadiusLarge,
-    padding: tokens.spacingHorizontalM,
-    boxShadow: tokens.shadow2,
-    border: `1px solid ${tokens.colorNeutralStroke2}`,
-    minHeight: "220px",
   },
-  sectionHeader: {
+  alertsGrid: {
+    display: "grid",
+    gap: tokens.spacingHorizontalM,
+    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+  },
+  alertCard: {
+    padding: tokens.spacingHorizontalM,
+  },
+  traineesGrid: {
+    display: "grid",
+    gap: tokens.spacingHorizontalM,
+    gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))",
+  },
+  traineeCard: {
     display: "flex",
     flexDirection: "column",
-    gap: tokens.spacingVerticalXS,
+    gap: tokens.spacingVerticalM,
+    padding: tokens.spacingHorizontalM,
+    borderRadius: tokens.borderRadiusMedium,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    backgroundColor: tokens.colorNeutralBackground1,
   },
-  sectionDescription: {
+  traineeHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: tokens.spacingHorizontalS,
+  },
+  traineeName: {
+    fontWeight: tokens.fontWeightSemibold,
+    fontSize: tokens.fontSizeBase400,
+  },
+  traineeMeta: {
     color: tokens.colorNeutralForeground3,
+    fontSize: tokens.fontSizeBase200,
   },
-  focusItem: {
+  progressSection: {
     display: "flex",
     flexDirection: "column",
     gap: tokens.spacingVerticalS,
+  },
+  checklistItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalS,
     padding: `${tokens.spacingVerticalXS} 0`,
-    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
   },
-  focusItemLast: {
-    borderBottom: "none",
-    paddingBottom: 0,
+  checklistIcon: {
+    flexShrink: 0,
   },
-  focusHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: tokens.spacingHorizontalS,
-    flexWrap: "wrap",
+  checklistText: {
+    flex: 1,
   },
-  focusMeta: {
-    color: tokens.colorNeutralForeground3,
-    fontSize: tokens.fontSizeBase200,
-  },
-  bar: {
-    display: "flex",
-    width: "100%",
-    height: "12px",
-    borderRadius: tokens.borderRadiusMedium,
-    overflow: "hidden",
-    backgroundColor: tokens.colorNeutralBackground3,
-    boxShadow: `inset 0 0 0 1px ${tokens.colorNeutralStroke2}`,
-  },
-  barSegment: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: tokens.colorNeutralForegroundInverted,
-    fontSize: tokens.fontSizeBase100,
-    fontWeight: tokens.fontWeightSemibold,
-    lineHeight: "1",
-  },
-  barSegmentMuted: {
-    backgroundColor: tokens.colorNeutralBackground4,
-    color: tokens.colorNeutralForeground3,
-  },
-  focusFooter: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: tokens.spacingHorizontalS,
-  },
-  legend: {
-    display: "flex",
-    gap: tokens.spacingHorizontalS,
-    flexWrap: "wrap",
-    fontSize: tokens.fontSizeBase200,
-    color: tokens.colorNeutralForeground3,
-  },
-  legendDot: {
-    width: "8px",
-    height: "8px",
-    borderRadius: tokens.borderRadiusCircular,
-    display: "inline-block",
-  },
-  personCard: {
+  suggestionsSection: {
     display: "flex",
     flexDirection: "column",
-    gap: tokens.spacingVerticalXS,
+    gap: tokens.spacingVerticalS,
+    marginTop: tokens.spacingVerticalS,
     padding: tokens.spacingHorizontalM,
-    borderRadius: tokens.borderRadiusMedium,
     backgroundColor: tokens.colorNeutralBackground2,
-    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
   },
-  personName: {
-    fontWeight: tokens.fontWeightSemibold,
+  suggestionItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalS,
   },
-  personMeta: {
+  exportButton: {
+    marginLeft: "auto",
+  },
+  emptyState: {
+    padding: tokens.spacingVerticalXXL,
+    textAlign: "center",
     color: tokens.colorNeutralForeground3,
-    fontSize: tokens.fontSizeBase200,
   },
-  personBadgeRow: {
+  statsRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    flexWrap: "wrap",
-    gap: tokens.spacingHorizontalS,
-  },
-  personGrid: {
-    display: "grid",
-    gap: tokens.spacingHorizontalM,
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  },
-  personColumnTitle: {
-    fontWeight: tokens.fontWeightSemibold,
-    color: tokens.colorNeutralForeground2,
-  },
-  emptyState: {
-    color: tokens.colorNeutralForeground3,
-    fontSize: tokens.fontSizeBase200,
-    padding: tokens.spacingHorizontalM,
+    marginTop: tokens.spacingVerticalXS,
   },
 });
 
-export default function Training({
-  people,
-  roles,
-  groups,
-  all,
-  run,
-}: TrainingProps) {
-  const [view, setView] = useState<"dashboard" | "skills" | "qualities">("dashboard");
-  // ratings: person_id -> skill_id -> rating
-  const [ratings, setRatings] = useState<Record<number, Record<number, number>>>({});
-  const [skills, setSkills] = useState<Array<{ id:number; code:string; name:string; active:number; group_id:number|null }>>([]);
-  const [qualities, setQualities] = useState<Record<number, Record<string, number>>>({});
-  const [groupId, setGroupId] = useState<number | "">("");
-  const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters({ activeOnly: true }));
-  const groupLabel = useMemo(() => {
-    if (groupId === "") return "All Groups";
-    const match = groups.find((g: any) => g.id === Number(groupId));
-    return match ? match.name : "";
-  }, [groupId, groups]);
+type TraineeData = {
+  person: any;
+  startDate: Date;
+  endDate: Date | null;
+  weeksRemaining: number;
+  daysRemaining: number;
+  isInTraining: boolean;
+  completedAreas: Set<RequiredArea>;
+  areasProgress: Map<RequiredArea, { lastMonth: string | null; completed: boolean }>;
+  completionPercentage: number;
+  needsAttention: boolean;
+  alertLevel: "danger" | "warning" | "info" | null;
+  lastRotationDate: Date | null;
+};
 
-  // Load skill catalog and person_skill ratings
-  useEffect(() => {
-    try {
-  const skillRows = all(`SELECT id, code, name, active, group_id FROM skill WHERE active=1 ORDER BY name`);
-  setSkills(skillRows.map((r:any)=>({ id:r.id, code:String(r.code), name:String(r.name), active:Number(r.active), group_id: r.group_id ?? null })));
-      const rows = all(`SELECT person_id, skill_id, rating FROM person_skill`);
-      const map: Record<number, Record<number, number>> = {};
-      for (const r of rows) {
-        if (!map[r.person_id]) map[r.person_id] = {};
-        map[r.person_id][r.skill_id] = r.rating;
-      }
-      setRatings(map);
-    } catch {
-      setSkills([]);
-      setRatings({});
-    }
-  }, [people, all]);
-
-  useEffect(() => {
-    try {
-      const rows = all(`SELECT * FROM person_quality`);
-      const map: Record<number, Record<string, number>> = {};
-      for (const r of rows) {
-        const { person_id, ...rest } = r;
-        map[person_id] = rest;
-      }
-      setQualities(map);
-    } catch {
-      setQualities({});
-    }
-  }, [people, all]);
-
-  function setRating(personId: number, skillId: number, rating: number | null) {
-    if (rating === null) {
-      run(`DELETE FROM person_skill WHERE person_id=? AND skill_id=?`, [personId, skillId]);
-      setRatings((prev) => {
-        const next = { ...prev };
-        if (next[personId]) delete next[personId][skillId];
-        return { ...next };
-      });
-    } else {
-      run(
-        `INSERT INTO person_skill (person_id, skill_id, rating) VALUES (?,?,?)
-         ON CONFLICT(person_id, skill_id) DO UPDATE SET rating=excluded.rating`,
-        [personId, skillId, rating]
-      );
-      setRatings((prev) => {
-        const next = { ...prev };
-        if (!next[personId]) next[personId] = {};
-        next[personId][skillId] = rating;
-        return { ...next };
-      });
-    }
-  }
-
-  function setQuality(
-    personId: number,
-    key: string,
-    rating: number | null,
-  ) {
-    if (rating === null) {
-      run(`UPDATE person_quality SET ${key}=NULL WHERE person_id=?`, [
-        personId,
-      ]);
-      setQualities((prev) => {
-        const nextPerson: Record<string, number> = { ...(prev[personId] || {}) };
-        delete nextPerson[key];
-        return { ...prev, [personId]: nextPerson };
-      });
-    } else {
-      run(
-        `INSERT INTO person_quality (person_id, ${key}) VALUES (?, ?)
-         ON CONFLICT(person_id) DO UPDATE SET ${key}=excluded.${key}`,
-        [personId, rating],
-      );
-      setQualities((prev) => ({
-        ...prev,
-        [personId]: { ...(prev[personId] || {}), [key]: rating },
-      }));
-    }
-  }
-
+export default function Training({ people, roles, groups, all, run }: TrainingProps) {
   const s = useTrainingStyles();
+  const [showInactiveTrainees, setShowInactiveTrainees] = useState(false);
+  const [trainees, setTrainees] = useState<TraineeData[]>([]);
 
-  const filteredPeople = useMemo(() => filterPeopleList(people, filters), [people, filters]);
-  const filteredRoles = roles.filter((r: any) => !groupId || r.group_id === groupId);
-  void filteredRoles; // Roles used only in 'qualities' view for now
-  const visibleSkills = useMemo(() => {
-    if (!groupId) return skills;
-    const gid = Number(groupId);
-    return skills.filter(s => s.group_id == null || s.group_id === gid);
-  }, [skills, groupId]);
+  // Calculate trainee data
+  useEffect(() => {
+    const now = new Date();
+    const traineeData: TraineeData[] = [];
 
-  const avgFormatter = useMemo(
-    () => new Intl.NumberFormat(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
-    [],
-  );
-  const percentFormatter = useMemo(
-    () => new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }),
-    [],
-  );
+    for (const person of people) {
+      if (!person.start_date) continue;
 
-  const skillStats = useMemo<SkillStat[]>(() => {
-    return visibleSkills.map((sk) => {
-      const distribution: Record<RatingValue, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-      let rated = 0;
-      let sum = 0;
-      for (const person of filteredPeople) {
-        const rating = ratings[person.id]?.[sk.id];
-        if (rating) {
-          rated += 1;
-          sum += rating;
-          if (rating >= 1 && rating <= 5) {
-            distribution[rating as RatingValue] += 1;
+      const startDate = new Date(person.start_date);
+      const endDate = person.end_date ? new Date(person.end_date) : null;
+      
+      // Calculate if person is in first 6 months
+      const sixMonthsAfterStart = new Date(startDate.getTime() + SIX_MONTHS_MS);
+      const isInTraining = now < sixMonthsAfterStart && (!endDate || now < endDate);
+      
+      if (!isInTraining && !showInactiveTrainees) continue;
+
+      const timeRemaining = sixMonthsAfterStart.getTime() - now.getTime();
+      const daysRemaining = Math.max(0, Math.ceil(timeRemaining / (24 * 60 * 60 * 1000)));
+      const weeksRemaining = Math.max(0, Math.ceil(timeRemaining / (7 * 24 * 60 * 60 * 1000)));
+
+      // Get all monthly defaults for this person to determine area exposure
+      const defaults = all(
+        `SELECT md.month, md.segment, r.group_id, g.name as group_name
+         FROM monthly_default md
+         JOIN role r ON r.id = md.role_id
+         JOIN grp g ON g.id = r.group_id
+         WHERE md.person_id = ?
+         ORDER BY md.month DESC`,
+        [person.id]
+      );
+
+      // Also check assignment history
+      const assignments = all(
+        `SELECT DISTINCT strftime('%Y-%m', a.date) as month, r.group_id, g.name as group_name
+         FROM assignment a
+         JOIN role r ON r.id = a.role_id
+         JOIN grp g ON g.id = r.group_id
+         WHERE a.person_id = ?
+         ORDER BY a.date DESC`,
+        [person.id]
+      );
+
+      const completedAreas = new Set<RequiredArea>();
+      const areasProgress = new Map<RequiredArea, { lastMonth: string | null; completed: boolean }>();
+
+      // Initialize all areas
+      for (const area of REQUIRED_AREAS) {
+        areasProgress.set(area, { lastMonth: null, completed: false });
+      }
+
+      // Check defaults
+      for (const def of defaults) {
+        const groupName = def.group_name as string;
+        if (REQUIRED_AREAS.includes(groupName as RequiredArea)) {
+          const area = groupName as RequiredArea;
+          const current = areasProgress.get(area);
+          if (!current?.lastMonth || def.month > current.lastMonth) {
+            areasProgress.set(area, { lastMonth: def.month, completed: true });
+          }
+          completedAreas.add(area);
+        }
+      }
+
+      // Check assignments
+      for (const assign of assignments) {
+        const groupName = assign.group_name as string;
+        if (REQUIRED_AREAS.includes(groupName as RequiredArea)) {
+          const area = groupName as RequiredArea;
+          const current = areasProgress.get(area);
+          if (!current?.lastMonth || assign.month > current.lastMonth) {
+            areasProgress.set(area, { lastMonth: assign.month, completed: true });
+          }
+          completedAreas.add(area);
+        }
+      }
+
+      // Get last rotation date
+      let lastRotationDate: Date | null = null;
+      if (defaults.length > 0) {
+        const lastMonth = defaults[0].month;
+        lastRotationDate = new Date(lastMonth + "-01");
+      }
+      if (assignments.length > 0) {
+        const assignDate = new Date(assignments[0].month + "-01");
+        if (!lastRotationDate || assignDate > lastRotationDate) {
+          lastRotationDate = assignDate;
+        }
+      }
+
+      const completionPercentage = (completedAreas.size / REQUIRED_AREAS.length) * 100;
+      
+      // Determine alert level
+      let alertLevel: "danger" | "warning" | "info" | null = null;
+      let needsAttention = false;
+
+      if (isInTraining) {
+        // Critical: 1 month remaining and incomplete areas
+        if (weeksRemaining <= 4 && completedAreas.size < REQUIRED_AREAS.length) {
+          alertLevel = "danger";
+          needsAttention = true;
+        }
+        // Warning: Approaching 6 months and haven't completed all areas
+        else if (weeksRemaining <= 8 && completedAreas.size < REQUIRED_AREAS.length) {
+          alertLevel = "warning";
+          needsAttention = true;
+        }
+        // Warning: Haven't rotated in 2+ months
+        else if (lastRotationDate) {
+          const timeSinceRotation = now.getTime() - lastRotationDate.getTime();
+          if (timeSinceRotation >= TWO_MONTHS_MS) {
+            alertLevel = "warning";
+            needsAttention = true;
           }
         }
       }
-      const total = filteredPeople.length;
-      const missing = total - rated;
-      const avg = rated ? sum / rated : null;
-      const low = distribution[1] + distribution[2];
-      const coverage = total ? rated / total : 0;
-      const needScore = total ? (low + missing * 0.5) / total : 0;
-      return {
-        skill: sk,
-        total,
-        rated,
-        sum,
-        avg,
-        distribution,
-        low,
-        missing,
-        coverage,
-        needScore,
-      };
-    });
-  }, [visibleSkills, filteredPeople, ratings]);
 
-  const qualityStats = useMemo<QualityStat[]>(() => {
-    return qualityDefs.map((q) => {
-      const distribution: Record<RatingValue, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-      let rated = 0;
-      let sum = 0;
-      for (const person of filteredPeople) {
-        const rating = qualities[person.id]?.[q.key];
-        if (rating) {
-          rated += 1;
-          sum += rating;
-          if (rating >= 1 && rating <= 5) {
-            distribution[rating as RatingValue] += 1;
-          }
-        }
+      traineeData.push({
+        person,
+        startDate,
+        endDate,
+        weeksRemaining,
+        daysRemaining,
+        isInTraining,
+        completedAreas,
+        areasProgress,
+        completionPercentage,
+        needsAttention,
+        alertLevel,
+        lastRotationDate,
+      });
+    }
+
+    // Sort: those needing attention first, then by weeks remaining
+    traineeData.sort((a, b) => {
+      if (a.needsAttention && !b.needsAttention) return -1;
+      if (!a.needsAttention && b.needsAttention) return 1;
+      if (a.alertLevel === "danger" && b.alertLevel !== "danger") return -1;
+      if (a.alertLevel !== "danger" && b.alertLevel === "danger") return 1;
+      return a.weeksRemaining - b.weeksRemaining;
+    });
+
+    setTrainees(traineeData);
+  }, [people, all, showInactiveTrainees]);
+
+  // Get trainees needing urgent attention
+  const urgentTrainees = useMemo(
+    () => trainees.filter((t) => t.isInTraining && t.alertLevel === "danger"),
+    [trainees]
+  );
+
+  const warningTrainees = useMemo(
+    () => trainees.filter((t) => t.isInTraining && t.alertLevel === "warning"),
+    [trainees]
+  );
+
+  const activeTrainees = useMemo(
+    () => trainees.filter((t) => t.isInTraining),
+    [trainees]
+  );
+
+  // Export function
+  const exportReport = () => {
+    const lines: string[] = [];
+    lines.push("<!DOCTYPE html>");
+    lines.push("<html><head>");
+    lines.push("<title>Training Progress Report</title>");
+    lines.push("<style>");
+    lines.push("body { font-family: Arial, sans-serif; padding: 20px; }");
+    lines.push("table { border-collapse: collapse; width: 100%; margin-top: 20px; }");
+    lines.push("th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }");
+    lines.push("th { background-color: #f2f2f2; }");
+    lines.push(".complete { color: green; }");
+    lines.push(".incomplete { color: red; }");
+    lines.push("</style>");
+    lines.push("</head><body>");
+    lines.push("<h1>Training Progress Report</h1>");
+    lines.push(`<p>Generated on ${new Date().toLocaleDateString()}</p>`);
+    lines.push(`<p>Total Trainees: ${activeTrainees.length}</p>`);
+    
+    lines.push("<table>");
+    lines.push("<thead><tr>");
+    lines.push("<th>Name</th>");
+    lines.push("<th>Start Date</th>");
+    lines.push("<th>Weeks Remaining</th>");
+    lines.push("<th>Completion %</th>");
+    lines.push("<th>Dining Room</th>");
+    lines.push("<th>Machine Room</th>");
+    lines.push("<th>Veggie Room</th>");
+    lines.push("<th>Receiving</th>");
+    lines.push("</tr></thead><tbody>");
+
+    for (const trainee of activeTrainees) {
+      lines.push("<tr>");
+      lines.push(`<td>${trainee.person.last_name}, ${trainee.person.first_name}</td>`);
+      lines.push(`<td>${trainee.startDate.toLocaleDateString()}</td>`);
+      lines.push(`<td>${trainee.weeksRemaining}</td>`);
+      lines.push(`<td>${Math.round(trainee.completionPercentage)}%</td>`);
+      
+      for (const area of REQUIRED_AREAS) {
+        const completed = trainee.completedAreas.has(area);
+        const className = completed ? "complete" : "incomplete";
+        const text = completed ? "✓" : "✗";
+        lines.push(`<td class="${className}">${text}</td>`);
       }
-      const total = filteredPeople.length;
-      const missing = total - rated;
-      const avg = rated ? sum / rated : null;
-      const low = distribution[1] + distribution[2];
-      const needScore = total ? (low + missing * 0.5) / total : 0;
-      return {
-        key: q.key,
-        label: q.label,
-        total,
-        rated,
-        sum,
-        avg,
-        distribution,
-        low,
-        missing,
-        needScore,
-      };
-    });
-  }, [filteredPeople, qualities]);
+      lines.push("</tr>");
+    }
+    
+    lines.push("</tbody></table>");
+    lines.push("</body></html>");
 
-  const totalPossibleSkillRatings = filteredPeople.length * visibleSkills.length;
-  const totalSkillRatings = skillStats.reduce((acc, stat) => acc + stat.rated, 0);
-  const totalSkillSum = skillStats.reduce((acc, stat) => acc + stat.sum, 0);
-  const overallSkillAverage = totalSkillRatings ? totalSkillSum / totalSkillRatings : null;
-  const skillCoverage = totalPossibleSkillRatings ? totalSkillRatings / totalPossibleSkillRatings : 0;
-  const missingSkillRatings = Math.max(totalPossibleSkillRatings - totalSkillRatings, 0);
-  const lowSkillRatings = skillStats.reduce((acc, stat) => acc + stat.low, 0);
-
-  const totalQualityRatings = qualityStats.reduce((acc, stat) => acc + stat.rated, 0);
-  const totalQualitySum = qualityStats.reduce((acc, stat) => acc + stat.sum, 0);
-  const overallQualityAverage = totalQualityRatings ? totalQualitySum / totalQualityRatings : null;
-
-  const topSkillNeeds = useMemo(() => {
-    return [...skillStats]
-      .sort((a, b) => b.needScore - a.needScore)
-      .slice(0, 5);
-  }, [skillStats]);
-
-  const skillStrengths = useMemo(() => {
-    return [...skillStats]
-      .filter((stat) => stat.rated > 0)
-      .sort((a, b) => (b.avg ?? 0) - (a.avg ?? 0))
-      .slice(0, 5);
-  }, [skillStats]);
-
-  const qualityNeeds = useMemo(() => {
-    return [...qualityStats]
-      .sort((a, b) => b.needScore - a.needScore)
-      .slice(0, 4);
-  }, [qualityStats]);
-
-  const qualityStrengths = useMemo(() => {
-    return [...qualityStats]
-      .filter((stat) => stat.rated > 0)
-      .sort((a, b) => (b.avg ?? 0) - (a.avg ?? 0))
-      .slice(0, 4);
-  }, [qualityStats]);
-
-  const personSkillSummaries = useMemo(() => {
-    if (visibleSkills.length === 0) return [] as Array<{
-      person: any;
-      rated: number;
-      sum: number;
-      avg: number | null;
-      low: number;
-      missing: number;
-      focusScore: number;
-    }>;
-    return filteredPeople.map((person) => {
-      let rated = 0;
-      let sum = 0;
-      let low = 0;
-      let missing = 0;
-      for (const sk of visibleSkills) {
-        const rating = ratings[person.id]?.[sk.id];
-        if (rating) {
-          rated += 1;
-          sum += rating;
-          if (rating <= 2) low += 1;
-        } else {
-          missing += 1;
-        }
-      }
-      const avg = rated ? sum / rated : null;
-      const focusScore = visibleSkills.length
-        ? (low * 2 + missing) / visibleSkills.length
-        : 0;
-      return { person, rated, sum, avg, low, missing, focusScore };
-    });
-  }, [filteredPeople, visibleSkills, ratings]);
-
-  const peopleNeedingSupport = useMemo(() => {
-    return [...personSkillSummaries]
-      .filter((p) => p.focusScore > 0)
-      .sort((a, b) => b.focusScore - a.focusScore)
-      .slice(0, 3);
-  }, [personSkillSummaries]);
-
-  const peopleBrightSpots = useMemo(() => {
-    return [...personSkillSummaries]
-      .filter((p) => (p.avg ?? 0) > 0 && p.rated >= Math.max(1, Math.round(visibleSkills.length * 0.4)))
-      .sort((a, b) => (b.avg ?? 0) - (a.avg ?? 0))
-      .slice(0, 3);
-  }, [personSkillSummaries, visibleSkills.length]);
-
-  const formatAverage = (value: number | null) => (value == null ? "—" : avgFormatter.format(value));
-  const formatPercent = (value: number) =>
-    Number.isFinite(value) ? `${percentFormatter.format(value * 100)}%` : "—";
-
-  const getNeedBadge = (score: number) => {
-    if (score >= 0.6) return { color: "danger" as const, text: "High need" };
-    if (score >= 0.35) return { color: "warning" as const, text: "Emerging need" };
-    return { color: "success" as const, text: "On track" };
+    const html = lines.join("\n");
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `training-report-${new Date().toISOString().split("T")[0]}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
-  const getMomentumBadge = (avg: number | null, coverage: number) => {
-    if ((avg ?? 0) >= 4.2 && coverage >= 0.7) {
-      return { color: "success" as const, text: "Excelling" };
-    }
-    if ((avg ?? 0) >= 3.5 && coverage >= 0.5) {
-      return { color: "informative" as const, text: "Solid progress" };
-    }
-    return { color: "warning" as const, text: "Needs data" };
+  // Get suggested next area for a trainee
+  const getSuggestedArea = (trainee: TraineeData): RequiredArea | null => {
+    const incomplete = REQUIRED_AREAS.filter((area) => !trainee.completedAreas.has(area));
+    if (incomplete.length === 0) return null;
+    
+    // Prioritize based on weeks remaining
+    // If less time, suggest areas not yet started
+    return incomplete[0];
   };
-
-  const topSkillHighlight = topSkillNeeds.length ? topSkillNeeds[0] : null;
 
   return (
     <div className={s.root}>
       <div className={s.header}>
-        <div className={s.titleArea}>
-          <div className={s.title}>Training</div>
-          <div className={s.subtitle}>
-            Understand readiness, surface coaching needs, and celebrate strengths.
-          </div>
-        </div>
-        <TabList
-          selectedValue={view}
-          onTabSelect={(_, data) => setView(data.value as typeof view)}
-          className={s.tabList}
-        >
-          {viewTabs.map((tab) => (
-            <Tab key={tab.key} value={tab.key}>
-              {tab.label}
-            </Tab>
-          ))}
-        </TabList>
-      </div>
-      <div className={s.filters}>
-        <div className={s.groupCell}>
-          <Label>{view === "qualities" ? "Role group" : "Skill group"}</Label>
-          <Dropdown
-            selectedOptions={groupId === "" ? [""] : [String(groupId)]}
-            value={groupLabel}
-            onOptionSelect={(_, data) => {
-              const val = data.optionValue ? parseInt(String(data.optionValue)) : "";
-              setGroupId(val as any);
-            }}
-          >
-            <Option value="" text="All Groups">
-              All Groups
-            </Option>
-            {groups.map((g: any) => (
-              <Option key={g.id} value={String(g.id)} text={g.name}>
-                {g.name}
-              </Option>
-            ))}
-          </Dropdown>
-        </div>
-        <div className={s.grow}>
-          <PeopleFiltersBar state={filters} onChange={(next) => setFilters((s) => ({ ...s, ...next }))} />
+        <div className={s.title}>Training Dashboard</div>
+        <div className={s.subtitle}>
+          Track new members in their first six months and ensure exposure to all four key areas
         </div>
       </div>
-      {view === "dashboard" ? (
-        <div className={s.dashboard}>
-          <div className={s.metricGrid}>
-            <Card className={s.metricCard}>
-              <CardHeader
-                header={<span className={s.metricValue}>{String(filteredPeople.length)}</span>}
-                description={<Caption1 className={s.metricCaption}>People in view</Caption1>}
-              />
-              <Body1 className={s.metricCaption}>
-                {visibleSkills.length
-                  ? `${visibleSkills.length} skills selected`
-                  : "Add skills to begin tracking"}
-              </Body1>
-            </Card>
-            <Card className={s.metricCard}>
-              <CardHeader
-                header={<span className={s.metricValue}>{formatPercent(skillCoverage)}</span>}
-                description={<Caption1 className={s.metricCaption}>Skill coverage</Caption1>}
-              />
-              <Body1 className={s.metricCaption}>
-                Average rating {formatAverage(overallSkillAverage)}
-              </Body1>
-            </Card>
-            <Card className={s.metricCard}>
-              <CardHeader
-                header={<span className={s.metricValue}>{String(lowSkillRatings)}</span>}
-                description={<Caption1 className={s.metricCaption}>Low ratings (1-2)</Caption1>}
-              />
-              <Body1 className={s.metricCaption}>
-                {String(missingSkillRatings)} unrated opportunities
-              </Body1>
-            </Card>
-            <Card className={s.metricCard}>
-              <CardHeader
-                header={<span className={s.metricValue}>{formatAverage(overallQualityAverage)}</span>}
-                description={<Caption1 className={s.metricCaption}>Quality pulse</Caption1>}
-              />
-              <Body1 className={s.metricCaption}>
-                {topSkillHighlight
-                  ? `Focus: ${topSkillHighlight.skill.name}`
-                  : "Capture more feedback to unlock insights"}
-              </Body1>
-            </Card>
-          </div>
-          <div className={s.sectionsGrid}>
-            <section className={s.section}>
-              <div className={s.sectionHeader}>
-                <Subtitle2>Top training needs</Subtitle2>
-                <Caption1 className={s.sectionDescription}>
-                  Ordered by low ratings and missing skill coverage across the filtered team.
-                </Caption1>
-              </div>
-              {topSkillNeeds.length ? (
-                topSkillNeeds.map((stat, index) => {
-                  const badge = getNeedBadge(stat.needScore);
-                  const missingPct = stat.total ? (stat.missing / stat.total) * 100 : 0;
-                  return (
-                    <div
-                      key={stat.skill.id}
-                      className={`${s.focusItem}${index === topSkillNeeds.length - 1 ? ` ${s.focusItemLast}` : ""}`}
-                    >
-                      <div className={s.focusHeader}>
-                        <span>{stat.skill.name}</span>
-                        <span className={s.focusMeta}>
-                          {formatAverage(stat.avg)} avg • {formatPercent(stat.coverage)} coverage
-                        </span>
-                      </div>
-                      <div className={s.bar}>
-                        {( [5, 4, 3, 2, 1] as RatingValue[]).map((lvl) => {
-                          const count = stat.distribution[lvl];
-                          const pct = stat.total ? (count / stat.total) * 100 : 0;
-                          return (
-                            <div
-                              key={lvl}
-                              className={s.barSegment}
-                              style={{ width: `${pct}%`, backgroundColor: ratingPalette[lvl] }}
-                            >
-                              {pct >= 15 ? lvl : null}
-                            </div>
-                          );
-                        })}
-                        {stat.missing > 0 && (
-                          <div
-                            className={`${s.barSegment} ${s.barSegmentMuted}`}
-                            style={{ width: `${missingPct}%` }}
-                          >
-                            {missingPct >= 15 ? "NR" : null}
-                          </div>
-                        )}
-                      </div>
-                      <div className={s.focusFooter}>
-                        <Badge appearance="tint" color={badge.color}>{badge.text}</Badge>
-                        <span className={s.focusMeta}>
-                          {stat.low} low ratings • {stat.missing} unrated
-                        </span>
-                      </div>
+
+      <div className={s.filterBar}>
+        <Checkbox
+          label="Show completed training periods"
+          checked={showInactiveTrainees}
+          onChange={(_, data) => setShowInactiveTrainees(!!data.checked)}
+        />
+        <div style={{ flex: 1 }} />
+        <Button appearance="primary" onClick={exportReport} disabled={activeTrainees.length === 0}>
+          Export Report
+        </Button>
+      </div>
+
+      {/* Alerts Section */}
+      {(urgentTrainees.length > 0 || warningTrainees.length > 0) && (
+        <div className={s.alertsSection}>
+          <Subtitle2>Training Alerts</Subtitle2>
+          <div className={s.alertsGrid}>
+            {urgentTrainees.length > 0 && (
+              <Card className={s.alertCard}>
+                <CardHeader
+                  header={
+                    <Badge appearance="filled" color="danger">
+                      Urgent Attention Needed
+                    </Badge>
+                  }
+                  description={
+                    <Caption1>
+                      {urgentTrainees.length} trainee{urgentTrainees.length > 1 ? "s" : ""} with 1 month or less
+                      remaining and incomplete areas
+                    </Caption1>
+                  }
+                />
+                <Body1>
+                  {urgentTrainees.map((t) => (
+                    <div key={t.person.id}>
+                      {t.person.last_name}, {t.person.first_name} ({t.weeksRemaining} weeks left)
                     </div>
-                  );
-                })
-              ) : (
-                <div className={s.emptyState}>No skill ratings available for the selected filters.</div>
-              )}
-              {topSkillNeeds.length ? (
-                <div className={s.legend}>
-                  {( [5, 4, 3, 2, 1] as RatingValue[]).map((lvl) => (
-                    <span key={lvl}>
-                      <span className={s.legendDot} style={{ backgroundColor: ratingPalette[lvl] }} /> {lvl}
-                    </span>
                   ))}
-                  <span>
-                    <span className={s.legendDot} style={{ backgroundColor: tokens.colorNeutralBackground4 }} /> Unrated
-                  </span>
-                </div>
-              ) : null}
-            </section>
-            <section className={s.section}>
-              <div className={s.sectionHeader}>
-                <Subtitle2>Skill momentum</Subtitle2>
-                <Caption1 className={s.sectionDescription}>
-                  Celebrate where the team is trending strong and nearly ready to mentor.
-                </Caption1>
-              </div>
-              {skillStrengths.length ? (
-                skillStrengths.map((stat, index) => {
-                  const badge = getMomentumBadge(stat.avg, stat.coverage);
-                  const missingPct = stat.total ? (stat.missing / stat.total) * 100 : 0;
-                  return (
-                    <div
-                      key={stat.skill.id}
-                      className={`${s.focusItem}${index === skillStrengths.length - 1 ? ` ${s.focusItemLast}` : ""}`}
-                    >
-                      <div className={s.focusHeader}>
-                        <span>{stat.skill.name}</span>
-                        <span className={s.focusMeta}>
-                          {formatAverage(stat.avg)} avg • {formatPercent(stat.coverage)} coverage
-                        </span>
-                      </div>
-                      <div className={s.bar}>
-                        {( [5, 4, 3, 2, 1] as RatingValue[]).map((lvl) => {
-                          const count = stat.distribution[lvl];
-                          const pct = stat.total ? (count / stat.total) * 100 : 0;
-                          return (
-                            <div
-                              key={lvl}
-                              className={s.barSegment}
-                              style={{ width: `${pct}%`, backgroundColor: ratingPalette[lvl] }}
-                            />
-                          );
-                        })}
-                        {stat.missing > 0 && (
-                          <div
-                            className={`${s.barSegment} ${s.barSegmentMuted}`}
-                            style={{ width: `${missingPct}%` }}
-                          />
-                        )}
-                      </div>
-                      <div className={s.focusFooter}>
-                        <Badge appearance="tint" color={badge.color}>{badge.text}</Badge>
-                        <span className={s.focusMeta}>{stat.rated} ratings captured</span>
-                      </div>
+                </Body1>
+              </Card>
+            )}
+            
+            {warningTrainees.length > 0 && (
+              <Card className={s.alertCard}>
+                <CardHeader
+                  header={
+                    <Badge appearance="filled" color="warning">
+                      Needs Attention
+                    </Badge>
+                  }
+                  description={
+                    <Caption1>
+                      {warningTrainees.length} trainee{warningTrainees.length > 1 ? "s" : ""} approaching deadline or
+                      need rotation
+                    </Caption1>
+                  }
+                />
+                <Body1>
+                  {warningTrainees.slice(0, 5).map((t) => (
+                    <div key={t.person.id}>
+                      {t.person.last_name}, {t.person.first_name} ({t.weeksRemaining} weeks left)
                     </div>
-                  );
-                })
-              ) : (
-                <div className={s.emptyState}>Rate a few skills to reveal strengths.</div>
-              )}
-            </section>
-            <section className={s.section}>
-              <div className={s.sectionHeader}>
-                <Subtitle2>Quality snapshot</Subtitle2>
-                <Caption1 className={s.sectionDescription}>
-                  Track core ministry qualities to guide mentoring conversations.
-                </Caption1>
-              </div>
-              {qualityNeeds.length ? (
-                qualityNeeds.map((stat, index) => {
-                  const badge = getNeedBadge(stat.needScore);
-                  const missingPct = stat.total ? (stat.missing / stat.total) * 100 : 0;
-                  const coverage = stat.total ? stat.rated / stat.total : 0;
-                  return (
-                    <div
-                      key={stat.key}
-                      className={`${s.focusItem}${index === qualityNeeds.length - 1 ? ` ${s.focusItemLast}` : ""}`}
-                    >
-                      <div className={s.focusHeader}>
-                        <span>{stat.label}</span>
-                        <span className={s.focusMeta}>
-                          {formatAverage(stat.avg)} avg • {formatPercent(coverage)} coverage
-                        </span>
-                      </div>
-                      <div className={s.bar}>
-                        {( [5, 4, 3, 2, 1] as RatingValue[]).map((lvl) => {
-                          const count = stat.distribution[lvl];
-                          const pct = stat.total ? (count / stat.total) * 100 : 0;
-                          return (
-                            <div
-                              key={lvl}
-                              className={s.barSegment}
-                              style={{ width: `${pct}%`, backgroundColor: ratingPalette[lvl] }}
-                            />
-                          );
-                        })}
-                        {stat.missing > 0 && (
-                          <div
-                            className={`${s.barSegment} ${s.barSegmentMuted}`}
-                            style={{ width: `${missingPct}%` }}
-                          />
-                        )}
-                      </div>
-                      <div className={s.focusFooter}>
-                        <Badge appearance="tint" color={badge.color}>{badge.text}</Badge>
-                        <span className={s.focusMeta}>{stat.missing} unrated · {stat.low} low</span>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className={s.emptyState}>No quality feedback recorded yet.</div>
-              )}
-              {qualityStrengths.length ? (
-                <div>
-                  <Caption1 className={s.sectionDescription}>Consistent strengths</Caption1>
-                  <div className={s.legend}>
-                    {qualityStrengths.map((stat) => (
-                      <span key={stat.key}>
-                        {stat.label} • {formatAverage(stat.avg)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </section>
-            <section className={s.section}>
-              <div className={s.sectionHeader}>
-                <Subtitle2>People insights</Subtitle2>
-                <Caption1 className={s.sectionDescription}>
-                  Quickly spot who needs support and who can help others grow.
-                </Caption1>
-              </div>
-              <div className={s.personGrid}>
-                <div>
-                  <Caption1 className={s.personColumnTitle}>Priority coaching</Caption1>
-                  {peopleNeedingSupport.length ? (
-                    peopleNeedingSupport.map((item) => {
-                      const badge = getNeedBadge(item.focusScore);
-                      return (
-                        <div key={item.person.id} className={s.personCard}>
-                          <div className={s.personBadgeRow}>
-                            <span className={s.personName}>
-                              {item.person.last_name}, {item.person.first_name}
-                            </span>
-                            <Badge appearance="tint" color={badge.color}>{badge.text}</Badge>
-                          </div>
-                          <div className={s.personMeta}>
-                            {formatAverage(item.avg)} avg • Rated {item.rated}/{visibleSkills.length || 1} skills
-                          </div>
-                          <div className={s.personMeta}>
-                            {item.low} low ratings • {item.missing} unrated
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className={s.emptyState}>No coaching needs detected yet.</div>
-                  )}
-                </div>
-                <div>
-                  <Caption1 className={s.personColumnTitle}>Bright spots</Caption1>
-                  {peopleBrightSpots.length ? (
-                    peopleBrightSpots.map((item) => {
-                      const coverage = visibleSkills.length ? item.rated / visibleSkills.length : 0;
-                      const badge = getMomentumBadge(item.avg, coverage);
-                      return (
-                        <div key={item.person.id} className={s.personCard}>
-                          <div className={s.personBadgeRow}>
-                            <span className={s.personName}>
-                              {item.person.last_name}, {item.person.first_name}
-                            </span>
-                            <Badge appearance="tint" color={badge.color}>{badge.text}</Badge>
-                          </div>
-                          <div className={s.personMeta}>
-                            {formatAverage(item.avg)} avg • Coverage {formatPercent(coverage)}
-                          </div>
-                          <div className={s.personMeta}>
-                            {Math.max(item.rated - item.low, 0)} strong skills
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className={s.emptyState}>Rate more skills to identify mentors.</div>
-                  )}
-                </div>
-              </div>
-            </section>
+                  ))}
+                  {warningTrainees.length > 5 && <div>...and {warningTrainees.length - 5} more</div>}
+                </Body1>
+              </Card>
+            )}
           </div>
+        </div>
+      )}
+
+      {/* Trainees Grid */}
+      {activeTrainees.length === 0 ? (
+        <div className={s.emptyState}>
+          <Title3>No active trainees</Title3>
+          <Caption1>
+            Workers will appear here when they have a start date within the last 6 months
+          </Caption1>
         </div>
       ) : (
-        <div className={s.tableWrap}>
-          {view === "skills" ? (
-            <table className={s.table}>
-              <thead>
-                <tr>
-                  <th className={`${s.headerCell} ${s.personCol}`}>Person</th>
-                  {visibleSkills.map((sk: any) => (
-                    <th key={sk.id} className={`${s.headerCell} ${s.skillCol}`}>
-                      {sk.name}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPeople.map((p: any) => (
-                  <tr key={p.id}>
-                    <td className={`${s.cell} ${s.personCol}`}>
-                      {p.last_name}, {p.first_name}
-                    </td>
-                    {visibleSkills.map((sk: any) => {
-                      const rating = ratings[p.id]?.[sk.id];
+        <>
+          <Subtitle2>
+            Current Trainees ({activeTrainees.length})
+          </Subtitle2>
+          <div className={s.traineesGrid}>
+            {activeTrainees.map((trainee) => {
+              const suggestedArea = getSuggestedArea(trainee);
+              
+              return (
+                <Card key={trainee.person.id} className={s.traineeCard}>
+                  <div className={s.traineeHeader}>
+                    <div>
+                      <div className={s.traineeName}>
+                        {trainee.person.last_name}, {trainee.person.first_name}
+                      </div>
+                      <div className={s.traineeMeta}>
+                        Started: {trainee.startDate.toLocaleDateString()}
+                      </div>
+                      <div className={s.traineeMeta}>
+                        {trainee.weeksRemaining} weeks remaining in training period
+                      </div>
+                    </div>
+                    {trainee.alertLevel && (
+                      <Badge appearance="filled" color={trainee.alertLevel}>
+                        {trainee.alertLevel === "danger" ? "Urgent" : "Warning"}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className={s.progressSection}>
+                    <Caption1>Training Progress</Caption1>
+                    <ProgressBar
+                      value={trainee.completionPercentage / 100}
+                      color={
+                        trainee.completionPercentage === 100
+                          ? "success"
+                          : trainee.completionPercentage >= 50
+                          ? "brand"
+                          : "warning"
+                      }
+                    />
+                    <div className={s.statsRow}>
+                      <Caption1>
+                        {trainee.completedAreas.size} of {REQUIRED_AREAS.length} areas completed
+                      </Caption1>
+                      <Caption1>{Math.round(trainee.completionPercentage)}%</Caption1>
+                    </div>
+                  </div>
+
+                  <div className={s.progressSection}>
+                    <Caption1>Required Areas</Caption1>
+                    {REQUIRED_AREAS.map((area) => {
+                      const completed = trainee.completedAreas.has(area);
+                      const progress = trainee.areasProgress.get(area);
                       return (
-                        <td key={sk.id} className={s.cell}>
-                          <Dropdown
-                            className={s.cellDropdown}
-                            selectedOptions={rating != null ? [String(rating)] : [""]}
-                            value={rating != null ? String(rating) : "-"}
-                            onOptionSelect={(_, data) => {
-                              const val = parseInt(String(data.optionValue ?? data.optionText));
-                              if (!val) setRating(p.id, sk.id, null);
-                              else setRating(p.id, sk.id, val);
-                            }}
-                          >
-                            <Option value="" text="-">
-                              -
-                            </Option>
-                            <Option value="1" text="1">
-                              1
-                            </Option>
-                            <Option value="2" text="2">
-                              2
-                            </Option>
-                            <Option value="3" text="3">
-                              3
-                            </Option>
-                            <Option value="4" text="4">
-                              4
-                            </Option>
-                            <Option value="5" text="5">
-                              5
-                            </Option>
-                          </Dropdown>
-                        </td>
+                        <div key={area} className={s.checklistItem}>
+                          <div className={s.checklistIcon}>
+                            {completed ? (
+                              <CheckmarkCircle20Regular style={{ color: tokens.colorPaletteGreenForeground1 }} />
+                            ) : (
+                              <Circle20Regular style={{ color: tokens.colorNeutralForeground3 }} />
+                            )}
+                          </div>
+                          <div className={s.checklistText}>
+                            <Body1>{area}</Body1>
+                            {progress?.lastMonth && (
+                              <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>
+                                Last assigned: {progress.lastMonth}
+                              </Caption1>
+                            )}
+                          </div>
+                        </div>
                       );
                     })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <table className={s.table}>
-              <thead>
-                <tr>
-                  <th className={s.headerCell}>Person</th>
-                  {qualityDefs.map((q) => (
-                    <th key={q.key} className={s.headerCell}>
-                      {q.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPeople.map((p: any) => (
-                  <tr key={p.id}>
-                    <td className={s.cell}>
-                      {p.last_name}, {p.first_name}
-                    </td>
-                    {qualityDefs.map((q) => {
-                      const rating = qualities[p.id]?.[q.key];
-                      return (
-                        <td key={q.key} className={s.cell}>
-                          <Dropdown
-                            className={s.cellDropdown}
-                            selectedOptions={rating != null ? [String(rating)] : [""]}
-                            value={rating != null ? String(rating) : "-"}
-                            onOptionSelect={(_, data) => {
-                              const val = parseInt(String(data.optionValue ?? data.optionText));
-                              if (!val) setQuality(p.id, q.key, null);
-                              else setQuality(p.id, q.key, val);
-                            }}
-                          >
-                            <Option value="" text="-">
-                              -
-                            </Option>
-                            <Option value="1" text="1">
-                              1
-                            </Option>
-                            <Option value="2" text="2">
-                              2
-                            </Option>
-                            <Option value="3" text="3">
-                              3
-                            </Option>
-                            <Option value="4" text="4">
-                              4
-                            </Option>
-                            <Option value="5" text="5">
-                              5
-                            </Option>
-                          </Dropdown>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                  </div>
+
+                  {suggestedArea && (
+                    <div className={s.suggestionsSection}>
+                      <Caption1 style={{ fontWeight: tokens.fontWeightSemibold }}>
+                        <Warning20Regular style={{ verticalAlign: "middle", marginRight: tokens.spacingHorizontalXS }} />
+                        Suggested Next Assignment
+                      </Caption1>
+                      <Body1>Assign to <strong>{suggestedArea}</strong> to continue training</Body1>
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
 }
-

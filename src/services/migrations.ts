@@ -165,6 +165,46 @@ export const migrate19AddSkillGroupId: Migration = (db) => {
   } catch {}
 };
 
+// 20. Add start_date and end_date to person table
+export const migrate20AddPersonDates: Migration = (db) => {
+  try {
+    db.run(`ALTER TABLE person ADD COLUMN start_date TEXT;`);
+  } catch {}
+  try {
+    db.run(`ALTER TABLE person ADD COLUMN end_date TEXT;`);
+  } catch {}
+};
+
+// 21. Create training_rotation table
+export const migrate21AddTrainingRotation: Migration = (db) => {
+  db.run(`CREATE TABLE IF NOT EXISTS training_rotation (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    person_id INTEGER NOT NULL,
+    area TEXT CHECK(area IN ('Dining Room','Machine Room','Veggie Room','Receiving')) NOT NULL,
+    start_month TEXT NOT NULL,
+    end_month TEXT,
+    completed INTEGER DEFAULT 0,
+    notes TEXT,
+    UNIQUE(person_id, area, start_month),
+    FOREIGN KEY (person_id) REFERENCES person(id)
+  );`);
+};
+
+// 22. Create monthly_default_week table
+export const migrate22AddMonthlyDefaultWeek: Migration = (db) => {
+  db.run(`CREATE TABLE IF NOT EXISTS monthly_default_week (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    month TEXT NOT NULL,
+    person_id INTEGER NOT NULL,
+    week_number INTEGER CHECK(week_number BETWEEN 1 AND 5) NOT NULL,
+    segment TEXT NOT NULL,
+    role_id INTEGER,
+    UNIQUE(month, person_id, week_number, segment),
+    FOREIGN KEY (person_id) REFERENCES person(id),
+    FOREIGN KEY (role_id) REFERENCES role(id)
+  );`);
+};
+
 export const migrate6AddExportGroup: Migration = (db) => {
   db.run(`CREATE TABLE IF NOT EXISTS export_group (
       group_id INTEGER PRIMARY KEY,
@@ -520,7 +560,9 @@ const migrations: Record<number, Migration> = {
       avail_tue TEXT CHECK(avail_tue IN ('U','AM','PM','B')) DEFAULT 'U',
       avail_wed TEXT CHECK(avail_wed IN ('U','AM','PM','B')) DEFAULT 'U',
       avail_thu TEXT CHECK(avail_thu IN ('U','AM','PM','B')) DEFAULT 'U',
-      avail_fri TEXT CHECK(avail_fri IN ('U','AM','PM','B')) DEFAULT 'U'
+      avail_fri TEXT CHECK(avail_fri IN ('U','AM','PM','B')) DEFAULT 'U',
+      start_date TEXT,
+      end_date TEXT
     );`);
 
     db.run(`CREATE TABLE IF NOT EXISTS grp (
@@ -671,6 +713,9 @@ const migrations: Record<number, Migration> = {
   17: migrate17AddPersonQuality,
   18: migrate18AddSkillCatalog,
   19: migrate19AddSkillGroupId,
+  20: migrate20AddPersonDates,
+  21: migrate21AddTrainingRotation,
+  22: migrate22AddMonthlyDefaultWeek,
 };
 
 export function addMigration(version: number, fn: Migration) {
