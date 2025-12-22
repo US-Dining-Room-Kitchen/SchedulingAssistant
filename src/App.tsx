@@ -287,6 +287,7 @@ export default function App() {
   const [monthlyDefaults, setMonthlyDefaults] = useState<any[]>([]);
   const [monthlyEditing, setMonthlyEditing] = useState(false);
   const [monthlyOverrides, setMonthlyOverrides] = useState<any[]>([]);
+  const [monthlyWeekOverrides, setMonthlyWeekOverrides] = useState<any[]>([]);
   const [monthlyNotes, setMonthlyNotes] = useState<any[]>([]);
   const [availabilityOverrides, setAvailabilityOverrides] = useState<Array<{ person_id: number; date: string; avail: string }>>([]);
 
@@ -706,6 +707,8 @@ export default function App() {
     setMonthlyDefaults(rows);
     const ov = all(`SELECT * FROM monthly_default_day WHERE month=?`, [month], db);
     setMonthlyOverrides(ov);
+    const weekOv = all(`SELECT * FROM monthly_default_week WHERE month=?`, [month], db);
+    setMonthlyWeekOverrides(weekOv);
     const notes = all(`SELECT * FROM monthly_default_note WHERE month=?`, [month], db);
     setMonthlyNotes(notes);
 
@@ -754,6 +757,20 @@ export default function App() {
     } else {
       run(`DELETE FROM monthly_default_day WHERE month=? AND person_id=? AND weekday=? AND segment=?`,
           [selectedMonth, personId, weekday, segment]);
+    }
+  loadMonthlyDefaults(selectedMonth);
+  syncTrainingFromMonthly();
+  }
+
+  function setWeekNumberOverride(personId: number, weekNumber: number, segment: Segment, roleId: number | null) {
+    if (!sqlDb) return;
+    if (roleId != null) {
+      run(`INSERT INTO monthly_default_week (month, person_id, week_number, segment, role_id) VALUES (?,?,?,?,?)
+           ON CONFLICT(month, person_id, week_number, segment) DO UPDATE SET role_id=excluded.role_id`,
+          [selectedMonth, personId, weekNumber, segment, roleId]);
+    } else {
+      run(`DELETE FROM monthly_default_week WHERE month=? AND person_id=? AND week_number=? AND segment=?`,
+          [selectedMonth, personId, weekNumber, segment]);
     }
   loadMonthlyDefaults(selectedMonth);
   syncTrainingFromMonthly();
@@ -1658,11 +1675,13 @@ function PeopleEditor(){
               segments={segments}
               monthlyDefaults={monthlyDefaults}
               monthlyOverrides={monthlyOverrides}
+              monthlyWeekOverrides={monthlyWeekOverrides}
               monthlyNotes={monthlyNotes}
               monthlyEditing={monthlyEditing}
               setMonthlyEditing={setMonthlyEditing}
               setMonthlyDefault={setMonthlyDefault}
               setWeeklyOverride={setWeeklyOverride}
+              setWeekNumberOverride={setWeekNumberOverride}
               setMonthlyNote={setMonthlyNote}
               copyMonthlyDefaults={copyMonthlyDefaults}
               applyMonthlyDefaults={applyMonthlyDefaults}
