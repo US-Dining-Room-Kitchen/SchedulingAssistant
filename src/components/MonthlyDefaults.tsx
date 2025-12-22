@@ -29,6 +29,7 @@ import {
   Subtitle2,
   Tab,
   TabList,
+  Checkbox,
 } from "@fluentui/react-components";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./filters/PeopleFilters";
 import SmartSelect from "./controls/SmartSelect";
@@ -450,6 +451,7 @@ export default function MonthlyDefaults({
   const [showDashboard, setShowDashboard] = useState(false);
   const [dashboardGroupId, setDashboardGroupId] = useState<string>('all');
   const [activeDashboardSegment, setActiveDashboardSegment] = useState<Segment | null>(() => segmentNames[0] ?? null);
+  const [showOnlyTrainees, setShowOnlyTrainees] = useState(false);
 
   useEffect(() => {
     if (!monthlyEditing) {
@@ -741,6 +743,56 @@ export default function MonthlyDefaults({
     });
     return sorted;
   }, [people, monthlyDefaults, filters, sortKey, sortDir, segmentNames, roleListForSegment]);
+
+  // Calculate trainee status for each person
+  const traineeInfo = useMemo(() => {
+    const SIX_MONTHS_MS = 6 * 30 * 24 * 60 * 60 * 1000;
+    const REQUIRED_AREAS = ["Dining Room", "Machine Room", "Veggie Room", "Receiving"];
+    const now = new Date();
+    const info = new Map<number, { isTrainee: boolean; incompleteAreas: string[] }>();
+
+    for (const person of viewPeople) {
+      if (!person.start_date) {
+        info.set(person.id, { isTrainee: false, incompleteAreas: [] });
+        continue;
+      }
+
+      const startDate = new Date(person.start_date);
+      const endDate = person.end_date ? new Date(person.end_date) : null;
+      const sixMonthsAfterStart = new Date(startDate.getTime() + SIX_MONTHS_MS);
+      const isTrainee = now < sixMonthsAfterStart && (!endDate || now < endDate);
+
+      if (!isTrainee) {
+        info.set(person.id, { isTrainee: false, incompleteAreas: [] });
+        continue;
+      }
+
+      // Get all groups they've been assigned to
+      const assignedGroups = new Set<string>();
+      
+      // Check monthly defaults
+      for (const def of monthlyDefaults) {
+        if (def.person_id === person.id && def.role_id) {
+          const role = roles.find(r => r.id === def.role_id);
+          if (role) {
+            const group = groups.find(g => g.id === role.group_id);
+            if (group) assignedGroups.add(group.name);
+          }
+        }
+      }
+
+      const incompleteAreas = REQUIRED_AREAS.filter(area => !assignedGroups.has(area));
+      info.set(person.id, { isTrainee, incompleteAreas });
+    }
+
+    return info;
+  }, [viewPeople, monthlyDefaults, roles, groups]);
+
+  // Filter to show only trainees if toggle is on
+  const displayPeople = useMemo(() => {
+    if (!showOnlyTrainees) return viewPeople;
+    return viewPeople.filter(p => traineeInfo.get(p.id)?.isTrainee);
+  }, [viewPeople, showOnlyTrainees, traineeInfo]);
 
   function MonthlyCoverageBoard({
     monthLabel,
@@ -1212,6 +1264,11 @@ export default function MonthlyDefaults({
           </div>
         </div>
         <div className={styles.rightActions}>
+          <Checkbox
+            label="Trainees only"
+            checked={showOnlyTrainees}
+            onChange={(_, data) => setShowOnlyTrainees(!!data.checked)}
+          />
           <Button onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</Button>
           <Button onClick={() => setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</Button>
           {monthlyEditing && (
@@ -1239,14 +1296,23 @@ export default function MonthlyDefaults({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {viewPeople.map((p: any) => {
+            {displayPeople.map((p: any) => {
               const note = monthlyNotes.find(n => n.person_id === p.id)?.note;
+              const trainee = traineeInfo.get(p.id);
+              const tooltipContent = trainee?.isTrainee && trainee.incompleteAreas.length > 0
+                ? `Trainee - needs exposure to: ${trainee.incompleteAreas.join(', ')}`
+                : note || "Add note";
               return (
                 <TableRow key={p.id}>
                   <TableCell>
                     <PersonName personId={p.id}>
                       {p.last_name}, {p.first_name}
                     </PersonName>
+                    {trainee?.isTrainee && (
+                      <Badge appearance="tint" color="informative" size="small" style={{ marginLeft: tokens.spacingHorizontalXS }}>
+                        Trainee
+                      </Badge>
+                    )}
                     {monthlyEditing && (
                       <>
                         <Link appearance="subtle" className={styles.inlineLink} onClick={() => setWeekdayPerson(p.id)}>
@@ -1257,8 +1323,8 @@ export default function MonthlyDefaults({
                         </Link>
                       </>
                     )}
-                    {(note || monthlyEditing) && (
-                      <Tooltip content={note || "Add note"} relationship="description">
+                    {(note || monthlyEditing || trainee?.isTrainee) && (
+                      <Tooltip content={tooltipContent} relationship="description">
                         <Button size="small" appearance="subtle" icon={<Note20Regular />} onClick={() => setNotePerson(p.id)} />
                       </Tooltip>
                     )}
