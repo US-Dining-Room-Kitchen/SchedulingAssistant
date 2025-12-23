@@ -411,18 +411,48 @@ export default function App() {
           }
         } catch {}
 
+        // Get stored user email from localStorage
+        let storedEmail = "";
+        try {
+          storedEmail = localStorage.getItem("userEmail") || "";
+        } catch {}
+
         if (lockJson && lockJson.active) {
-          setLockedBy(lockJson.email || "unknown");
-          setSqlDb(db);
-          fileHandleRef.current = handle;
-          setStatus(`DB is locked by ${lockJson.email}. You can browse but cannot edit. (Per your policy: never force; make a copy if needed.)`);
+          // Check if the lock is from the same user (same email in localStorage)
+          if (storedEmail && lockJson.email === storedEmail) {
+            // Same user - allow them to take over the lock
+            const stmt = db.prepare(`INSERT OR REPLACE INTO meta (key,value) VALUES ('lock', ?) `);
+            stmt.bind([JSON.stringify({ active: true, email: storedEmail, ts: new Date().toISOString() })]);
+            stmt.step();
+            stmt.free();
+            setLockEmail(storedEmail);
+            setLockedBy(storedEmail);
+            setSqlDb(db);
+            fileHandleRef.current = handle;
+            setStatus(`Opened ${file.name} (reclaimed lock)`);
+          } else {
+            // Different user - show as locked
+            setLockedBy(lockJson.email || "unknown");
+            setSqlDb(db);
+            fileHandleRef.current = handle;
+            setStatus(`DB is locked by ${lockJson.email}. You can browse but cannot edit. (Per your policy: never force; make a copy if needed.)`);
+          }
         } else {
-          // Ask for editor email to lock
-          const email = prompt("Enter your Work Email to take the edit lock:") || "";
+          // No active lock - ask for email or use stored email
+          let email = storedEmail;
+          if (!email) {
+            email = prompt("Enter your Work Email to take the edit lock:") || "";
+          }
+          
           if (!email) {
             alert("Lock required to edit. Opening read-only.");
             setLockedBy("(read-only)");
           } else {
+            // Store email in localStorage for future use
+            try {
+              localStorage.setItem("userEmail", email);
+            } catch {}
+            
             const stmt = db.prepare(`INSERT OR REPLACE INTO meta (key,value) VALUES ('lock', ?) `);
             stmt.bind([JSON.stringify({ active: true, email, ts: new Date().toISOString() })]);
             stmt.step();
