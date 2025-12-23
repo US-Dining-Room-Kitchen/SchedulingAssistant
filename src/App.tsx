@@ -24,6 +24,7 @@ import ConflictResolutionDialog from "./components/ConflictResolutionDialog";
 import { useSync } from "./sync/useSync";
 import { FileSystemUtils } from "./sync/FileSystemUtils";
 import { Conflict, ConflictResolution } from "./sync/types";
+import { getWeekOfMonth, type WeekStartMode } from "./utils/weekCalculation";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -868,6 +869,21 @@ export default function App() {
     if (!sqlDb) return;
     const [y,m] = month.split('-').map(n=>parseInt(n,10));
     const days = new Date(y, m, 0).getDate();
+    
+    // Load week_start_mode setting from meta table
+    let weekStartMode: WeekStartMode = 'first_monday';
+    try {
+      const modeRows = all(`SELECT value FROM meta WHERE key='week_start_mode'`);
+      if (modeRows.length > 0 && modeRows[0].value) {
+        const modeValue = modeRows[0].value;
+        if (modeValue === 'first_monday' || modeValue === 'first_day') {
+          weekStartMode = modeValue;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load week_start_mode:', e);
+    }
+    
     const defaultMap = new Map<string, number>();
     for (const def of monthlyDefaults) {
       defaultMap.set(`${def.person_id}|${def.segment}`, def.role_id);
@@ -875,6 +891,10 @@ export default function App() {
     const overrideMap = new Map<string, number>();
     for (const ov of monthlyOverrides) {
       overrideMap.set(`${ov.person_id}|${ov.weekday}|${ov.segment}`, ov.role_id);
+    }
+    const weekOverrideMap = new Map<string, number>();
+    for (const wov of monthlyWeekOverrides) {
+      weekOverrideMap.set(`${wov.person_id}|${wov.week_number}|${wov.segment}`, wov.role_id);
     }
     let overwriteAll = false;
     let skipAll = false;
@@ -884,9 +904,12 @@ export default function App() {
         const wdName = weekdayName(d);
         if (wdName === 'Weekend') continue;
         const wdNum = d.getDay(); // 1=Mon..5=Fri
+        const weekNum = getWeekOfMonth(d, weekStartMode);
         const avail = availabilityFor(sqlDb, person.id, d);
         for (const seg of segments.map(s => s.name as Segment)) {
-          let roleId = overrideMap.get(`${person.id}|${wdNum}|${seg}`);
+          // Priority: week override > weekday override > default
+          let roleId = weekNum > 0 ? weekOverrideMap.get(`${person.id}|${weekNum}|${seg}`) : undefined;
+          if (roleId === undefined) roleId = overrideMap.get(`${person.id}|${wdNum}|${seg}`);
           if (roleId === undefined) roleId = defaultMap.get(`${person.id}|${seg}`);
           if (roleId == null) continue;
           let ok = false;
@@ -1750,6 +1773,7 @@ function PeopleEditor(){
               roles={roles}
               availabilityOverrides={availabilityOverrides}
               getRequiredFor={getRequiredFor}
+              all={all}
             />
           )}
 

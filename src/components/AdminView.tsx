@@ -19,6 +19,7 @@ import TimeOffManager from "./TimeOffManager";
 import AvailabilityOverrideManager from "./AvailabilityOverrideManager";
 import AutoFillSettings from "./AutoFillSettings";
 import SkillsEditor from "./SkillsEditor";
+import WeekCalculationSettings from "./WeekCalculationSettings";
 
 const useAdminViewStyles = makeStyles({
   root: {
@@ -41,6 +42,7 @@ export default function AdminView({ sqlDb, all, run, refresh, segments }: AdminV
   const s = useAdminViewStyles();
   const [showOverrides, setShowOverrides] = React.useState(false);
   const [showAutoFillSettings, setShowAutoFillSettings] = React.useState(false);
+  const [showWeekCalcSettings, setShowWeekCalcSettings] = React.useState(false);
   return (
     <div className={s.root}>
       <Button onClick={() => setShowOverrides(true)}>Availability Overrides</Button>
@@ -62,6 +64,15 @@ export default function AdminView({ sqlDb, all, run, refresh, segments }: AdminV
       <Button onClick={() => setShowAutoFillSettings(true)}>Auto-Fill Settings</Button>
       {showAutoFillSettings && (
         <AutoFillSettings open={showAutoFillSettings} onClose={() => setShowAutoFillSettings(false)} />
+      )}
+      <Button onClick={() => setShowWeekCalcSettings(true)}>Week Calculation Settings</Button>
+      {showWeekCalcSettings && (
+        <WeekCalculationSettings 
+          open={showWeekCalcSettings} 
+          onClose={() => setShowWeekCalcSettings(false)}
+          all={all}
+          run={run}
+        />
       )}
       <TimeOffManager all={all} run={run} refresh={refresh} />
       <SegmentEditor all={all} run={run} refresh={refresh} />
