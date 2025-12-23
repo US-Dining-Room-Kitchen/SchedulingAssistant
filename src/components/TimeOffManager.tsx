@@ -10,9 +10,16 @@ interface TimeOffManagerProps {
 // Prefer a stable, public SheetJS URL to avoid CDN auth issues
 const XLSX_URL = "https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.mjs";
 async function loadXLSX(){
-  // @ts-ignore
-  const mod = await import(/* @vite-ignore */ XLSX_URL);
-  return mod as any;
+  try {
+    // @ts-ignore
+    const mod = await import(/* @vite-ignore */ XLSX_URL);
+    return mod as any;
+  } catch (error) {
+    throw new Error(
+      "Failed to load XLSX library from CDN. Please check your internet connection and try again. " +
+      "If the problem persists, this may indicate a CDN service issue."
+    );
+  }
 }
 
 function parseMDY(str: string): Date {
@@ -290,8 +297,9 @@ export default function TimeOffManager({ all, run, refresh }: TimeOffManagerProp
       setStatus(`Import complete: added ${added}, updated ${updated}, ignored ${ignored}, skipped ${skipped}.`);
       setImportSummary({ added, updated, ignored, skipped, noEmail, badDate, matchedByName });
     }catch(e:any){
-      console.error(e);
-      setStatus(`Time-off import failed: ${e?.message||e}`);
+      const errorMsg = e?.message || String(e);
+      console.error('Time-off import error:', e);
+      setStatus(`Time-off import failed: ${errorMsg}`);
     }
   }
 
