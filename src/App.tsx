@@ -390,7 +390,7 @@ export default function App() {
     refreshCaches(db);
   }
 
-  async function openDbFromFile(readOnly = false) {
+  async function openDbFromFile() {
     try {
       // Ask user for SQLite DB
       const [handle] = await (window as any).showOpenFilePicker({
@@ -404,7 +404,7 @@ export default function App() {
 
       // Get or prompt for user email (needed for sync system and personalization)
       let email = userEmail;
-      if (!email && !readOnly) {
+      if (!email) {
         email = prompt("Enter your Work Email (for sync and preferences):") || "";
         if (email) {
           try {
@@ -416,7 +416,7 @@ export default function App() {
 
       setSqlDb(db);
       fileHandleRef.current = handle;
-      setStatus(`Opened ${file.name}${readOnly ? " (read-only)" : ""}`);
+      setStatus(`Opened ${file.name}`);
       refreshCaches(db);
     } catch (e:any) {
       console.error(e);
