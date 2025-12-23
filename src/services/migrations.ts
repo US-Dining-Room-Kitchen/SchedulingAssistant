@@ -228,6 +228,16 @@ export const migrate24AddSyncVersion: Migration = (db) => {
   }
 };
 
+// 25. Add week_start_mode setting to meta table
+export const migrate25AddWeekStartMode: Migration = (db) => {
+  try {
+    // Initialize week_start_mode to 'first_monday' as default
+    db.run(`INSERT OR IGNORE INTO meta (key, value) VALUES ('week_start_mode', 'first_monday');`);
+  } catch (e) {
+    console.error('migrate25AddWeekStartMode failed:', e);
+  }
+};
+
 export const migrate6AddExportGroup: Migration = (db) => {
   db.run(`CREATE TABLE IF NOT EXISTS export_group (
       group_id INTEGER PRIMARY KEY,
@@ -741,6 +751,7 @@ const migrations: Record<number, Migration> = {
   22: migrate22AddMonthlyDefaultWeek,
   23: migrate23AddTrainingAreaOverride,
   24: migrate24AddSyncVersion,
+  25: migrate25AddWeekStartMode,
 };
 
 export function addMigration(version: number, fn: Migration) {

@@ -39,6 +39,7 @@ import { type Segment, type SegmentRow } from "../services/segments";
 import { Note20Regular } from "@fluentui/react-icons";
 import type { Availability } from "../services/availabilityOverrides";
 import { SIX_MONTHS_MS, REQUIRED_TRAINING_AREAS, isInTrainingPeriod } from "../utils/trainingConstants";
+import { getWeekDateRange, formatDateRange, type WeekStartMode } from "../utils/weekCalculation";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
 type WeekdayKey = 1 | 2 | 3 | 4 | 5;
@@ -394,6 +395,7 @@ interface MonthlyDefaultsProps {
   roles: any[];
   availabilityOverrides: Array<{ person_id: number; date: string; avail: Availability }>;
   getRequiredFor: (date: Date, groupId: number, roleId: number, segment: Segment) => number;
+  all: (sql: string, params?: any[]) => any[];
 }
 
 export default function MonthlyDefaults({
@@ -421,6 +423,7 @@ export default function MonthlyDefaults({
   roles,
   availabilityOverrides,
   getRequiredFor,
+  all,
 }: MonthlyDefaultsProps) {
   const styles = useStyles();
   const segmentNames = useMemo(() => segments.map(s => s.name as Segment), [segments]);
@@ -1148,18 +1151,55 @@ export default function MonthlyDefaults({
     if (!person) return null;
     const weekNumbers = [1, 2, 3, 4, 5];
     const segNames = segmentNames;
+    
+    // Load week_start_mode setting
+    let weekStartMode: WeekStartMode = 'first_monday';
+    try {
+      const modeRows = all(`SELECT value FROM meta WHERE key='week_start_mode'`);
+      if (modeRows.length > 0 && modeRows[0].value) {
+        const modeValue = modeRows[0].value;
+        if (modeValue === 'first_monday' || modeValue === 'first_day') {
+          weekStartMode = modeValue;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load week_start_mode:', e);
+    }
+    
+    // Parse selected month to get year and month
+    const [yearStr, monthStr] = selectedMonth.split('-');
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
+    
+    // Generate week date ranges
+    const weekLabels: { [key: number]: string } = {};
+    weekNumbers.forEach(w => {
+      const range = getWeekDateRange(year, month, w, weekStartMode);
+      if (range) {
+        weekLabels[w] = `Week ${w}\n${formatDateRange(range.start, range.end)}`;
+      } else {
+        weekLabels[w] = `Week ${w}`;
+      }
+    });
+    
     return (
       <Dialog open onOpenChange={(_, d)=>{ if(!d.open) onClose(); }}>
         <DialogSurface>
           <DialogBody>
             <DialogTitle>Week-by-Week Overrides - {person.first_name} {person.last_name}</DialogTitle>
             <DialogContent>
+              <div style={{ fontSize: "12px", color: "#666", marginBottom: "12px" }}>
+                Week numbers calculated using <strong>{weekStartMode === 'first_monday' ? 'First Monday' : 'First Day'}</strong> mode.
+                {weekStartMode === 'first_monday' && ' Days before the first Monday are not assigned to any week.'}
+              </div>
               <Table size="small" aria-label="Week overrides">
                 <TableHeader>
                   <TableRow>
                     <TableHeaderCell></TableHeaderCell>
                     {weekNumbers.map(w => (
-                      <TableHeaderCell key={w}>Week {w}</TableHeaderCell>
+                      <TableHeaderCell key={w} style={{ whiteSpace: 'pre-line', textAlign: 'center', fontSize: '11px' }}>
+                        {weekLabels[w]}
+                      </TableHeaderCell>
                     ))}
                   </TableRow>
                 </TableHeader>
