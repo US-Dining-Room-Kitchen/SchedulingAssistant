@@ -20,6 +20,10 @@ import CrewHistoryView from "./components/CrewHistoryView";
 import Training from "./components/Training";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./components/filters/PeopleFilters";
 import { isInTrainingPeriod, weeksRemainingInTraining } from "./utils/trainingConstants";
+import ConflictResolutionDialog from "./components/ConflictResolutionDialog";
+import { useSync } from "./sync/useSync";
+import { FileSystemUtils } from "./sync/FileSystemUtils";
+import { Conflict, ConflictResolution } from "./sync/types";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -260,8 +264,7 @@ export default function App() {
     (window as any).sqlDb = sqlDb;
   }, [sqlDb]);
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
-  const [lockEmail, setLockEmail] = useState<string>("");
-  const [lockedBy, setLockedBy] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string>("");
   const [status, setStatus] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>(() => fmtDateMDY(new Date()));
   const [exportStart, setExportStart] = useState<string>(() => ymd(new Date()));
@@ -306,6 +309,18 @@ export default function App() {
   // UI: simple dialogs
   const [showNeedsEditor, setShowNeedsEditor] = useState(false);
   const [profilePersonId, setProfilePersonId] = useState<number | null>(null);
+
+  // Sync system
+  const changesFolderHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
+  const [syncConflicts, setSyncConflicts] = useState<{
+    conflicts: Conflict[];
+    autoMergedCount: number;
+  } | null>(null);
+  const sync = useSync({
+    db: sqlDb,
+    enabled: !!sqlDb,
+    backgroundSyncInterval: 30,
+  });
 
   useEffect(() => {
     if (segments.length && !segments.find(s => s.name === activeRunSegment)) {
@@ -368,7 +383,7 @@ export default function App() {
     refreshCaches(db);
   }
 
-  async function openDbFromFile(readOnly = false) {
+  async function openDbFromFile() {
     try {
       // Ask user for SQLite DB
       const [handle] = await (window as any).showOpenFilePicker({
@@ -380,45 +395,15 @@ export default function App() {
       const db = new SQL.Database(new Uint8Array(buf));
       applyMigrations(db);
 
-      if (readOnly) {
-        setLockedBy("(read-only)");
-        setSqlDb(db);
-        fileHandleRef.current = handle;
-        setStatus(`Opened ${file.name} (read-only)`);
-      } else {
-        // Check soft lock
-        let lockJson = {} as any;
-        try {
-          const rows = db.exec(`SELECT value FROM meta WHERE key='lock'`);
-          if (rows && rows[0] && rows[0].values[0] && rows[0].values[0][0]) {
-            lockJson = JSON.parse(String(rows[0].values[0][0]));
-          }
-        } catch {}
-
-        if (lockJson && lockJson.active) {
-          setLockedBy(lockJson.email || "unknown");
-          setSqlDb(db);
-          fileHandleRef.current = handle;
-          setStatus(`DB is locked by ${lockJson.email}. You can browse but cannot edit. (Per your policy: never force; make a copy if needed.)`);
-        } else {
-          // Ask for editor email to lock
-          const email = prompt("Enter your Work Email to take the edit lock:") || "";
-          if (!email) {
-            alert("Lock required to edit. Opening read-only.");
-            setLockedBy("(read-only)");
-          } else {
-            const stmt = db.prepare(`INSERT OR REPLACE INTO meta (key,value) VALUES ('lock', ?) `);
-            stmt.bind([JSON.stringify({ active: true, email, ts: new Date().toISOString() })]);
-            stmt.step();
-            stmt.free();
-            setLockEmail(email);
-            setLockedBy(email);
-          }
-          setSqlDb(db);
-          fileHandleRef.current = handle;
-          setStatus(`Opened ${file.name}`);
-        }
+      // Always prompt for user email (needed for sync system and personalization)
+      const email = prompt("Enter your Work Email (for sync and preferences):") || "";
+      if (email) {
+        setUserEmail(email);
       }
+
+      setSqlDb(db);
+      fileHandleRef.current = handle;
+      setStatus(`Opened ${file.name}`);
       refreshCaches(db);
     } catch (e:any) {
       console.error(e);
@@ -438,11 +423,30 @@ export default function App() {
 
   async function saveDb() {
     if (!sqlDb) return;
-    if (lockedBy && lockedBy !== lockEmail) {
-      alert("File is read-only or locked. Use Save As to create a copy.");
-      return;
-    }
     if (!fileHandleRef.current) return saveDbAs();
+    
+    // If sync is enabled, push changes first
+    if (sync.isInitialized && sync.syncEngine) {
+      const pushResult = await sync.pushChanges();
+      if (!pushResult.success) {
+        setStatus(`Sync error: ${pushResult.error}`);
+      }
+      
+      // Pull and merge changes from others
+      const pullResult = await sync.pullChanges();
+      if (!pullResult.success && pullResult.conflicts) {
+        // Show conflict resolution dialog
+        setSyncConflicts({
+          conflicts: pullResult.conflicts,
+          autoMergedCount: pullResult.autoMergedCount || 0,
+        });
+        return;
+      } else if (pullResult.autoMergedCount && pullResult.autoMergedCount > 0) {
+        setStatus(`Auto-merged ${pullResult.autoMergedCount} changes from other users`);
+        refreshCaches(); // Refresh UI to show merged changes
+      }
+    }
+    
     await writeDbToHandle(fileHandleRef.current);
   }
 
@@ -452,6 +456,27 @@ export default function App() {
     await writable.write(data);
     await writable.close();
     setStatus("Saved.");
+    
+    // Try to initialize sync if we have a handle and user email
+    if (!sync.isInitialized && userEmail && !changesFolderHandleRef.current) {
+      await tryInitializeSync(handle);
+    }
+  }
+
+  async function tryInitializeSync(dbHandle: FileSystemFileHandle) {
+    if (!userEmail) return;
+    
+    try {
+      // Try to get the parent directory
+      // Note: This is a limitation - File System Access API doesn't provide direct parent access
+      // We'll need to ask the user or use a different approach
+      // For now, we'll skip automatic initialization and require manual setup
+      
+      // Alternative: Store the directory handle in IndexedDB for future use
+      // This would be a production enhancement
+    } catch (error) {
+      console.error('Failed to initialize sync:', error);
+    }
   }
 
   function syncTrainingFromMonthly(db = sqlDb) {
@@ -1152,7 +1177,7 @@ async function exportShifts() {
 
   // UI helpers
   const canEdit = !!sqlDb;
-  const canSave = !!sqlDb && (!lockedBy || lockedBy === lockEmail);
+  const canSave = !!sqlDb;
   const selectedDateObj = useMemo(()=>parseMDY(selectedDate),[selectedDate]);
   const currentAssignmentsCount = useMemo(() => {
     if (!sqlDb) return 0;
@@ -1612,6 +1637,7 @@ function PeopleEditor(){
         saveDb={saveDb}
         saveDbAs={saveDbAs}
         status={status}
+        syncStatus={sync.isInitialized ? sync.syncStatus : undefined}
       />
       <div className={sh.contentRow}>
         <SideRail
@@ -1648,7 +1674,7 @@ function PeopleEditor(){
                   setActiveRunSegment={setActiveRunSegment}
                   groups={groups}
                   segments={segments}
-                  lockEmail={lockEmail}
+                  lockEmail={userEmail}
                   sqlDb={sqlDb}
                   all={all}
                   roleListForSegment={roleListForSegment}
@@ -1775,10 +1801,29 @@ function PeopleEditor(){
           </DialogSurface>
         </Dialog>
       )}
+      {syncConflicts && (
+        <ConflictResolutionDialog
+          conflicts={syncConflicts.conflicts}
+          autoMergedCount={syncConflicts.autoMergedCount}
+          onResolve={async (resolutions) => {
+            const result = await sync.resolveConflicts(syncConflicts.conflicts, resolutions);
+            if (result.success) {
+              setSyncConflicts(null);
+              refreshCaches();
+              setStatus('Conflicts resolved successfully');
+            } else {
+              setStatus(`Error resolving conflicts: ${result.error}`);
+            }
+          }}
+          onCancel={() => {
+            setSyncConflicts(null);
+            setStatus('Sync cancelled - conflicts not resolved');
+          }}
+        />
+      )}
         </div>
         </main>
       </div>
-      {/* CopilotContext: Always rendered to provide context for Edge Copilot */}
       <CopilotContext
         activeTab={activeTab}
         selectedDate={selectedDate}
