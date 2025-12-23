@@ -19,6 +19,7 @@ import MonthlyDefaults from "./components/MonthlyDefaults";
 import CrewHistoryView from "./components/CrewHistoryView";
 import Training from "./components/Training";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./components/filters/PeopleFilters";
+import { isInTrainingPeriod, weeksRemainingInTraining } from "./utils/trainingConstants";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -287,6 +288,7 @@ export default function App() {
   const [monthlyDefaults, setMonthlyDefaults] = useState<any[]>([]);
   const [monthlyEditing, setMonthlyEditing] = useState(false);
   const [monthlyOverrides, setMonthlyOverrides] = useState<any[]>([]);
+  const [monthlyWeekOverrides, setMonthlyWeekOverrides] = useState<any[]>([]);
   const [monthlyNotes, setMonthlyNotes] = useState<any[]>([]);
   const [availabilityOverrides, setAvailabilityOverrides] = useState<Array<{ person_id: number; date: string; avail: string }>>([]);
 
@@ -515,8 +517,8 @@ export default function App() {
   // People CRUD minimal
   function addPerson(rec: any) {
     run(
-      `INSERT INTO person (last_name, first_name, work_email, brother_sister, commuter, active, avail_mon, avail_tue, avail_wed, avail_thu, avail_fri)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO person (last_name, first_name, work_email, brother_sister, commuter, active, avail_mon, avail_tue, avail_wed, avail_thu, avail_fri, start_date, end_date)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         rec.last_name?.trim() || "",
         rec.first_name?.trim() || "",
@@ -529,6 +531,8 @@ export default function App() {
         rec.avail_wed || "U",
         rec.avail_thu || "U",
         rec.avail_fri || "U",
+        rec.start_date || null,
+        rec.end_date || null,
       ]
     );
     const id = all(`SELECT last_insert_rowid() as id`)[0]?.id;
@@ -538,7 +542,7 @@ export default function App() {
 
   function updatePerson(rec: any) {
     run(
-      `UPDATE person SET last_name=?, first_name=?, work_email=?, brother_sister=?, commuter=?, active=?, avail_mon=?, avail_tue=?, avail_wed=?, avail_thu=?, avail_fri=? WHERE id=?`,
+      `UPDATE person SET last_name=?, first_name=?, work_email=?, brother_sister=?, commuter=?, active=?, avail_mon=?, avail_tue=?, avail_wed=?, avail_thu=?, avail_fri=?, start_date=?, end_date=? WHERE id=?`,
       [
         rec.last_name,
         rec.first_name,
@@ -551,6 +555,8 @@ export default function App() {
         rec.avail_wed,
         rec.avail_thu,
         rec.avail_fri,
+        rec.start_date || null,
+        rec.end_date || null,
         rec.id,
       ]
     );
@@ -706,6 +712,8 @@ export default function App() {
     setMonthlyDefaults(rows);
     const ov = all(`SELECT * FROM monthly_default_day WHERE month=?`, [month], db);
     setMonthlyOverrides(ov);
+    const weekOv = all(`SELECT * FROM monthly_default_week WHERE month=?`, [month], db);
+    setMonthlyWeekOverrides(weekOv);
     const notes = all(`SELECT * FROM monthly_default_note WHERE month=?`, [month], db);
     setMonthlyNotes(notes);
 
@@ -754,6 +762,20 @@ export default function App() {
     } else {
       run(`DELETE FROM monthly_default_day WHERE month=? AND person_id=? AND weekday=? AND segment=?`,
           [selectedMonth, personId, weekday, segment]);
+    }
+  loadMonthlyDefaults(selectedMonth);
+  syncTrainingFromMonthly();
+  }
+
+  function setWeekNumberOverride(personId: number, weekNumber: number, segment: Segment, roleId: number | null) {
+    if (!sqlDb) return;
+    if (roleId != null) {
+      run(`INSERT INTO monthly_default_week (month, person_id, week_number, segment, role_id) VALUES (?,?,?,?,?)
+           ON CONFLICT(month, person_id, week_number, segment) DO UPDATE SET role_id=excluded.role_id`,
+          [selectedMonth, personId, weekNumber, segment, roleId]);
+    } else {
+      run(`DELETE FROM monthly_default_week WHERE month=? AND person_id=? AND week_number=? AND segment=?`,
+          [selectedMonth, personId, weekNumber, segment]);
     }
   loadMonthlyDefaults(selectedMonth);
   syncTrainingFromMonthly();
@@ -1462,6 +1484,14 @@ function PeopleEditor(){
                 <div className={`${s.col2} ${s.centerRow}`}>
                   <Checkbox label="Active" checked={form.active!==false} onChange={(_,data)=>setForm({...form,active:!!data.checked})} />
                 </div>
+                <div className={s.col3}>
+                  <div className={s.smallLabel}>Start Date</div>
+                  <Input type="date" value={form.start_date||''} onChange={(_,d)=>setForm({...form,start_date:d.value})} />
+                </div>
+                <div className={s.col3}>
+                  <div className={s.smallLabel}>End Date (optional)</div>
+                  <Input type="date" value={form.end_date||''} onChange={(_,d)=>setForm({...form,end_date:d.value})} />
+                </div>
                 {WEEKDAYS.map((w,idx)=> (
                   <div key={w} className={s.col2}>
                     <div className={s.smallLabel}>{w} Availability</div>
@@ -1497,6 +1527,26 @@ function PeopleEditor(){
                   ))}
                 </div>
               </div>
+
+              {form.start_date && (() => {
+                const now = new Date();
+                const startDate = new Date(form.start_date);
+                const endDate = form.end_date ? new Date(form.end_date) : null;
+                const isTrainee = isInTrainingPeriod(startDate, endDate, now);
+                
+                if (isTrainee) {
+                  const weeksRemaining = weeksRemainingInTraining(startDate, now);
+                  return (
+                    <div style={{ marginTop: '16px', padding: '12px', backgroundColor: tokens.colorNeutralBackground2, borderRadius: '4px' }}>
+                      <div style={{ fontWeight: tokens.fontWeightSemibold, marginBottom: '4px' }}>Training Status</div>
+                      <div style={{ fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3 }}>
+                        In training period • {weeksRemaining} weeks remaining
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </DialogContent>
             <DialogActions>
               <Button onClick={closeModal}>Close</Button>
@@ -1658,11 +1708,13 @@ function PeopleEditor(){
               segments={segments}
               monthlyDefaults={monthlyDefaults}
               monthlyOverrides={monthlyOverrides}
+              monthlyWeekOverrides={monthlyWeekOverrides}
               monthlyNotes={monthlyNotes}
               monthlyEditing={monthlyEditing}
               setMonthlyEditing={setMonthlyEditing}
               setMonthlyDefault={setMonthlyDefault}
               setWeeklyOverride={setWeeklyOverride}
+              setWeekNumberOverride={setWeekNumberOverride}
               setMonthlyNote={setMonthlyNote}
               copyMonthlyDefaults={copyMonthlyDefaults}
               applyMonthlyDefaults={applyMonthlyDefaults}

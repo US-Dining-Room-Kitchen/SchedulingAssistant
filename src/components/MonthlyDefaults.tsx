@@ -29,6 +29,7 @@ import {
   Subtitle2,
   Tab,
   TabList,
+  Checkbox,
 } from "@fluentui/react-components";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./filters/PeopleFilters";
 import SmartSelect from "./controls/SmartSelect";
@@ -37,6 +38,7 @@ import { exportMonthOneSheetXlsx } from "../excel/export-one-sheet";
 import { type Segment, type SegmentRow } from "../services/segments";
 import { Note20Regular } from "@fluentui/react-icons";
 import type { Availability } from "../services/availabilityOverrides";
+import { SIX_MONTHS_MS, REQUIRED_TRAINING_AREAS, isInTrainingPeriod } from "../utils/trainingConstants";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
 type WeekdayKey = 1 | 2 | 3 | 4 | 5;
@@ -376,11 +378,13 @@ interface MonthlyDefaultsProps {
   segments: SegmentRow[];
   monthlyDefaults: any[];
   monthlyOverrides: any[];
+  monthlyWeekOverrides: any[];
   monthlyNotes: any[];
   monthlyEditing: boolean;
   setMonthlyEditing: (v: boolean) => void;
   setMonthlyDefault: (personId: number, segment: Segment, roleId: number | null) => void;
   setWeeklyOverride: (personId: number, weekday: number, segment: Segment, roleId: number | null) => void;
+  setWeekNumberOverride: (personId: number, weekNumber: number, segment: Segment, roleId: number | null) => void;
   setMonthlyNote: (personId: number, note: string | null) => void;
   copyMonthlyDefaults: (fromMonth: string, toMonth: string) => void;
   applyMonthlyDefaults: (month: string) => Promise<void> | void;
@@ -401,11 +405,13 @@ export default function MonthlyDefaults({
   segments,
   monthlyDefaults,
   monthlyOverrides,
+  monthlyWeekOverrides,
   monthlyNotes,
   monthlyEditing,
   setMonthlyEditing,
   setMonthlyDefault,
   setWeeklyOverride,
+  setWeekNumberOverride,
   setMonthlyNote,
   copyMonthlyDefaults,
   applyMonthlyDefaults,
@@ -441,10 +447,12 @@ export default function MonthlyDefaults({
     return "";
   }, [sortKey, segmentNames]);
   const [weekdayPerson, setWeekdayPerson] = useState<number | null>(null);
+  const [weekNumberPerson, setWeekNumberPerson] = useState<number | null>(null);
   const [notePerson, setNotePerson] = useState<number | null>(null);
   const [showDashboard, setShowDashboard] = useState(false);
   const [dashboardGroupId, setDashboardGroupId] = useState<string>('all');
   const [activeDashboardSegment, setActiveDashboardSegment] = useState<Segment | null>(() => segmentNames[0] ?? null);
+  const [showOnlyTrainees, setShowOnlyTrainees] = useState(false);
 
   useEffect(() => {
     if (!monthlyEditing) {
@@ -736,6 +744,53 @@ export default function MonthlyDefaults({
     });
     return sorted;
   }, [people, monthlyDefaults, filters, sortKey, sortDir, segmentNames, roleListForSegment]);
+
+  // Calculate trainee status for each person
+  const traineeInfo = useMemo(() => {
+    const now = new Date();
+    const info = new Map<number, { isTrainee: boolean; incompleteAreas: string[] }>();
+
+    for (const person of viewPeople) {
+      if (!person.start_date) {
+        info.set(person.id, { isTrainee: false, incompleteAreas: [] });
+        continue;
+      }
+
+      const startDate = new Date(person.start_date);
+      const endDate = person.end_date ? new Date(person.end_date) : null;
+      const isTrainee = isInTrainingPeriod(startDate, endDate, now);
+
+      if (!isTrainee) {
+        info.set(person.id, { isTrainee: false, incompleteAreas: [] });
+        continue;
+      }
+
+      // Get all groups they've been assigned to
+      const assignedGroups = new Set<string>();
+      
+      // Check monthly defaults
+      for (const def of monthlyDefaults) {
+        if (def.person_id === person.id && def.role_id) {
+          const role = roles.find(r => r.id === def.role_id);
+          if (role) {
+            const group = groups.find(g => g.id === role.group_id);
+            if (group) assignedGroups.add(group.name);
+          }
+        }
+      }
+
+      const incompleteAreas = REQUIRED_TRAINING_AREAS.filter(area => !assignedGroups.has(area));
+      info.set(person.id, { isTrainee, incompleteAreas });
+    }
+
+    return info;
+  }, [viewPeople, monthlyDefaults, roles, groups]);
+
+  // Filter to show only trainees if toggle is on
+  const displayPeople = useMemo(() => {
+    if (!showOnlyTrainees) return viewPeople;
+    return viewPeople.filter(p => traineeInfo.get(p.id)?.isTrainee);
+  }, [viewPeople, showOnlyTrainees, traineeInfo]);
 
   function MonthlyCoverageBoard({
     monthLabel,
@@ -1088,6 +1143,61 @@ export default function MonthlyDefaults({
     );
   }
 
+  function WeekNumberModal({ personId, onClose }: { personId: number; onClose: () => void }) {
+    const person = people.find(p => p.id === personId);
+    if (!person) return null;
+    const weekNumbers = [1, 2, 3, 4, 5];
+    const segNames = segmentNames;
+    return (
+      <Dialog open onOpenChange={(_, d)=>{ if(!d.open) onClose(); }}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Week-by-Week Overrides - {person.first_name} {person.last_name}</DialogTitle>
+            <DialogContent>
+              <Table size="small" aria-label="Week overrides">
+                <TableHeader>
+                  <TableRow>
+                    <TableHeaderCell></TableHeaderCell>
+                    {weekNumbers.map(w => (
+                      <TableHeaderCell key={w}>Week {w}</TableHeaderCell>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {segNames.map(seg => (
+                    <TableRow key={seg}>
+                      <TableCell>{seg}</TableCell>
+                      {weekNumbers.map(w => {
+                        const ov = monthlyWeekOverrides.find(o => o.person_id === personId && o.week_number === w && o.segment === seg);
+                        const options = roleListForSegment(seg);
+                        return (
+                          <TableCell key={w}>
+                            <SmartSelect
+                              options={[{ value: "", label: "(default)" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name }))]}
+                              value={ov?.role_id != null ? String(ov.role_id) : null}
+                              onChange={(v) => {
+                                const rid = v ? Number(v) : null;
+                                setWeekNumberOverride(personId, w, seg, rid);
+                              }}
+                              placeholder="(default)"
+                            />
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={onClose}>Close</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+    );
+  }
+
   function NotesModal({ personId, onClose }: { personId: number; onClose: () => void }) {
     const person = people.find(p => p.id === personId);
     if (!person) return null;
@@ -1152,6 +1262,11 @@ export default function MonthlyDefaults({
           </div>
         </div>
         <div className={styles.rightActions}>
+          <Checkbox
+            label="Trainees only"
+            checked={showOnlyTrainees}
+            onChange={(_, data) => setShowOnlyTrainees(!!data.checked)}
+          />
           <Button onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}>{sortDir === 'asc' ? 'Asc' : 'Desc'}</Button>
           <Button onClick={() => setMonthlyEditing(!monthlyEditing)}>{monthlyEditing ? 'Done' : 'Edit'}</Button>
           {monthlyEditing && (
@@ -1179,21 +1294,35 @@ export default function MonthlyDefaults({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {viewPeople.map((p: any) => {
+            {displayPeople.map((p: any) => {
               const note = monthlyNotes.find(n => n.person_id === p.id)?.note;
+              const trainee = traineeInfo.get(p.id);
+              const tooltipContent = trainee?.isTrainee && trainee.incompleteAreas.length > 0
+                ? `Trainee - needs exposure to: ${trainee.incompleteAreas.join(', ')}`
+                : note || "Add note";
               return (
                 <TableRow key={p.id}>
                   <TableCell>
                     <PersonName personId={p.id}>
                       {p.last_name}, {p.first_name}
                     </PersonName>
-                    {monthlyEditing && (
-                      <Link appearance="subtle" className={styles.inlineLink} onClick={() => setWeekdayPerson(p.id)}>
-                        Days{monthlyOverrides.some((o) => o.person_id === p.id) ? "*" : ""}
-                      </Link>
+                    {trainee?.isTrainee && (
+                      <Badge appearance="tint" color="informative" size="small" style={{ marginLeft: tokens.spacingHorizontalXS }}>
+                        Trainee
+                      </Badge>
                     )}
-                    {(note || monthlyEditing) && (
-                      <Tooltip content={note || "Add note"} relationship="description">
+                    {monthlyEditing && (
+                      <>
+                        <Link appearance="subtle" className={styles.inlineLink} onClick={() => setWeekdayPerson(p.id)}>
+                          Days{monthlyOverrides.some((o) => o.person_id === p.id) ? "*" : ""}
+                        </Link>
+                        <Link appearance="subtle" className={styles.inlineLink} onClick={() => setWeekNumberPerson(p.id)}>
+                          Weeks{monthlyWeekOverrides.some((o) => o.person_id === p.id) ? "*" : ""}
+                        </Link>
+                      </>
+                    )}
+                    {(note || monthlyEditing || trainee?.isTrainee) && (
+                      <Tooltip content={tooltipContent} relationship="description">
                         <Button size="small" appearance="subtle" icon={<Note20Regular />} onClick={() => setNotePerson(p.id)} />
                       </Tooltip>
                     )}
@@ -1243,6 +1372,9 @@ export default function MonthlyDefaults({
       )}
       {weekdayPerson !== null && (
         <WeeklyOverrideModal personId={weekdayPerson} onClose={() => setWeekdayPerson(null)} />
+      )}
+      {weekNumberPerson !== null && (
+        <WeekNumberModal personId={weekNumberPerson} onClose={() => setWeekNumberPerson(null)} />
       )}
       {notePerson !== null && (
         <NotesModal personId={notePerson} onClose={() => setNotePerson(null)} />
