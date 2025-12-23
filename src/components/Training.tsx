@@ -469,13 +469,14 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
 
     const { personId, area, currentStatus } = selectedOverride;
     const newStatus = !currentStatus;
+    const completedValue = newStatus ? 1 : 0;
 
     // Insert or update the override in the database
     run(
       `INSERT INTO training_area_override (person_id, area, completed) 
        VALUES (?, ?, ?) 
        ON CONFLICT(person_id, area) DO UPDATE SET completed = ?, created_at = datetime('now')`,
-      [personId, area, newStatus ? 1 : 0, newStatus ? 1 : 0]
+      [personId, area, completedValue, completedValue]
     );
 
     // Close dialog and reset state
