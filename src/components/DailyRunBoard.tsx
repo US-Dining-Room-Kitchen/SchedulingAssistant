@@ -7,6 +7,7 @@ import type { SegmentAdjustmentRow } from "../services/segmentAdjustments";
 import "../styles/scrollbar.css";
 import PersonName from "./PersonName";
 import { getAutoFillPriority } from "./AutoFillSettings";
+import { exportDailyScheduleXlsx } from "../excel/export-one-sheet";
 import {
   Button,
   Dropdown,
@@ -168,8 +169,9 @@ const useStyles = makeStyles({
     display: "flex",
     flexDirection: "column",
     minHeight: 0,
-    overflow: "hidden",
-    maxHeight: "400px", // Prevent individual cards from becoming too tall
+    overflowY: "auto",
+    overflowX: "hidden",
+    maxHeight: "600px", // Allow taller cards with scrolling
     // Mobile adjustments
     "@media (max-width: 767px)": {
       padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
@@ -650,6 +652,17 @@ export default function DailyRunBoard({
 
   function cancelAutoFill() {
     setAutoFillOpen(false);
+  }
+
+  async function handleExportDaily() {
+    try {
+      await exportDailyScheduleXlsx(ymd(selectedDateObj), seg);
+    } catch (error) {
+      dialogs.showAlert(
+        `Failed to export schedule: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        "Export Error"
+      );
+    }
   }
 
   // Precompute segment times for the selected date at top-level for reuse in move dialog
@@ -1201,6 +1214,7 @@ export default function DailyRunBoard({
           </TabList>
         </div>
         <div className={s.headerRight}>
+          <Button appearance="secondary" onClick={handleExportDaily}>Export</Button>
           <Button appearance="secondary" onClick={handleAutoFill}>Auto Fill</Button>
           <Button appearance="secondary" onClick={() => setShowNeedsEditor(true)}>
             Edit Needs for This Day

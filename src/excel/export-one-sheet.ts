@@ -710,3 +710,340 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+// Daily assignment row type
+type DailyAssignmentRow = {
+  person_id: number;
+  person: string;
+  role_id: number;
+  role_name: string;
+  group_name: string;
+  group_id: number;
+  commuter: number;
+};
+
+/**
+ * Export daily schedule for a specific date and segment to XLSX.
+ * Uses the same format and styling as the monthly export.
+ */
+export async function exportDailyScheduleXlsx(date: string, segment: string): Promise<void> {
+  requireDb();
+
+  // Load ExcelJS
+  const ExcelJS = await loadExcelJS();
+
+  const { info: GROUP_INFO, col1: KITCHEN_COL1_GROUPS, col2: KITCHEN_COL2_GROUPS, dining: DINING_GROUPS } = loadExportGroups();
+
+  // Query all assignments for the given date and segment
+  const assignments = all<DailyAssignmentRow>(
+    `SELECT a.person_id, a.role_id,
+            (p.last_name || ', ' || p.first_name) AS person,
+            r.name AS role_name, r.id AS role_id,
+            g.name AS group_name, g.id AS group_id,
+            p.commuter AS commuter
+       FROM assignment a
+      JOIN person p ON p.id = a.person_id
+      JOIN role r ON r.id = a.role_id
+      JOIN grp g ON g.id = r.group_id
+      WHERE a.date = ? AND a.segment = ?
+      ORDER BY g.name, person`,
+    [date, segment]
+  );
+
+  // Organize assignments by regular/commuter -> group code -> person -> roles
+  type PersonBucket = {
+    roles: Set<string>;
+  };
+  const buckets: Record<'regular' | 'commuter', Record<string, Record<string, PersonBucket>>> = {
+    regular: {},
+    commuter: {}
+  };
+
+  for (const row of assignments) {
+    const code = GROUP_INFO[row.group_name]?.code;
+    if (!code) continue;
+
+    const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
+    const groupBucket = buckets[kind][code] || (buckets[kind][code] = {});
+    const personBucket = groupBucket[row.person] || (groupBucket[row.person] = { roles: new Set<string>() });
+    personBucket.roles.add(row.role_name);
+  }
+
+  // Handle Lunch assignments separately
+  const lunchAssignments = all<DailyAssignmentRow>(
+    `SELECT a.person_id, a.role_id,
+            (p.last_name || ', ' || p.first_name) AS person,
+            r.name AS role_name, r.id AS role_id,
+            g.name AS group_name, g.id AS group_id,
+            p.commuter AS commuter
+       FROM assignment a
+      JOIN person p ON p.id = a.person_id
+      JOIN role r ON r.id = a.role_id
+      JOIN grp g ON g.id = r.group_id
+      WHERE a.date = ? AND TRIM(UPPER(a.segment)) = 'LUNCH'
+      ORDER BY g.name, person`,
+    [date]
+  );
+
+  const lunchBuckets: Record<'regular' | 'commuter', Record<string, Record<string, PersonBucket>>> = {
+    regular: {},
+    commuter: {}
+  };
+
+  for (const row of lunchAssignments) {
+    const code = GROUP_INFO[row.group_name]?.code;
+    if (!code) continue;
+
+    const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
+    const groupBucket = lunchBuckets[kind][code] || (lunchBuckets[kind][code] = {});
+    const personBucket = groupBucket[row.person] || (groupBucket[row.person] = { roles: new Set<string>() });
+    personBucket.roles.add(row.role_name);
+  }
+
+  // ---------- Sheet rendering ----------
+  const dateObj = new Date(date);
+  const dateText = dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const segmentText = segment.toUpperCase();
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Schedule');
+  ws.columns = [
+    { width: 26 }, { width: 16 }, { width: 5 }, { width: 14 }, { width: 2 },
+    { width: 26 }, { width: 16 }, { width: 5 }, { width: 14 }, { width: 2 },
+    { width: 26 }, { width: 16 }, { width: 5 }, { width: 14 }
+  ];
+
+  ws.mergeCells(1, 1, 1, 14);
+  const titleCell = ws.getCell(1, 1);
+  titleCell.value = `Kitchen / Dining Room Schedule — ${dateText} — ${segmentText}`;
+  titleCell.font = { bold: true, size: 18, name: 'Calibri' };
+  titleCell.alignment = { horizontal: 'center' };
+
+  const paneState = { kitchen1: 2, kitchen2: 2, dining: 2 } as Record<'kitchen1' | 'kitchen2' | 'dining', number>;
+
+  function setRowBorders(row: any, startCol: number, endCol: number) {
+    for (let c = startCol; c <= endCol; c++) {
+      const cell = row.getCell(c);
+      const border: any = { bottom: { style: 'thin' } };
+      if (c === startCol) border.left = { style: 'thin' };
+      if (c === endCol) border.right = { style: 'thin' };
+      cell.border = border;
+    }
+  }
+
+  function renderBlock(
+    pane: 'kitchen1' | 'kitchen2' | 'dining',
+    group: string,
+    people: Record<string, PersonBucket>
+  ) {
+    const startCol = pane === 'kitchen1' ? 1 : pane === 'kitchen2' ? 6 : 11;
+    if (!people || !Object.keys(people).length) return;
+    const rowIndex = paneState[pane];
+
+    // Group header
+    ws.mergeCells(rowIndex, startCol, rowIndex, startCol + 3);
+    const hcell = ws.getCell(rowIndex, startCol);
+    hcell.value = group;
+    hcell.alignment = { horizontal: 'left' };
+    const fill = GROUP_INFO[group]?.color || 'FFEFEFEF';
+    hcell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
+    for (let c = startCol; c <= startCol + 3; c++) {
+      ws.getCell(rowIndex, c).font = { bold: true, size: 18 };
+    }
+    setRowBorders(ws.getRow(rowIndex), startCol, startCol + 3);
+
+    function simplifyRole(role: string): string | null {
+      if (role === group) return null;
+      const prefix = group + ' ';
+      if (role.startsWith(prefix)) {
+        return role.slice(prefix.length);
+      }
+      return role;
+    }
+
+    let r = rowIndex + 1;
+    const names = Object.keys(people).sort((a, b) => a.localeCompare(b));
+    for (const name of names) {
+      const info = people[name];
+      ws.getCell(r, startCol).value = name;
+
+      const roleNames = Array.from(info.roles)
+        .map(simplifyRole)
+        .filter((v): v is string => Boolean(v));
+      const roleText = Array.from(new Set(roleNames)).sort().join('/');
+      ws.getCell(r, startCol + 1).value = roleText;
+
+      // For daily schedule, we don't show shift (AM/PM) in the shift column as it's in the title
+      // Leave shift column (startCol + 2) blank
+
+      // For daily schedule, we show the single day
+      const dayCell = ws.getCell(r, startCol + 3);
+      dayCell.value = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+
+      for (let c = startCol; c <= startCol + 3; c++) {
+        ws.getCell(r, c).font = { size: 16 };
+      }
+      setRowBorders(ws.getRow(r), startCol, startCol + 3);
+      r++;
+    }
+    paneState[pane] = r;
+  }
+
+  function renderSection(kind: 'regular' | 'commuter') {
+    for (const g of KITCHEN_COL1_GROUPS) {
+      const code = GROUP_INFO[g]?.code;
+      if (!code) continue;
+      const people = buckets[kind][code];
+      if (people && Object.keys(people).length) renderBlock('kitchen1', g, people);
+    }
+    for (const g of KITCHEN_COL2_GROUPS) {
+      const code = GROUP_INFO[g]?.code;
+      if (!code) continue;
+      const people = buckets[kind][code];
+      if (people && Object.keys(people).length) renderBlock('kitchen2', g, people);
+    }
+    for (const g of DINING_GROUPS) {
+      const code = GROUP_INFO[g]?.code;
+      if (!code) continue;
+      const people = buckets[kind][code];
+      if (people && Object.keys(people).length) renderBlock('dining', g, people);
+    }
+  }
+
+  // Regulars first
+  renderSection('regular');
+
+  // Insert COMMUTERS divider if needed, then render commuters
+  const hasAny = (kind: 'regular' | 'commuter') =>
+    Object.values(buckets[kind]).some(groupMap => groupMap && Object.keys(groupMap).length);
+
+  if (hasAny('commuter')) {
+    const afterRegular = Math.max(paneState.kitchen1, paneState.kitchen2, paneState.dining);
+    ws.mergeCells(afterRegular, 1, afterRegular, 14);
+    const commCell = ws.getCell(afterRegular, 1);
+    commCell.value = 'COMMUTERS';
+    commCell.font = { bold: true, size: 18 };
+    commCell.alignment = { horizontal: 'left' };
+    commCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFEFEF' } };
+    commCell.border = { top: { style: 'thick' } };
+
+    paneState.kitchen1 = afterRegular + 1;
+    paneState.kitchen2 = afterRegular + 1;
+    paneState.dining = afterRegular + 1;
+
+    renderSection('commuter');
+  }
+
+  // ---------- Lunch jobs sheet ----------
+  const lunchHasAny = (kind: 'regular' | 'commuter') =>
+    Object.values(lunchBuckets[kind]).some(groupMap => groupMap && Object.keys(groupMap).length);
+
+  if (lunchHasAny('regular') || lunchHasAny('commuter')) {
+    const wsL = wb.addWorksheet('Lunch');
+    wsL.columns = [{ width: 26 }, { width: 16 }, { width: 5 }, { width: 14 }];
+
+    wsL.mergeCells(1, 1, 1, 4);
+    const lunchTitleCell = wsL.getCell(1, 1);
+    lunchTitleCell.value = `Lunch Jobs — ${dateText}`;
+    lunchTitleCell.font = { bold: true, size: 18, name: 'Calibri' };
+    lunchTitleCell.alignment = { horizontal: 'center' };
+
+    let lunchRow = 2;
+
+    function renderLunchBlock(group: string, people: Record<string, PersonBucket>) {
+      if (!people || !Object.keys(people).length) return;
+
+      wsL.mergeCells(lunchRow, 1, lunchRow, 4);
+      const hcell = wsL.getCell(lunchRow, 1);
+      hcell.value = group;
+      hcell.alignment = { horizontal: 'left' };
+      const fill = GROUP_INFO[group]?.color || 'FFEFEFEF';
+      hcell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
+      for (let c = 1; c <= 4; c++) {
+        wsL.getCell(lunchRow, c).font = { bold: true, size: 18 };
+      }
+      setRowBorders(wsL.getRow(lunchRow), 1, 4);
+
+      function simplifyRole(role: string): string | null {
+        if (role === group) return null;
+        const prefix = group + ' ';
+        if (role.startsWith(prefix)) {
+          return role.slice(prefix.length);
+        }
+        return role;
+      }
+
+      let r = lunchRow + 1;
+      const names = Object.keys(people).sort((a, b) => a.localeCompare(b));
+      for (const name of names) {
+        const info = people[name];
+        wsL.getCell(r, 1).value = name;
+
+        const roleNames = Array.from(info.roles)
+          .map(simplifyRole)
+          .filter((v): v is string => Boolean(v));
+        const roleText = Array.from(new Set(roleNames)).sort().join('/');
+        wsL.getCell(r, 2).value = roleText;
+
+        // No shift column for lunch
+        const dayCell = wsL.getCell(r, 4);
+        dayCell.value = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+
+        for (let c = 1; c <= 4; c++) {
+          wsL.getCell(r, c).font = { size: 16 };
+        }
+        setRowBorders(wsL.getRow(r), 1, 4);
+        r++;
+      }
+      lunchRow = r;
+    }
+
+    function renderLunchSection(kind: 'regular' | 'commuter') {
+      for (const g of KITCHEN_COL1_GROUPS) {
+        const code = GROUP_INFO[g]?.code;
+        if (!code) continue;
+        const people = lunchBuckets[kind][code];
+        if (people && Object.keys(people).length) renderLunchBlock(g, people);
+      }
+      for (const g of KITCHEN_COL2_GROUPS) {
+        const code = GROUP_INFO[g]?.code;
+        if (!code) continue;
+        const people = lunchBuckets[kind][code];
+        if (people && Object.keys(people).length) renderLunchBlock(g, people);
+      }
+      for (const g of DINING_GROUPS) {
+        const code = GROUP_INFO[g]?.code;
+        if (!code) continue;
+        const people = lunchBuckets[kind][code];
+        if (people && Object.keys(people).length) renderLunchBlock(g, people);
+      }
+    }
+
+    renderLunchSection('regular');
+
+    if (lunchHasAny('commuter')) {
+      wsL.mergeCells(lunchRow, 1, lunchRow, 4);
+      const commCell = wsL.getCell(lunchRow, 1);
+      commCell.value = 'COMMUTERS';
+      commCell.font = { bold: true, size: 18 };
+      commCell.alignment = { horizontal: 'left' };
+      commCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFEFEF' } };
+      commCell.border = { top: { style: 'thick' } };
+      lunchRow += 1;
+
+      renderLunchSection('commuter');
+    }
+  }
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const shortDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  a.download = `Daily Schedule — ${shortDate} — ${segmentText}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
