@@ -262,15 +262,39 @@ const usePeopleEditorStyles = makeStyles({
     maxHeight: '60vh',
     width: '100%',
     boxShadow: tokens.shadow2,
+    position: 'relative',
     // On mobile, enable horizontal scroll for table
     "@media (max-width: 767px)": {
       overflowX: 'auto',
+      WebkitOverflowScrolling: 'touch',
+      // Add subtle gradient to indicate scrollability
+      backgroundImage: `linear-gradient(to right, ${tokens.colorNeutralBackground1} 30%, transparent),
+                       linear-gradient(to left, ${tokens.colorNeutralBackground1} 30%, transparent),
+                       linear-gradient(to right, ${tokens.colorNeutralStroke2Alpha}, transparent 30%),
+                       linear-gradient(to left, ${tokens.colorNeutralStroke2Alpha}, transparent 30%)`,
+      backgroundPosition: 'left center, right center, left center, right center',
+      backgroundRepeat: 'no-repeat',
+      backgroundSize: '40px 100%, 40px 100%, 10px 100%, 10px 100%',
+      backgroundAttachment: 'local, local, scroll, scroll',
     },
   },
   mobileHideCell: {
     // Hide less important columns on mobile
     "@media (max-width: 767px)": {
       display: 'none',
+    },
+  },
+  actionButtons: {
+    display: 'flex',
+    gap: tokens.spacingHorizontalXS,
+    // Stack vertically on mobile for better touch targets
+    "@media (max-width: 767px)": {
+      flexDirection: 'column',
+      gap: tokens.spacingVerticalXXS,
+      '& button': {
+        width: '100%',
+        minWidth: '60px',
+      },
     },
   },
   header: { 
@@ -1906,7 +1930,7 @@ function PeopleEditor(){
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <div className={s.actionButtons}>
                       <Button size="small" onClick={()=>openModal(p)}>Edit</Button>
                       <Button size="small" appearance="secondary" onClick={()=>{ setPersonToDelete(p.id); }}>Delete</Button>
                     </div>

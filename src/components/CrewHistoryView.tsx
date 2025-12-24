@@ -5,6 +5,7 @@ import PersonName from "./PersonName";
 import type { Segment } from "../services/segments";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, usePersistentFilters } from "./filters/PeopleFilters";
 import { REQUIRED_TRAINING_AREAS, isInTrainingPeriod } from "../utils/trainingConstants";
+import FluentDateInput from "./FluentDateInput";
 
 function pad2(n: number) {
   return n < 10 ? `0${n}` : `${n}`;
@@ -191,11 +192,21 @@ const useCrewHistoryViewStyles = makeStyles({
     overflowX: 'auto',
     overflowY: 'auto',
     overscrollBehaviorX: 'contain',
+    position: 'relative',
     // Add mobile-specific styles for better touch scrolling
     "@media (max-width: 767px)": {
       WebkitOverflowScrolling: 'touch',
       // Reduce max height on mobile to avoid issues
       maxHeight: 'calc(100vh - 300px)',
+      // Add visual scrolling indicators
+      backgroundImage: `linear-gradient(to right, ${tokens.colorNeutralBackground1} 30%, transparent),
+                       linear-gradient(to left, ${tokens.colorNeutralBackground1} 30%, transparent),
+                       linear-gradient(to right, rgba(0,0,0,0.1), transparent 20%),
+                       linear-gradient(to left, rgba(0,0,0,0.1), transparent 20%)`,
+      backgroundPosition: 'left center, right center, left center, right center',
+      backgroundRepeat: 'no-repeat',
+      backgroundSize: '60px 100%, 60px 100%, 20px 100%, 20px 100%',
+      backgroundAttachment: 'local, local, scroll, scroll',
     },
   },
   stickyName: {
@@ -591,11 +602,11 @@ export default function CrewHistoryView({
           <div className={styles.monthRangeSection}>
             <div className={styles.monthInput}>
               <span className={styles.label}>From</span>
-              <Input type="month" value={startMonth} onChange={(_, d) => setStartMonth(d.value)} />
+              <FluentDateInput type="month" value={startMonth} onChange={(_, d) => setStartMonth(d.value)} />
             </div>
             <div className={styles.monthInput}>
               <span className={styles.label}>To</span>
-              <Input type="month" value={endMonth} onChange={(_, d) => setEndMonth(d.value)} />
+              <FluentDateInput type="month" value={endMonth} onChange={(_, d) => setEndMonth(d.value)} />
             </div>
           </div>
           <Checkbox label="Edit past months" checked={editPast} onChange={(_, data) => setEditPast(!!data.checked)} />

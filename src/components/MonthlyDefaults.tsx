@@ -43,6 +43,7 @@ import PersonName from "./PersonName";
 import { exportMonthOneSheetXlsx } from "../excel/export-one-sheet";
 import { type Segment, type SegmentRow } from "../services/segments";
 import type { Availability } from "../services/availabilityOverrides";
+import FluentDateInput from "./FluentDateInput";
 import { SIX_MONTHS_MS, REQUIRED_TRAINING_AREAS, isInTrainingPeriod } from "../utils/trainingConstants";
 import { getWeekDateRange, formatDateRange, type WeekStartMode } from "../utils/weekCalculation";
 import AlertDialog from "./AlertDialog";
@@ -1384,7 +1385,7 @@ export default function MonthlyDefaults({
         <div className={styles.topRow}>
           <div className={styles.controlGroup}>
             <span className={styles.label}>Month</span>
-            <Input className={styles.field} type="month" value={selectedMonth} onChange={(_, d) => setSelectedMonth(d.value)} />
+            <FluentDateInput className={styles.field} type="month" value={selectedMonth} onChange={(_, d) => setSelectedMonth(d.value)} />
           </div>
           <div className={styles.controlGroup}>
             <span className={styles.label}>Sort by</span>
@@ -1450,7 +1451,7 @@ export default function MonthlyDefaults({
             <div className={styles.copySection}>
               <div className={styles.controlGroup} style={{ minWidth: '110px' }}>
                 <span className={styles.label}>Copy from</span>
-                <Input type="month" value={copyFromMonth} onChange={(_, d) => setCopyFromMonth(d.value)} />
+                <FluentDateInput type="month" value={copyFromMonth} onChange={(_, d) => setCopyFromMonth(d.value)} />
               </div>
               <Button appearance="primary" size="small" onClick={handleCopyClick}>
                 Copy
