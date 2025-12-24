@@ -136,12 +136,9 @@ const useStyles = makeStyles({
     height: "100%",
     display: "flex",
     flexDirection: "column",
-    boxShadow: tokens.shadow4,
-    transition: `box-shadow ${tokens.durationNormal} ${tokens.curveEasyEase}`,
+    boxShadow: tokens.shadow2,
     overflow: "hidden",
-    ":hover": {
-      boxShadow: tokens.shadow8,
-    },
+    borderRadius: tokens.borderRadiusLarge,
   },
   groupHeader: {
     display: "flex",
@@ -152,36 +149,42 @@ const useStyles = makeStyles({
   groupMeta: {
     fontSize: tokens.fontSizeBase200,
     color: tokens.colorNeutralForeground3,
+    display: "none", // Hide theme name for cleaner look
   },
   rolesGrid: {
     flex: 1,
     display: "grid",
-    gap: tokens.spacingHorizontalS,
-    paddingTop: tokens.spacingVerticalM,
+    gap: tokens.spacingHorizontalXS,
+    paddingTop: tokens.spacingVerticalS,
     overflow: "auto",
     minHeight: 0,
   },
   roleCard: {
-    borderLeftWidth: "3px",
+    borderLeftWidth: "4px",
     borderLeftStyle: "solid",
     padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
-    boxShadow: tokens.shadow2,
+    backgroundColor: tokens.colorNeutralBackground1,
     borderRadius: tokens.borderRadiusMedium,
     display: "flex",
     flexDirection: "column",
     minHeight: 0,
     overflow: "hidden",
-    transition: `box-shadow ${tokens.durationNormal} ${tokens.curveEasyEase}`,
-    ":hover": {
-      boxShadow: tokens.shadow4,
-    },
   },
   roleHeader: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: tokens.spacingVerticalS,
+    marginBottom: tokens.spacingVerticalXS,
     flexShrink: 0,
+  },
+  roleName: {
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightSemibold,
+  },
+  roleCount: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+    fontWeight: tokens.fontWeightMedium,
   },
   assignmentsList: {
     listStyleType: "none",
@@ -198,15 +201,15 @@ const useStyles = makeStyles({
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: tokens.colorNeutralBackground2,
-    borderRadius: tokens.borderRadiusMedium,
+    backgroundColor: tokens.colorNeutralBackground3,
+    borderRadius: tokens.borderRadiusSmall,
     padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
     columnGap: tokens.spacingHorizontalS,
-    border: `1px solid ${tokens.colorNeutralStroke2}`,
     flexShrink: 0,
+    fontSize: tokens.fontSizeBase200,
     transition: `background-color ${tokens.durationFast} ${tokens.curveEasyEase}`,
     ":hover": {
-      backgroundColor: tokens.colorNeutralBackground2Hover,
+      backgroundColor: tokens.colorNeutralBackground3Hover,
     },
   },
   assignmentName: {
@@ -1032,19 +1035,8 @@ export default function DailyRunBoard({
         }}
       >
         <div className={s.roleHeader}>
-          <Subtitle2>{role.name}</Subtitle2>
-          <Badge
-            appearance="tint"
-            color={
-              status === "under"
-                ? "danger"
-                : status === "exact"
-                ? "success"
-                : "warning"
-            }
-          >
-            {assignedEffective}/{req}
-          </Badge>
+          <span className={s.roleName}>{role.name}</span>
+          <span className={s.roleCount}>{assignedEffective}/{req}</span>
         </div>
 
         <div

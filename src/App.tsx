@@ -19,7 +19,7 @@ import { DismissRegular, ChevronDown20Regular } from "@fluentui/react-icons";
 import MonthlyDefaults from "./components/MonthlyDefaults";
 import CrewHistoryView from "./components/CrewHistoryView";
 import Training from "./components/Training";
-import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./components/filters/PeopleFilters";
+import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, usePersistentFilters } from "./components/filters/PeopleFilters";
 import { isInTrainingPeriod, weeksRemainingInTraining } from "./utils/trainingConstants";
 import ConflictResolutionDialog from "./components/ConflictResolutionDialog";
 import { useSync } from "./sync/useSync";
@@ -260,8 +260,8 @@ const usePeopleEditorStyles = makeStyles({
   title: { fontWeight: tokens.fontWeightSemibold, fontSize: tokens.fontSizeBase400 },
   actions: { display: 'flex', gap: tokens.spacingHorizontalS },
   dialogSurface: {
-    width: '600px',
-    maxWidth: '90vw',
+    width: '700px',
+    maxWidth: '95vw',
   },
   section: {
     marginBottom: tokens.spacingVerticalL,
@@ -306,8 +306,8 @@ const usePeopleEditorStyles = makeStyles({
   },
   availabilityGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(5, 1fr)',
-    gap: tokens.spacingHorizontalS,
+    gridTemplateColumns: 'repeat(5, minmax(110px, 1fr))',
+    gap: tokens.spacingHorizontalM,
   },
   formGrid: {
     display: 'grid',
@@ -1681,7 +1681,7 @@ function PeopleEditor(){
   const [bulkAction,setBulkAction] = useState<'add'|'remove'>('add');
   const [bulkPeople,setBulkPeople] = useState<Set<number>>(new Set());
   const [bulkRoles,setBulkRoles] = useState<Set<number>>(new Set());
-  const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters());
+  const [filters, setFilters] = usePersistentFilters('peopleEditorFilters');
 
   // Query all people, including inactive entries, so they can be edited
   const people = all(`SELECT * FROM person ORDER BY last_name, first_name`);

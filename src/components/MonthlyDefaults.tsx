@@ -37,7 +37,7 @@ import {
   MenuItem,
 } from "@fluentui/react-components";
 import { MoreHorizontal20Regular, Note20Regular } from "@fluentui/react-icons";
-import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, freshPeopleFilters } from "./filters/PeopleFilters";
+import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, usePersistentFilters } from "./filters/PeopleFilters";
 import SmartSelect from "./controls/SmartSelect";
 import PersonName from "./PersonName";
 import { exportMonthOneSheetXlsx } from "../excel/export-one-sheet";
@@ -171,7 +171,7 @@ const useStyles = makeStyles({
   toolbar: {
     display: "flex",
     flexDirection: "column",
-    gap: tokens.spacingVerticalM,
+    gap: tokens.spacingVerticalS,
     paddingBlockEnd: tokens.spacingVerticalS,
     minWidth: 0,
   },
@@ -185,15 +185,15 @@ const useStyles = makeStyles({
     display: "flex",
     flexDirection: "column",
     gap: tokens.spacingVerticalXS,
-    minWidth: "160px",
+    minWidth: "140px",
   },
   actionRow: {
     display: "flex",
     flexWrap: "wrap",
-    gap: tokens.spacingHorizontalS,
+    gap: tokens.spacingHorizontalM,
     alignItems: "center",
-    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
     paddingTop: tokens.spacingVerticalS,
+    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   primaryActions: {
     display: "flex",
@@ -202,9 +202,17 @@ const useStyles = makeStyles({
   },
   secondaryActions: {
     display: "flex",
-    gap: tokens.spacingHorizontalS,
+    gap: tokens.spacingHorizontalM,
     alignItems: "center",
     marginLeft: "auto",
+  },
+  copySection: {
+    display: "flex",
+    alignItems: "end",
+    gap: tokens.spacingHorizontalS,
+    padding: tokens.spacingHorizontalS,
+    backgroundColor: tokens.colorNeutralBackground2,
+    borderRadius: tokens.borderRadiusMedium,
   },
   leftControls: {
     display: "grid",
@@ -466,7 +474,7 @@ export default function MonthlyDefaults({
 }: MonthlyDefaultsProps) {
   const styles = useStyles();
   const segmentNames = useMemo(() => segments.map(s => s.name as Segment), [segments]);
-  const [filters, setFilters] = useState<PeopleFiltersState>(() => freshPeopleFilters());
+  const [filters, setFilters] = usePersistentFilters('monthlyDefaultsFilters');
   const dialogs = useDialogs();
   
   // Format month for display
@@ -1402,17 +1410,19 @@ export default function MonthlyDefaults({
           </div>
           
           <div className={styles.secondaryActions}>
-            <div className={styles.controlGroup} style={{ minWidth: '120px' }}>
-              <span className={styles.label}>Copy From</span>
-              <Input type="month" value={copyFromMonth} onChange={(_, d) => setCopyFromMonth(d.value)} />
+            <div className={styles.copySection}>
+              <div className={styles.controlGroup} style={{ minWidth: '110px' }}>
+                <span className={styles.label}>Copy from</span>
+                <Input type="month" value={copyFromMonth} onChange={(_, d) => setCopyFromMonth(d.value)} />
+              </div>
+              <Button appearance="primary" size="small" onClick={handleCopyClick}>
+                Copy
+              </Button>
             </div>
-            <Button appearance="secondary" size="small" onClick={handleCopyClick}>
-              Copy
-            </Button>
             
             <Menu>
               <MenuTrigger disableButtonEnhancement>
-                <Button appearance="subtle" icon={<MoreHorizontal20Regular />}>
+                <Button appearance="secondary" icon={<MoreHorizontal20Regular />}>
                   Export
                 </Button>
               </MenuTrigger>
