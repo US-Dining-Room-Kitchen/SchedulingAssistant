@@ -221,7 +221,7 @@ const useAppShellStyles = makeStyles({
     maxWidth: '100%',
     overflow: 'hidden',
     boxSizing: 'border-box',
-    paddingLeft: '80px',
+    paddingLeft: '72px',
     backgroundColor: tokens.colorNeutralBackground1,
   },
   contentRow: {
