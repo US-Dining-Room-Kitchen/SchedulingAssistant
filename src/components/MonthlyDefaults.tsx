@@ -42,6 +42,7 @@ import { SIX_MONTHS_MS, REQUIRED_TRAINING_AREAS, isInTrainingPeriod } from "../u
 import { getWeekDateRange, formatDateRange, type WeekStartMode } from "../utils/weekCalculation";
 import AlertDialog from "./AlertDialog";
 import { useDialogs } from "../hooks/useDialogs";
+import { logger } from "../utils/logger";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
 type WeekdayKey = 1 | 2 | 3 | 4 | 5;
@@ -1197,7 +1198,7 @@ export default function MonthlyDefaults({
         }
       }
     } catch (e) {
-      console.error('Failed to load week_start_mode:', e);
+      logger.error('Failed to load week_start_mode:', e);
     }
     
     // Parse selected month to get year and month
@@ -1286,8 +1287,8 @@ export default function MonthlyDefaults({
               <Textarea value={text} onChange={(_, d) => setText(d.value)} />
             </DialogContent>
             <DialogActions>
+              <Button appearance="secondary" onClick={onClose}>Cancel</Button>
               <Button appearance="primary" onClick={() => { setMonthlyNote(personId, text); onClose(); }}>Save</Button>
-              <Button onClick={onClose}>Cancel</Button>
             </DialogActions>
           </DialogBody>
         </DialogSurface>
