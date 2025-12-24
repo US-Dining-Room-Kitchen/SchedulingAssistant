@@ -201,12 +201,12 @@ export default function SideRail({
   ];
 
   // For mobile, show only primary tabs in bottom nav
-  const primaryMobileNavItems = [
+  const primaryMobileNavItems: Array<{ key: TabKey; label: string; icon: React.ReactElement }> = [
     { key: "RUN", label: "Run", icon: <CalendarDay20Regular /> },
     { key: "PEOPLE", label: "People", icon: <PeopleCommunity20Regular /> },
     { key: "MONTHLY", label: "Monthly", icon: <CalendarLtr20Regular /> },
     { key: "EXPORT", label: "Export", icon: <Share20Regular /> },
-  ] as const;
+  ];
 
   if (isMobile) {
     return (
@@ -215,7 +215,7 @@ export default function SideRail({
           <div
             key={item.key}
             className={`${s.bottomNavItem} ${activeTab === item.key ? s.itemActive : ""}`}
-            onClick={() => setActiveTab(item.key as TabKey)}
+            onClick={() => setActiveTab(item.key)}
             role="button"
             aria-current={activeTab === item.key ? "page" : undefined}
           >
