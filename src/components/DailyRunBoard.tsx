@@ -169,9 +169,9 @@ const useStyles = makeStyles({
     display: "flex",
     flexDirection: "column",
     minHeight: 0,
+    height: "100%", // Fill container height
     overflowY: "auto",
     overflowX: "hidden",
-    maxHeight: "600px", // Allow taller cards with scrolling
     // Mobile adjustments
     "@media (max-width: 767px)": {
       padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,

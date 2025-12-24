@@ -306,9 +306,9 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Schedule');
   ws.columns = [
-    { width:26 }, { width:16 }, { width:5 }, { width:14 }, { width:2 },
-    { width:26 }, { width:16 }, { width:5 }, { width:14 }, { width:2 },
-    { width:26 }, { width:16 }, { width:5 }, { width:14 }
+    { width:30 }, { width:20 }, { width:8 }, { width:18 }, { width:2 },
+    { width:30 }, { width:20 }, { width:8 }, { width:18 }, { width:2 },
+    { width:30 }, { width:20 }, { width:8 }, { width:18 }
   ];
 
   ws.mergeCells(1,1,1,14);
@@ -394,12 +394,14 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       }
 
       ws.getCell(r, startCol).value = name;
+      ws.getCell(r, startCol).alignment = { vertical: 'top', wrapText: true };
 
       const roleNames = Array.from(info.roles)
         .map(simplifyRole)
         .filter((v): v is string => Boolean(v));
       const roleText = Array.from(new Set(roleNames)).sort().join('/');
       ws.getCell(r, startCol + 1).value = roleText;
+      ws.getCell(r, startCol + 1).alignment = { vertical: 'top', wrapText: true };
 
       if (hasAM && hasPM) {
         // both -> blank
@@ -411,9 +413,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
 
       const dayCell = ws.getCell(r, startCol + 3);
       dayCell.value = days;
-      if (days.includes(';')) {
-        dayCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
-      }
+      dayCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
       // Apply font to each cell individually to avoid interfering with other
       // panes that may use the same worksheet row.
       for (let c = startCol; c <= startCol + 3; c++) {
@@ -608,11 +608,15 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     for (const name of names) {
       const info = people[name];
       wsL.getCell(r, 1).value = name;
+      wsL.getCell(r, 1).alignment = { vertical: 'top', wrapText: true };
+      
       const roleNames = Array.from(info.roles)
         .map(simplifyRole)
         .filter((v): v is string => Boolean(v));
       const roleText = Array.from(new Set(roleNames)).sort().join('/');
       wsL.getCell(r, 2).value = roleText;
+      wsL.getCell(r, 2).alignment = { vertical: 'top', wrapText: true };
+      
       wsL.getCell(r, 3).value = 'Lunch';
       const dayList = DAY_ORDER.filter(d => info.days.has(d));
       const simplifiedRoleDayMap = new Map<string, Set<DayLetter>>();
@@ -647,9 +651,8 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       }
       const dayCell = wsL.getCell(r, 4);
       dayCell.value = days;
-      if (days.includes(';') || days.includes(':')) {
-        dayCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
-      }
+      dayCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
+      
       for (let c = 1; c <= 4; c++) {
         wsL.getCell(r, c).font = { size: 16 };
       }
@@ -812,9 +815,9 @@ export async function exportDailyScheduleXlsx(date: string): Promise<void> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Schedule');
   ws.columns = [
-    { width: 26 }, { width: 16 }, { width: 5 }, { width: 14 }, { width: 2 },
-    { width: 26 }, { width: 16 }, { width: 5 }, { width: 14 }, { width: 2 },
-    { width: 26 }, { width: 16 }, { width: 5 }, { width: 14 }
+    { width: 30 }, { width: 20 }, { width: 8 }, { width: 18 }, { width: 2 },
+    { width: 30 }, { width: 20 }, { width: 8 }, { width: 18 }, { width: 2 },
+    { width: 30 }, { width: 20 }, { width: 8 }, { width: 18 }
   ];
 
   ws.mergeCells(1, 1, 1, 14);
@@ -870,12 +873,14 @@ export async function exportDailyScheduleXlsx(date: string): Promise<void> {
     for (const name of names) {
       const info = people[name];
       ws.getCell(r, startCol).value = name;
+      ws.getCell(r, startCol).alignment = { vertical: 'top', wrapText: true };
 
       const roleNames = Array.from(info.roles)
         .map(simplifyRole)
         .filter((v): v is string => Boolean(v));
       const roleText = Array.from(new Set(roleNames)).sort().join('/');
       ws.getCell(r, startCol + 1).value = roleText;
+      ws.getCell(r, startCol + 1).alignment = { vertical: 'top', wrapText: true };
 
       // For daily schedule, show segments (AM/PM) in the shift column
       const segments = Array.from(info.segments).sort().join('/');
@@ -884,6 +889,7 @@ export async function exportDailyScheduleXlsx(date: string): Promise<void> {
       // For daily schedule, we show the single day
       const dayCell = ws.getCell(r, startCol + 3);
       dayCell.value = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+      dayCell.alignment = { vertical: 'top', wrapText: true };
 
       for (let c = startCol; c <= startCol + 3; c++) {
         ws.getCell(r, c).font = { size: 16 };
@@ -945,7 +951,7 @@ export async function exportDailyScheduleXlsx(date: string): Promise<void> {
 
   if (lunchHasAny('regular') || lunchHasAny('commuter')) {
     const wsL = wb.addWorksheet('Lunch');
-    wsL.columns = [{ width: 26 }, { width: 16 }, { width: 5 }, { width: 14 }];
+    wsL.columns = [{ width: 30 }, { width: 20 }, { width: 8 }, { width: 18 }];
 
     wsL.mergeCells(1, 1, 1, 4);
     const lunchTitleCell = wsL.getCell(1, 1);
@@ -983,16 +989,19 @@ export async function exportDailyScheduleXlsx(date: string): Promise<void> {
       for (const name of names) {
         const info = people[name];
         wsL.getCell(r, 1).value = name;
+        wsL.getCell(r, 1).alignment = { vertical: 'top', wrapText: true };
 
         const roleNames = Array.from(info.roles)
           .map(simplifyRole)
           .filter((v): v is string => Boolean(v));
         const roleText = Array.from(new Set(roleNames)).sort().join('/');
         wsL.getCell(r, 2).value = roleText;
+        wsL.getCell(r, 2).alignment = { vertical: 'top', wrapText: true };
 
         // No shift column for lunch
         const dayCell = wsL.getCell(r, 4);
         dayCell.value = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+        dayCell.alignment = { vertical: 'top', wrapText: true };
 
         for (let c = 1; c <= 4; c++) {
           wsL.getCell(r, c).font = { size: 16 };
