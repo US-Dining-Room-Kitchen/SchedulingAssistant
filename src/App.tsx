@@ -458,6 +458,7 @@ const useAppShellStyles = makeStyles({
     boxSizing: 'border-box',
     paddingLeft: '72px',
     backgroundColor: tokens.colorNeutralBackground1,
+    transition: `padding-left ${tokens.durationNormal} ${tokens.curveEasyEase}, padding-bottom ${tokens.durationNormal} ${tokens.curveEasyEase}`,
     // Remove left padding on mobile, add bottom padding for bottom nav
     "@media (max-width: 767px)": {
       paddingLeft: 0,

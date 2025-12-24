@@ -78,6 +78,7 @@ const useStyles = makeStyles({
       backgroundColor: tokens.colorNeutralBackground1,
       zIndex: 1000,
       boxShadow: tokens.shadow16,
+      transition: `transform ${tokens.durationNormal} ${tokens.curveEasyEase}`,
     },
   },
   expanded: {
