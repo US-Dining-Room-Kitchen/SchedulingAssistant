@@ -74,6 +74,12 @@ interface Assignment {
   role_type: 'kitchen' | 'waiter';
 }
 
+// Helper function to determine if a menu item represents a coordinator role
+const isCoordinatorRole = (menuItemName: string): boolean => {
+  const nameLower = menuItemName.toLowerCase();
+  return nameLower.startsWith('coordinat') || nameLower.includes(' coordinat');
+};
+
 const useStyles = makeStyles({
   root: {
     padding: tokens.spacingHorizontalL,
@@ -736,7 +742,7 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
                         {kitchenAssignments.map((a: Assignment) => {
                           const person = people.find(p => p.id === a.person_id);
                           if (!person) return null;
-                          const isCoordinator = item.name.toLowerCase().includes('coordinat');
+                          const isCoordinator = isCoordinatorRole(item.name);
                           return (
                             <Tooltip key={a.id} content="Click to remove" relationship="label">
                               <Badge
@@ -778,7 +784,7 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
                         {waiterAssignments.map((a: Assignment) => {
                           const person = people.find(p => p.id === a.person_id);
                           if (!person) return null;
-                          const isCoordinator = item.name.toLowerCase().includes('coordinat');
+                          const isCoordinator = isCoordinatorRole(item.name);
                           return (
                             <Tooltip key={a.id} content="Click to remove" relationship="label">
                               <Badge
