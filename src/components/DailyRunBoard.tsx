@@ -27,7 +27,6 @@ import {
   Card,
   CardHeader,
   Body1,
-  Caption1,
   Title3,
   Subtitle2,
   Tooltip,
@@ -145,11 +144,6 @@ const useStyles = makeStyles({
     alignItems: "center",
     justifyContent: "space-between",
     paddingBottom: tokens.spacingVerticalS,
-  },
-  groupMeta: {
-    fontSize: tokens.fontSizeBase200,
-    color: tokens.colorNeutralForeground3,
-    display: "none", // Hide theme name for cleaner look
   },
   rolesGrid: {
     flex: 1,
@@ -779,11 +773,6 @@ export default function DailyRunBoard({
               )}
               <Title3>{group.name}</Title3>
             </div>
-          }
-          description={
-            <Caption1 className={s.groupMeta}>
-              {group.theme || "No Theme"}
-            </Caption1>
           }
         />
         <div

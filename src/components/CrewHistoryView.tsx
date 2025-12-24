@@ -99,7 +99,7 @@ const useCrewHistoryViewStyles = makeStyles({
     gap: tokens.spacingHorizontalM,
     alignItems: 'center',
     padding: tokens.spacingHorizontalM,
-    backgroundColor: tokens.colorNeutralBackground3,
+    backgroundColor: tokens.colorNeutralBackground2,
     borderRadius: tokens.borderRadiusMedium,
   },
   controlsGrid: {
