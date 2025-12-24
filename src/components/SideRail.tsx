@@ -15,6 +15,7 @@ import {
   NavigationFilled,
 } from "@fluentui/react-icons";
 import { useIsMobile } from "../hooks/useMediaQuery";
+import { MOBILE_NAV_HEIGHT, BREAKPOINTS } from "../styles/breakpoints";
 import "../styles/tooltip.css";
 
 export type TabKey =
@@ -56,20 +57,20 @@ const useStyles = makeStyles({
     transitionProperty: "width",
     transitionDuration: tokens.durationNormal,
     // Hide on mobile
-    "@media (max-width: 767px)": {
+    [`@media ${BREAKPOINTS.mobile.maxQuery}`]: {
       display: "none",
     },
   },
   // Mobile bottom navigation
   bottomNav: {
     display: "none",
-    "@media (max-width: 767px)": {
+    [`@media ${BREAKPOINTS.mobile.maxQuery}`]: {
       display: "flex",
       position: "fixed",
       bottom: 0,
       left: 0,
       right: 0,
-      height: "60px",
+      height: MOBILE_NAV_HEIGHT,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-around",

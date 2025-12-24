@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
+import { BREAKPOINTS } from "../styles/breakpoints";
 
 /**
  * Hook to detect media query breakpoints for responsive design
  * Breakpoints:
  * - Mobile: < 768px
- * - Tablet: 768px - 1024px
+ * - Tablet: 768px - 1023px
  * - Desktop: >= 1024px
  */
 export function useMediaQuery(query: string): boolean {
@@ -35,15 +36,15 @@ export function useMediaQuery(query: string): boolean {
  * Convenience hooks for common breakpoints
  */
 export function useIsMobile(): boolean {
-  return useMediaQuery("(max-width: 767px)");
+  return useMediaQuery(BREAKPOINTS.mobile.maxQuery);
 }
 
 export function useIsTablet(): boolean {
-  return useMediaQuery("(min-width: 768px) and (max-width: 1023px)");
+  return useMediaQuery(BREAKPOINTS.tablet.query);
 }
 
 export function useIsDesktop(): boolean {
-  return useMediaQuery("(min-width: 1024px)");
+  return useMediaQuery(BREAKPOINTS.desktop.minQuery);
 }
 
 /**

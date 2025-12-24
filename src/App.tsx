@@ -31,6 +31,7 @@ import ConfirmDialog from "./components/ConfirmDialog";
 import EmailInputDialog from "./components/EmailInputDialog";
 import { ToastContainer, useToast } from "./components/Toast";
 import { logger } from "./utils/logger";
+import { MOBILE_NAV_HEIGHT, BREAKPOINTS } from "./styles/breakpoints";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -298,7 +299,7 @@ const usePeopleEditorStyles = makeStyles({
     width: '700px',
     maxWidth: '95vw',
     // Full-screen on mobile for better usability
-    "@media (max-width: 767px)": {
+    [`@media ${BREAKPOINTS.mobile.maxQuery}`]: {
       width: '100vw',
       maxWidth: '100vw',
       height: '100vh',
@@ -323,7 +324,7 @@ const usePeopleEditorStyles = makeStyles({
     gap: tokens.spacingHorizontalM,
     marginBottom: tokens.spacingVerticalM,
     // Stack vertically on mobile
-    "@media (max-width: 767px)": {
+    [`@media ${BREAKPOINTS.mobile.maxQuery}`]: {
       gridTemplateColumns: '1fr',
     },
   },
@@ -333,7 +334,7 @@ const usePeopleEditorStyles = makeStyles({
     gap: tokens.spacingHorizontalM,
     marginBottom: tokens.spacingVerticalM,
     // Stack vertically on mobile
-    "@media (max-width: 767px)": {
+    [`@media ${BREAKPOINTS.mobile.maxQuery}`]: {
       gridTemplateColumns: '1fr',
     },
   },
@@ -360,7 +361,7 @@ const usePeopleEditorStyles = makeStyles({
     gridTemplateColumns: 'repeat(5, minmax(110px, 1fr))',
     gap: tokens.spacingHorizontalM,
     // Better wrapping on mobile
-    "@media (max-width: 767px)": {
+    [`@media ${BREAKPOINTS.mobile.maxQuery}`]: {
       gridTemplateColumns: 'repeat(2, 1fr)',
     },
   },
@@ -460,9 +461,9 @@ const useAppShellStyles = makeStyles({
     backgroundColor: tokens.colorNeutralBackground1,
     transition: `padding-left ${tokens.durationNormal} ${tokens.curveEasyEase}, padding-bottom ${tokens.durationNormal} ${tokens.curveEasyEase}`,
     // Remove left padding on mobile, add bottom padding for bottom nav
-    "@media (max-width: 767px)": {
+    [`@media ${BREAKPOINTS.mobile.maxQuery}`]: {
       paddingLeft: 0,
-      paddingBottom: '60px', // Space for bottom navigation
+      paddingBottom: MOBILE_NAV_HEIGHT,
     },
   },
   contentRow: {
