@@ -191,6 +191,12 @@ const useCrewHistoryViewStyles = makeStyles({
     overflowX: 'auto',
     overflowY: 'auto',
     overscrollBehaviorX: 'contain',
+    // Add mobile-specific styles for better touch scrolling
+    "@media (max-width: 767px)": {
+      WebkitOverflowScrolling: 'touch',
+      // Reduce max height on mobile to avoid issues
+      maxHeight: 'calc(100vh - 300px)',
+    },
   },
   stickyName: {
     position: 'sticky',
@@ -201,6 +207,12 @@ const useCrewHistoryViewStyles = makeStyles({
     width: `${NAME_COL_PX}px`,
     minWidth: `${NAME_COL_PX}px`,
     maxWidth: `${NAME_COL_PX}px`,
+    // Reduce width on mobile
+    "@media (max-width: 767px)": {
+      width: '120px',
+      minWidth: '120px',
+      maxWidth: '120px',
+    },
   },
   stickySeg: {
     position: 'sticky',
@@ -211,6 +223,13 @@ const useCrewHistoryViewStyles = makeStyles({
     width: `${SEG_COL_PX}px`,
     minWidth: `${SEG_COL_PX}px`,
     maxWidth: `${SEG_COL_PX}px`,
+    // Adjust position for narrower name column on mobile
+    "@media (max-width: 767px)": {
+      left: '120px',
+      width: '80px',
+      minWidth: '80px',
+      maxWidth: '80px',
+    },
   },
 });
 

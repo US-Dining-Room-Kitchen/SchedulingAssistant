@@ -262,9 +262,15 @@ const usePeopleEditorStyles = makeStyles({
     maxHeight: '60vh',
     width: '100%',
     boxShadow: tokens.shadow2,
-    // On mobile, hide the table and show card layout instead
+    // On mobile, enable horizontal scroll for table
     "@media (max-width: 767px)": {
       overflowX: 'auto',
+    },
+  },
+  mobileHideCell: {
+    // Hide less important columns on mobile
+    "@media (max-width: 767px)": {
+      display: 'none',
     },
   },
   header: { 
@@ -1878,11 +1884,11 @@ function PeopleEditor(){
             <TableHeader>
               <TableRow>
                 <TableHeaderCell>Name</TableHeaderCell>
-                <TableHeaderCell>Work Email</TableHeaderCell>
-                <TableHeaderCell>B/S</TableHeaderCell>
-                <TableHeaderCell>Commute</TableHeaderCell>
+                <TableHeaderCell className={s.mobileHideCell}>Work Email</TableHeaderCell>
+                <TableHeaderCell className={s.mobileHideCell}>B/S</TableHeaderCell>
+                <TableHeaderCell className={s.mobileHideCell}>Commute</TableHeaderCell>
                 <TableHeaderCell>Active</TableHeaderCell>
-                <TableHeaderCell>Availability</TableHeaderCell>
+                <TableHeaderCell className={s.mobileHideCell}>Availability</TableHeaderCell>
                 <TableHeaderCell>Actions</TableHeaderCell>
               </TableRow>
             </TableHeader>
@@ -1890,11 +1896,11 @@ function PeopleEditor(){
               {viewPeople.map(p => (
                 <TableRow key={p.id}>
                   <TableCell className={s.cellWrap}><PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName></TableCell>
-                  <TableCell className={s.cellWrap}>{p.work_email}</TableCell>
-                  <TableCell>{p.brother_sister||'-'}</TableCell>
-                  <TableCell>{p.commuter?"Yes":"No"}</TableCell>
+                  <TableCell className={`${s.cellWrap} ${s.mobileHideCell}`}>{p.work_email}</TableCell>
+                  <TableCell className={s.mobileHideCell}>{p.brother_sister||'-'}</TableCell>
+                  <TableCell className={s.mobileHideCell}>{p.commuter?"Yes":"No"}</TableCell>
                   <TableCell>{p.active?"Yes":"No"}</TableCell>
-                  <TableCell className={s.cellWrap}>
+                  <TableCell className={`${s.cellWrap} ${s.mobileHideCell}`}>
                     <div className={s.availText}>
                       Mon: {p.avail_mon || 'U'} | Tue: {p.avail_tue || 'U'} | Wed: {p.avail_wed || 'U'} | Thu: {p.avail_thu || 'U'} | Fri: {p.avail_fri || 'U'}
                     </div>
