@@ -1155,7 +1155,7 @@
                         <i class="fas fa-sliders-h"></i>
                         Segment Adjustments
                     </h3>
-                    <p class="text-sm text-[#616161] mb-6">Create dynamic time adjustments for segments based on conditions. For example, if Lunch is scheduled, extend AM's end time to match Lunch's start.</p>
+                    <p class="text-sm text-[#616161] mb-6">Create dynamic time adjustments for segments based on one or more conditions. Segment adjustments now support <strong>multiple conditions</strong> with AND/OR logic for complex scheduling scenarios.</p>
                     
                     <div class="table-container mb-8">
                         <table class="w-full text-left text-sm">
@@ -1167,12 +1167,12 @@
                             </thead>
                             <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
                                 <tr>
-                                    <td class="p-3 font-semibold">Target Segment</td>
-                                    <td class="p-3">Which segment's time to adjust.</td>
+                                    <td class="p-3 font-semibold">Conditions</td>
+                                    <td class="p-3">One or more segment+role conditions that must be met. Click "Add Condition" to create multi-condition rules.</td>
                                 </tr>
                                 <tr>
-                                    <td class="p-3 font-semibold">Adjust Start/End</td>
-                                    <td class="p-3">Whether to modify the segment's start or end time.</td>
+                                    <td class="p-3 font-semibold">Logic Operator</td>
+                                    <td class="p-3">For multi-condition rules: <strong>AND</strong> (all conditions must be met) or <strong>OR</strong> (any condition can trigger).</td>
                                 </tr>
                                 <tr>
                                     <td class="p-3 font-semibold">Condition Segment</td>
@@ -1180,29 +1180,67 @@
                                 </tr>
                                 <tr>
                                     <td class="p-3 font-semibold">Condition Role</td>
-                                    <td class="p-3">Optional: Require a specific role in the condition segment.</td>
+                                    <td class="p-3">Optional: Require a specific role in the condition segment. Leave as "Any" to match any role.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Target Segment</td>
+                                    <td class="p-3">Which segment's time to adjust when conditions are met.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Adjust Start/End</td>
+                                    <td class="p-3">Whether to modify the target segment's start or end time.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Baseline</td>
+                                    <td class="p-3">Reference point for the adjustment (condition start/end or target start/end).</td>
                                 </tr>
                                 <tr>
                                     <td class="p-3 font-semibold">Offset Minutes</td>
-                                    <td class="p-3">Number of minutes to add/subtract (positive or negative).</td>
+                                    <td class="p-3">Number of minutes to add/subtract from baseline (positive or negative).</td>
                                 </tr>
                                 <tr>
                                     <td class="p-3 font-semibold">Preview</td>
-                                    <td class="p-3">Test the adjustment on a sample date to verify behavior.</td>
+                                    <td class="p-3">Visual timeline showing how the adjustment affects segment times.</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
 
-                    <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-12">
-                        <h5 class="font-bold text-sm text-[#242424] mb-3">Example: Link AM to Lunch</h5>
+                    <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-4">
+                        <h5 class="font-bold text-sm text-[#242424] mb-3">Example 1: Single Condition - Link AM to Lunch</h5>
                         <ul class="text-xs text-[#616161] space-y-2">
+                            <li><strong>Condition:</strong> Lunch (Any role)</li>
                             <li><strong>Target Segment:</strong> AM</li>
                             <li><strong>Adjust:</strong> End Time</li>
-                            <li><strong>Condition Segment:</strong> Lunch</li>
                             <li><strong>Baseline:</strong> condition.start (Lunch's start time)</li>
                             <li><strong>Offset:</strong> 0 minutes</li>
                             <li><strong>Result:</strong> AM's end time dynamically matches Lunch's start time on days when Lunch is assigned.</li>
+                        </ul>
+                    </div>
+
+                    <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-4">
+                        <h5 class="font-bold text-sm text-[#242424] mb-3">Example 2: Multi-Condition with AND - Complex Lunch Rules</h5>
+                        <ul class="text-xs text-[#616161] space-y-2">
+                            <li><strong>Conditions:</strong> Lunch (Any role) <span class="font-bold text-[#0078d4]">AND</span> AM (Specific Manager Role)</li>
+                            <li><strong>Logic:</strong> AND (both conditions must be met)</li>
+                            <li><strong>Target Segment:</strong> PM</li>
+                            <li><strong>Adjust:</strong> Start Time</li>
+                            <li><strong>Baseline:</strong> condition.end (Lunch's end time)</li>
+                            <li><strong>Offset:</strong> 60 minutes</li>
+                            <li><strong>Result:</strong> PM start is delayed by 60 minutes after Lunch ends, but ONLY when both Lunch is scheduled AND a specific manager is in AM.</li>
+                        </ul>
+                    </div>
+
+                    <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-12">
+                        <h5 class="font-bold text-sm text-[#242424] mb-3">Example 3: Multi-Condition with OR - Fallback Scenarios</h5>
+                        <ul class="text-xs text-[#616161] space-y-2">
+                            <li><strong>Conditions:</strong> Early (Any role) <span class="font-bold text-[#d83b01]">OR</span> Extended-Early (Any role)</li>
+                            <li><strong>Logic:</strong> OR (any condition can trigger)</li>
+                            <li><strong>Target Segment:</strong> AM</li>
+                            <li><strong>Adjust:</strong> Start Time</li>
+                            <li><strong>Baseline:</strong> condition.end (Early/Extended-Early end time)</li>
+                            <li><strong>Offset:</strong> 0 minutes</li>
+                            <li><strong>Result:</strong> AM start adjusts to match whichever early segment is scheduled (either Early OR Extended-Early).</li>
                         </ul>
                     </div>
 
