@@ -1196,55 +1196,72 @@
                         <i class="fas fa-sliders-h"></i>
                         Segment Adjustments
                     </h3>
-                    <p class="text-sm text-[#616161] mb-6">Create dynamic time adjustments for segments based on conditions. For example, if Lunch is scheduled, extend AM's end time to match Lunch's start.</p>
+                    <p class="text-sm text-[#616161] mb-6">Create dynamic time adjustments for segments based on scheduling conditions. The redesigned interface uses a natural language sentence builder and smart presets to make creating rules simple and intuitive.</p>
                     
+                    <h4 class="text-lg font-semibold mb-4 text-[#242424]">New Features</h4>
                     <div class="table-container mb-8">
                         <table class="w-full text-left text-sm">
                             <thead class="bg-[#fafafa] border-b text-[#616161]">
                                 <tr>
-                                    <th class="p-3 font-semibold">Field</th>
-                                    <th class="p-3 font-semibold">Purpose</th>
+                                    <th class="p-3 font-semibold">Feature</th>
+                                    <th class="p-3 font-semibold">Description</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
                                 <tr>
-                                    <td class="p-3 font-semibold">Target Segment</td>
-                                    <td class="p-3">Which segment's time to adjust.</td>
+                                    <td class="p-3 font-semibold">Natural Language Builder</td>
+                                    <td class="p-3">Build rules using a sentence-based interface: "When [Trigger Segment] is scheduled, [action] [Target Segment] to match [reference point]"</td>
                                 </tr>
                                 <tr>
-                                    <td class="p-3 font-semibold">Adjust Start/End</td>
-                                    <td class="p-3">Whether to modify the segment's start or end time.</td>
+                                    <td class="p-3 font-semibold">Quick Add Presets</td>
+                                    <td class="p-3">Auto-detected common patterns like "Extend AM to Lunch" or "Start PM after Lunch" - one-click creation</td>
                                 </tr>
                                 <tr>
-                                    <td class="p-3 font-semibold">Condition Segment</td>
-                                    <td class="p-3">The segment that triggers the adjustment (must be assigned on that date).</td>
+                                    <td class="p-3 font-semibold">Card-Based Display</td>
+                                    <td class="p-3">Rules shown as responsive cards with human-readable descriptions, badges for action type, and quick edit/delete buttons</td>
                                 </tr>
                                 <tr>
-                                    <td class="p-3 font-semibold">Condition Role</td>
-                                    <td class="p-3">Optional: Require a specific role in the condition segment.</td>
+                                    <td class="p-3 font-semibold">Enhanced Preview</td>
+                                    <td class="p-3">Larger 60px timeline showing trigger segment (yellow), target before (dashed), and target after (blue), with time axis labels and explicit before/after times</td>
                                 </tr>
                                 <tr>
-                                    <td class="p-3 font-semibold">Offset Minutes</td>
-                                    <td class="p-3">Number of minutes to add/subtract (positive or negative).</td>
-                                </tr>
-                                <tr>
-                                    <td class="p-3 font-semibold">Preview</td>
-                                    <td class="p-3">Test the adjustment on a sample date to verify behavior.</td>
+                                    <td class="p-3 font-semibold">Slider-Based Offset</td>
+                                    <td class="p-3">Fine-tune timing with a slider (-60 to +60 minutes in 5-minute increments) instead of typing numbers</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
 
+                    <h4 class="text-lg font-semibold mb-4 text-[#242424]">How to Create a Rule</h4>
+                    <ol class="text-sm text-[#616161] mb-6 space-y-2 list-decimal list-inside">
+                        <li>Click <strong>"Quick Add"</strong> to use a preset, or <strong>"Add Adjustment"</strong> to create a custom rule</li>
+                        <li>Use the sentence builder to select:
+                            <ul class="ml-6 mt-2 space-y-1">
+                                <li>• <strong>Trigger Segment:</strong> The segment that must be scheduled to activate this rule</li>
+                                <li>• <strong>Role (optional):</strong> Require a specific role in the trigger segment, or leave as "Any Role"</li>
+                                <li>• <strong>Action:</strong> Choose "move start of" or "extend end of"</li>
+                                <li>• <strong>Target Segment:</strong> The segment whose time will be adjusted</li>
+                                <li>• <strong>Reference Point:</strong> What time to match (start/end of trigger or target segment)</li>
+                            </ul>
+                        </li>
+                        <li>Optional: Use the slider to add/subtract minutes from the reference point</li>
+                        <li>Check the enhanced preview to verify the adjustment looks correct</li>
+                        <li>Click <strong>"Create Rule"</strong> to save</li>
+                    </ol>
+
                     <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-12">
-                        <h5 class="font-bold text-sm text-[#242424] mb-3">Example: Link AM to Lunch</h5>
+                        <h5 class="font-bold text-sm text-[#242424] mb-3">Example: Extend AM to Lunch</h5>
+                        <p class="text-xs text-[#616161] mb-3">Using the sentence builder, you would select:</p>
                         <ul class="text-xs text-[#616161] space-y-2">
-                            <li><strong>Target Segment:</strong> AM</li>
-                            <li><strong>Adjust:</strong> End Time</li>
-                            <li><strong>Condition Segment:</strong> Lunch</li>
-                            <li><strong>Baseline:</strong> condition.start (Lunch's start time)</li>
-                            <li><strong>Offset:</strong> 0 minutes</li>
-                            <li><strong>Result:</strong> AM's end time dynamically matches Lunch's start time on days when Lunch is assigned.</li>
+                            <li><strong>When:</strong> Lunch</li>
+                            <li><strong>Role:</strong> Any Role</li>
+                            <li><strong>Action:</strong> extend end of</li>
+                            <li><strong>Target:</strong> AM</li>
+                            <li><strong>Reference Point:</strong> start of Trigger Segment</li>
+                            <li><strong>Offset:</strong> No offset (slider at 0)</li>
+                            <li><strong>Result:</strong> When Lunch is scheduled, AM's end time automatically matches Lunch's start time</li>
                         </ul>
+                        <p class="text-xs text-[#616161] mt-3 italic">💡 Tip: This is available as a Quick Add preset if you have both AM and Lunch segments!</p>
                     </div>
 
                     <h3 class="text-xl font-bold mb-6 text-[#0078d4] flex items-center gap-2">
