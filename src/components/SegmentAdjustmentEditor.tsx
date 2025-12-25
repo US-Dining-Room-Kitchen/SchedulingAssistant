@@ -39,6 +39,11 @@ interface Props {
   segments: SegmentRow[];
 }
 
+interface Role {
+  id: number;
+  name: string;
+}
+
 // Reference point options with user-friendly labels
 const referencePointOpts = [
   { value: "condition.start", label: "start of Trigger Segment" },
@@ -308,7 +313,7 @@ function generatePresets(segments: SegmentRow[]): PresetRule[] {
 }
 
 // Generate human-readable description from adjustment row
-function generateDescription(row: any, roles: any[]): string {
+function generateDescription(row: SegmentAdjustmentRow, roles: Role[]): string {
   const actionLabel = row.target_field === "start" ? "Move start of" : "Extend end of";
   const refPoint = referencePointOpts.find(o => o.value === row.baseline)?.label || row.baseline;
   const roleText = row.condition_role_id 
@@ -333,11 +338,11 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
     baseline: "condition.start",
     offset_minutes: 0,
   };
-  const [rows, setRows] = useState<any[]>([]);
-  const [editing, setEditing] = useState<any | null>(null);
+  const [rows, setRows] = useState<SegmentAdjustmentRow[]>([]);
+  const [editing, setEditing] = useState<SegmentAdjustmentRow | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [form, setForm] = useState<typeof empty>(empty);
-  const [roles, setRoles] = useState<any[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const dialogs = useDialogs();
   const s = useSegmentAdjustmentStyles();
   
@@ -346,7 +351,7 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
   
   const conditionRoleLabel = useMemo(() => {
     if (form.condition_role_id == null) return "Any Role";
-    const role = roles.find((ro: any) => ro.id === form.condition_role_id);
+    const role = roles.find((ro: Role) => ro.id === form.condition_role_id);
     return role ? role.name : "";
   }, [form.condition_role_id, roles]);
   
@@ -412,7 +417,7 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
     setFormVisible(true);
   }
 
-  function startEdit(r: any) {
+  function startEdit(r: SegmentAdjustmentRow) {
     setEditing(r);
     setForm({
       condition_segment: r.condition_segment,
@@ -530,7 +535,7 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
       {/* Card Grid Display */}
       {rows.length > 0 && !formVisible && (
         <div className={s.cardGrid}>
-          {rows.map((r: any) => {
+          {rows.map((r: SegmentAdjustmentRow) => {
             const description = generateDescription(r, roles);
             const actionType = r.target_field === "start" ? "Move Start" : "Extend End";
             const hasOffset = r.offset_minutes !== 0;
@@ -549,7 +554,7 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
                       )}
                       {r.condition_role_id && (
                         <Badge appearance="outline">
-                          {roles.find((ro: any) => ro.id === r.condition_role_id)?.name || ""}
+                          {roles.find((ro: Role) => ro.id === r.condition_role_id)?.name || ""}
                         </Badge>
                       )}
                     </div>
@@ -615,7 +620,7 @@ export default function SegmentAdjustmentEditor({ all, run, refresh, segments }:
               }
             >
               <Option value="">Any Role</Option>
-              {roles.map((ro: any) => (
+              {roles.map((ro: Role) => (
                 <Option key={ro.id} value={String(ro.id)}>
                   {ro.name}
                 </Option>
