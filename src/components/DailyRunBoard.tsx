@@ -1434,12 +1434,6 @@ export default function DailyRunBoard({
               const val = data.optionValue ?? '';
               if (!val) return;
               const pid = Number(val);
-              const info = overlapByPerson.get(pid);
-              if (info?.heavy) {
-                dialogs.showAlert("This person is blocked by time off with major overlap for this segment.", "Time Off Conflict");
-                setAddSel([]);
-                return;
-              }
               addAssignment(selectedDate, pid, role.id, seg);
               setAddSel([]);
             }}
@@ -1459,9 +1453,12 @@ export default function DailyRunBoard({
                   <Option
                     key={o.id}
                     value={String(o.id)}
-                    disabled={isHeavy}
                     text={text}
-                    style={isPartial ? { fontStyle: 'italic', color: tokens.colorPaletteYellowForeground1 } : undefined}
+                    style={isHeavy 
+                      ? { fontStyle: 'italic', color: tokens.colorPaletteDarkOrangeForeground1 } 
+                      : isPartial 
+                        ? { fontStyle: 'italic', color: tokens.colorPaletteYellowForeground1 } 
+                        : undefined}
                   >
                     {text}
                   </Option>
@@ -1502,11 +1499,9 @@ export default function DailyRunBoard({
       </Body1>
               {canEdit && (
                 <div className={s.actionsRow}>
-                  {!overlapByPerson.get(a.person_id)?.heavy && (
-                    <Button size="small" appearance="secondary" onClick={() => handleMove(a)}>
-                      Move
-                    </Button>
-                  )}
+                  <Button size="small" appearance="secondary" onClick={() => handleMove(a)}>
+                    Move
+                  </Button>
                   <Button size="small" appearance="secondary" onClick={async () => {
                     try {
                       const confirmed = await dialogs.showConfirm(
