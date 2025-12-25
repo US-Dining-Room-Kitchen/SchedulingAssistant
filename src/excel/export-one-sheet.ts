@@ -556,8 +556,15 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
         let days: string;
         const weekRange = formatWeekRange(entry.weeks);
         
-        // If this person appears in multiple entries, show week ranges
-        if (entries.length > 1 && weekRange) {
+        // Check if weeks are contiguous
+        const weekArray = Array.from(entry.weeks).sort((a, b) => a - b);
+        const hasNonContiguousWeeks = weekArray.length > 1 && 
+          !weekArray.every((w, i) => i === 0 || w === weekArray[i - 1] + 1);
+        
+        // Show week ranges if: multiple entries for this person OR non-contiguous weeks
+        const shouldShowWeekRange = entries.length > 1 || hasNonContiguousWeeks;
+        
+        if (shouldShowWeekRange && weekRange) {
           // Show week range along with days
           if (hasAM && hasPM) {
             const sameDays =
@@ -574,7 +581,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
             days = `${weekRange}${dayList.length === DAY_ORDER.length ? '' : ': ' + dayList.join('/')}`;
           }
         } else {
-          // Single entry - show as before
+          // Single entry with contiguous weeks - show as before
           if (hasAM && hasPM) {
             const sameDays =
               amList.length === pmList.length &&
@@ -961,8 +968,15 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
         let days: string;
         const weekRange = formatWeekRange(entry.weeks);
         
-        // If this person has multiple entries, show week ranges
-        if (entries.length > 1 && weekRange) {
+        // Check if weeks are contiguous
+        const weekArray = Array.from(entry.weeks).sort((a, b) => a - b);
+        const hasNonContiguousWeeks = weekArray.length > 1 && 
+          !weekArray.every((w, i) => i === 0 || w === weekArray[i - 1] + 1);
+        
+        // Show week ranges if: multiple entries for this person OR non-contiguous weeks
+        const shouldShowWeekRange = entries.length > 1 || hasNonContiguousWeeks;
+        
+        if (shouldShowWeekRange && weekRange) {
           // Show week range along with days
           if (hasMixedAssignments) {
             const perDay: string[] = [];
@@ -980,7 +994,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
             days = `${weekRange}${dayList.length === DAY_ORDER.length ? '' : ': ' + dayList.join('/')}`;
           }
         } else {
-          // Single entry - show as before
+          // Single entry with contiguous weeks - show as before
           if (hasMixedAssignments) {
             const perDay: string[] = [];
             for (const d of DAY_ORDER) {
