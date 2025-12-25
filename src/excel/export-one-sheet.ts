@@ -306,9 +306,9 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Schedule');
   ws.columns = [
-    { width:30 }, { width:20 }, { width:8 }, { width:18 }, { width:2 },
-    { width:30 }, { width:20 }, { width:8 }, { width:18 }, { width:2 },
-    { width:30 }, { width:20 }, { width:8 }, { width:18 }
+    { width:30 }, { width:20 }, { width:10 }, { width:18 }, { width:2 },
+    { width:30 }, { width:20 }, { width:10 }, { width:18 }, { width:2 },
+    { width:30 }, { width:20 }, { width:10 }, { width:18 }
   ];
 
   ws.mergeCells(1,1,1,14);
@@ -815,9 +815,9 @@ export async function exportDailyScheduleXlsx(date: string): Promise<void> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Schedule');
   ws.columns = [
-    { width: 30 }, { width: 20 }, { width: 8 }, { width: 18 }, { width: 2 },
-    { width: 30 }, { width: 20 }, { width: 8 }, { width: 18 }, { width: 2 },
-    { width: 30 }, { width: 20 }, { width: 8 }, { width: 18 }
+    { width: 30 }, { width: 20 }, { width: 10 }, { width: 18 }, { width: 2 },
+    { width: 30 }, { width: 20 }, { width: 10 }, { width: 18 }, { width: 2 },
+    { width: 30 }, { width: 20 }, { width: 10 }, { width: 18 }
   ];
 
   ws.mergeCells(1, 1, 1, 14);
@@ -951,7 +951,7 @@ export async function exportDailyScheduleXlsx(date: string): Promise<void> {
 
   if (lunchHasAny('regular') || lunchHasAny('commuter')) {
     const wsL = wb.addWorksheet('Lunch');
-    wsL.columns = [{ width: 30 }, { width: 20 }, { width: 8 }, { width: 18 }];
+    wsL.columns = [{ width: 30 }, { width: 20 }, { width: 10 }, { width: 18 }];
 
     wsL.mergeCells(1, 1, 1, 4);
     const lunchTitleCell = wsL.getCell(1, 1);
