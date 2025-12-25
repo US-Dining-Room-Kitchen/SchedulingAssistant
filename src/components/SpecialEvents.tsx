@@ -52,6 +52,13 @@ interface SpecialEvent {
   start_time: string;
   end_time: string;
   description: string | null;
+  item_label?: string | null;
+  role_a_label?: string | null;
+  role_b_label?: string | null;
+  role_a_group?: string | null;
+  role_b_group?: string | null;
+  role_a_theme?: string | null;
+  role_b_theme?: string | null;
   created_at: string;
 }
 
@@ -64,6 +71,7 @@ interface MenuItem {
   sort_order: number;
   is_header: number;
   header_color: string | null;
+  details?: string | null;
 }
 
 interface Assignment {
@@ -79,6 +87,19 @@ const isCoordinatorRole = (menuItemName: string): boolean => {
   const nameLower = menuItemName.toLowerCase();
   return nameLower.startsWith('coordinat') || nameLower.includes(' coordinat');
 };
+
+const defaultEventConfig = {
+  item_label: 'Menu Item',
+  role_a_label: 'Kitchen Staff',
+  role_b_label: 'Waiters',
+  role_a_group: 'Kitchen',
+  role_b_group: 'Dining Room',
+  role_a_theme: '1. DarkPink',
+  role_b_theme: '1. DarkYellow',
+};
+
+const XLSX_URL = "https://cdn.sheetjs.com/xlsx-latest/package/xlsx.mjs";
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 const useStyles = makeStyles({
   root: {
@@ -253,6 +274,36 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
 
   const selectedEvent = events.find((e: SpecialEvent) => e.id === selectedEventId);
 
+  const resolvedEvent = useMemo(() => {
+    if (!selectedEvent) return null;
+    return {
+      ...selectedEvent,
+      item_label: selectedEvent.item_label || defaultEventConfig.item_label,
+      role_a_label: selectedEvent.role_a_label || defaultEventConfig.role_a_label,
+      role_b_label: selectedEvent.role_b_label || defaultEventConfig.role_b_label,
+      role_a_group: selectedEvent.role_a_group || defaultEventConfig.role_a_group,
+      role_b_group: selectedEvent.role_b_group || defaultEventConfig.role_b_group,
+      role_a_theme: selectedEvent.role_a_theme || defaultEventConfig.role_a_theme,
+      role_b_theme: selectedEvent.role_b_theme || defaultEventConfig.role_b_theme,
+    } as SpecialEvent;
+  }, [selectedEvent]);
+
+  const peopleById = useMemo(() => {
+    const map = new Map<number, any>();
+    people.forEach((p) => map.set(p.id, p));
+    return map;
+  }, [people]);
+
+  const assignmentsByMenuId = useMemo(() => {
+    const map = new Map<number, { kitchen: Assignment[]; waiter: Assignment[] }>();
+    assignments.forEach((assignment: Assignment) => {
+      const existing = map.get(assignment.menu_item_id) || { kitchen: [], waiter: [] };
+      existing[assignment.role_type].push(assignment);
+      map.set(assignment.menu_item_id, existing);
+    });
+    return map;
+  }, [assignments]);
+
   // Event CRUD
   const handleCreateEvent = () => {
     setEditingEvent({
@@ -261,6 +312,7 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
       start_time: '16:00',
       end_time: '20:00',
       description: '',
+      ...defaultEventConfig,
     });
     setShowEventDialog(true);
   };
@@ -277,6 +329,13 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
       start_time: event.start_time,
       end_time: event.end_time,
       description: event.description,
+      item_label: event.item_label || defaultEventConfig.item_label,
+      role_a_label: event.role_a_label || defaultEventConfig.role_a_label,
+      role_b_label: event.role_b_label || defaultEventConfig.role_b_label,
+      role_a_group: event.role_a_group || defaultEventConfig.role_a_group,
+      role_b_group: event.role_b_group || defaultEventConfig.role_b_group,
+      role_a_theme: event.role_a_theme || defaultEventConfig.role_a_theme,
+      role_b_theme: event.role_b_theme || defaultEventConfig.role_b_theme,
     });
     setShowEventDialog(true);
   };
@@ -289,13 +348,40 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
 
     if (editingEvent.id) {
       run(
-        `UPDATE special_event SET name=?, event_date=?, start_time=?, end_time=?, description=? WHERE id=?`,
-        [editingEvent.name, editingEvent.event_date, editingEvent.start_time, editingEvent.end_time, editingEvent.description, editingEvent.id]
+        `UPDATE special_event SET name=?, event_date=?, start_time=?, end_time=?, description=?, item_label=?, role_a_label=?, role_b_label=?, role_a_group=?, role_b_group=?, role_a_theme=?, role_b_theme=? WHERE id=?`,
+        [
+          editingEvent.name,
+          editingEvent.event_date,
+          editingEvent.start_time,
+          editingEvent.end_time,
+          editingEvent.description,
+          editingEvent.item_label || defaultEventConfig.item_label,
+          editingEvent.role_a_label || defaultEventConfig.role_a_label,
+          editingEvent.role_b_label || defaultEventConfig.role_b_label,
+          editingEvent.role_a_group || defaultEventConfig.role_a_group,
+          editingEvent.role_b_group || defaultEventConfig.role_b_group,
+          editingEvent.role_a_theme || defaultEventConfig.role_a_theme,
+          editingEvent.role_b_theme || defaultEventConfig.role_b_theme,
+          editingEvent.id,
+        ]
       );
     } else {
       run(
-        `INSERT INTO special_event (name, event_date, start_time, end_time, description) VALUES (?, ?, ?, ?, ?)`,
-        [editingEvent.name, editingEvent.event_date, editingEvent.start_time, editingEvent.end_time, editingEvent.description]
+        `INSERT INTO special_event (name, event_date, start_time, end_time, description, item_label, role_a_label, role_b_label, role_a_group, role_b_group, role_a_theme, role_b_theme) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          editingEvent.name,
+          editingEvent.event_date,
+          editingEvent.start_time,
+          editingEvent.end_time,
+          editingEvent.description,
+          editingEvent.item_label || defaultEventConfig.item_label,
+          editingEvent.role_a_label || defaultEventConfig.role_a_label,
+          editingEvent.role_b_label || defaultEventConfig.role_b_label,
+          editingEvent.role_a_group || defaultEventConfig.role_a_group,
+          editingEvent.role_b_group || defaultEventConfig.role_b_group,
+          editingEvent.role_a_theme || defaultEventConfig.role_a_theme,
+          editingEvent.role_b_theme || defaultEventConfig.role_b_theme,
+        ]
       );
       if (!selectedEventId) {
         const newId = all(`SELECT last_insert_rowid() as id`)[0]?.id;
@@ -337,6 +423,7 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
       sort_order: menuItems.length,
       is_header: 0,
       header_color: '#0070C0',
+      details: '',
     });
     setShowMenuDialog(true);
   };
@@ -354,13 +441,30 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
 
     if (editingMenuItem.id) {
       run(
-        `UPDATE special_event_menu_item SET name=?, kitchen_quota=?, waiter_quota=?, is_header=?, header_color=? WHERE id=?`,
-        [editingMenuItem.name, editingMenuItem.kitchen_quota, editingMenuItem.waiter_quota, editingMenuItem.is_header, editingMenuItem.header_color, editingMenuItem.id]
+        `UPDATE special_event_menu_item SET name=?, kitchen_quota=?, waiter_quota=?, is_header=?, header_color=?, details=? WHERE id=?`,
+        [
+          editingMenuItem.name,
+          editingMenuItem.kitchen_quota,
+          editingMenuItem.waiter_quota,
+          editingMenuItem.is_header,
+          editingMenuItem.header_color,
+          editingMenuItem.details,
+          editingMenuItem.id,
+        ]
       );
     } else {
       run(
-        `INSERT INTO special_event_menu_item (event_id, name, kitchen_quota, waiter_quota, sort_order, is_header, header_color) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [editingMenuItem.event_id, editingMenuItem.name, editingMenuItem.kitchen_quota, editingMenuItem.waiter_quota, editingMenuItem.sort_order, editingMenuItem.is_header, editingMenuItem.header_color]
+        `INSERT INTO special_event_menu_item (event_id, name, kitchen_quota, waiter_quota, sort_order, is_header, header_color, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          editingMenuItem.event_id,
+          editingMenuItem.name,
+          editingMenuItem.kitchen_quota,
+          editingMenuItem.waiter_quota,
+          editingMenuItem.sort_order,
+          editingMenuItem.is_header,
+          editingMenuItem.header_color,
+          editingMenuItem.details,
+        ]
       );
     }
     
@@ -369,27 +473,51 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
     setEditingMenuItem(null);
   };
 
+  const getSectionBounds = (index: number) => {
+    let sectionStart = 0;
+    for (let i = index; i >= 0; i--) {
+      if (menuItems[i]?.is_header) {
+        sectionStart = i + 1;
+        break;
+      }
+    }
+
+    let sectionEnd = menuItems.length - 1;
+    for (let i = index + 1; i < menuItems.length; i++) {
+      if (menuItems[i]?.is_header) {
+        sectionEnd = i - 1;
+        break;
+      }
+    }
+
+    return { sectionStart, sectionEnd };
+  };
+
   const handleMoveMenuItem = (item: MenuItem, direction: 'up' | 'down') => {
     const currentIndex = menuItems.findIndex((m: MenuItem) => m.id === item.id);
-    if (direction === 'up' && currentIndex === 0) return;
-    if (direction === 'down' && currentIndex === menuItems.length - 1) return;
+    if (currentIndex === -1) return;
+
+    const { sectionStart, sectionEnd } = getSectionBounds(currentIndex);
+
+    if (direction === 'up' && currentIndex <= sectionStart) return;
+    if (direction === 'down' && currentIndex >= sectionEnd) return;
 
     const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
     const swapItem = menuItems[swapIndex];
+    if (!swapItem) return;
 
     run(`UPDATE special_event_menu_item SET sort_order=? WHERE id=?`, [swapItem.sort_order, item.id]);
     run(`UPDATE special_event_menu_item SET sort_order=? WHERE id=?`, [item.sort_order, swapItem.id]);
-    
+
     refreshCaches();
   };
 
   // Assignment management
   const handleAssignPerson = (menuItemId: number, personId: number, roleType: 'kitchen' | 'waiter') => {
     // Check if already assigned
-    const existing = assignments.find(
-      (a: Assignment) => a.menu_item_id === menuItemId && a.person_id === personId && a.role_type === roleType
-    );
-    if (existing) return;
+    const roleAssignments = assignmentsByMenuId.get(menuItemId)?.[roleType] || [];
+    const exists = roleAssignments.some((a) => a.person_id === personId);
+    if (exists) return;
 
     run(
       `INSERT INTO special_event_assignment (event_id, menu_item_id, person_id, role_type) VALUES (?, ?, ?, ?)`,
@@ -405,9 +533,8 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
 
   // Get assignments for a specific menu item and role type
   const getAssignments = (menuItemId: number, roleType: 'kitchen' | 'waiter') => {
-    return assignments.filter(
-      (a: Assignment) => a.menu_item_id === menuItemId && a.role_type === roleType
-    );
+    const entry = assignmentsByMenuId.get(menuItemId);
+    return entry ? entry[roleType] : [];
   };
 
   // Badge color based on role type and coordinator status
@@ -418,17 +545,45 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
     return roleType === 'kitchen' ? 'danger' : 'success'; // Red for kitchen, Cyan for waiter
   };
 
+  const loadXlsx = async () => {
+    // @ts-ignore
+    const XLSX = await import(/* @vite-ignore */ XLSX_URL);
+    return XLSX;
+  };
+
+  const saveWorkbook = async (XLSX: any, wb: any, suggestedName: string) => {
+    const buffer = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+    const blob = new Blob([buffer], { type: XLSX_MIME });
+    const saveFilePicker = (window as any).showSaveFilePicker;
+
+    if (typeof saveFilePicker === 'function') {
+      const fileHandle = await saveFilePicker({
+        suggestedName,
+        types: [{ description: "Excel", accept: { [XLSX_MIME]: [".xlsx"] } }],
+      });
+      const writable = await (fileHandle as any).createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = suggestedName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
   // Export to Teams XLSX format
   const handleExport = async () => {
-    if (!selectedEvent) return;
-    
+    if (!resolvedEvent) return;
+
     try {
-      // Load XLSX library
-      const XLSX_URL = "https://cdn.sheetjs.com/xlsx-latest/package/xlsx.mjs";
-      // @ts-ignore
-      const XLSX = await import(/* @vite-ignore */ XLSX_URL);
-      
-      // Helper functions
+      const XLSX = await loadXlsx();
+
       const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
       const fmtDateMDY = (d: Date) => {
         const m = d.getMonth() + 1;
@@ -437,105 +592,99 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
         return `${m}/${day}/${y}`;
       };
       const fmtTime24 = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-      
-      // Parse event date and times
-      const eventDate = new Date(selectedEvent.event_date + 'T00:00:00');
-      const [startHour, startMin] = selectedEvent.start_time.split(':').map(Number);
-      const [endHour, endMin] = selectedEvent.end_time.split(':').map(Number);
-      
+
+      const eventDate = new Date(resolvedEvent.event_date + 'T00:00:00');
+      const [startHour, startMin] = resolvedEvent.start_time.split(':').map(Number);
+      const [endHour, endMin] = resolvedEvent.end_time.split(':').map(Number);
+
       const startDateTime = new Date(eventDate);
       startDateTime.setHours(startHour, startMin, 0, 0);
-      
+
       const endDateTime = new Date(eventDate);
       endDateTime.setHours(endHour, endMin, 0, 0);
-      
-      // Build rows for XLSX
-      const rows: any[] = [];
-      
-      for (const item of menuItems) {
-        // Skip headers
-        if (item.is_header) continue;
-        
-        // Get assignments for this menu item
+
+      const header = [
+        "Member","Work Email","Group","Start Date","Start Time","End Date","End Time","Theme Color","Custom Label","Unpaid Break (minutes)","Notes","Shared"
+      ];
+      const ws = XLSX.utils.aoa_to_sheet([header]);
+      let nextRow = 1;
+      const appendRow = (row: any) => {
+        XLSX.utils.sheet_add_aoa(
+          ws,
+          [[
+            row.member,
+            row.workEmail,
+            row.group,
+            row.startDate,
+            row.startTime,
+            row.endDate,
+            row.endTime,
+            row.themeColor,
+            row.customLabel,
+            row.unpaidBreak,
+            row.notes,
+            row.shared,
+          ]],
+          { origin: { r: nextRow, c: 0 } }
+        );
+        nextRow += 1;
+      };
+      const nonHeaderItems = menuItems.filter((item: MenuItem) => !item.is_header);
+
+      for (const item of nonHeaderItems) {
         const kitchenAssignments = getAssignments(item.id, 'kitchen');
         const waiterAssignments = getAssignments(item.id, 'waiter');
-        
-        // Add kitchen staff rows
+
         for (const assignment of kitchenAssignments) {
-          const person = people.find(p => p.id === assignment.person_id);
+          const person = peopleById.get(assignment.person_id);
           if (!person) continue;
-          
-          rows.push({
+
+          appendRow({
             member: `${person.last_name}, ${person.first_name}`,
             workEmail: person.work_email || '',
-            group: 'Kitchen',
+            group: resolvedEvent.role_a_group || defaultEventConfig.role_a_group,
             startDate: fmtDateMDY(startDateTime),
             startTime: fmtTime24(startDateTime),
             endDate: fmtDateMDY(endDateTime),
             endTime: fmtTime24(endDateTime),
-            themeColor: '1. DarkPink',
+            themeColor: resolvedEvent.role_a_theme || defaultEventConfig.role_a_theme,
             customLabel: item.name,
             unpaidBreak: 0,
-            notes: selectedEvent.name,
+            notes: item.details ? `${resolvedEvent.name} — ${item.details}` : resolvedEvent.name,
             shared: '2. Not Shared',
           });
         }
-        
-        // Add waiter rows
+
         for (const assignment of waiterAssignments) {
-          const person = people.find(p => p.id === assignment.person_id);
+          const person = peopleById.get(assignment.person_id);
           if (!person) continue;
-          
-          rows.push({
+
+          appendRow({
             member: `${person.last_name}, ${person.first_name}`,
             workEmail: person.work_email || '',
-            group: 'Dining Room',
+            group: resolvedEvent.role_b_group || defaultEventConfig.role_b_group,
             startDate: fmtDateMDY(startDateTime),
             startTime: fmtTime24(startDateTime),
             endDate: fmtDateMDY(endDateTime),
             endTime: fmtTime24(endDateTime),
-            themeColor: '1. DarkYellow',
+            themeColor: resolvedEvent.role_b_theme || defaultEventConfig.role_b_theme,
             customLabel: item.name,
             unpaidBreak: 0,
-            notes: selectedEvent.name,
+            notes: item.details ? `${resolvedEvent.name} — ${item.details}` : resolvedEvent.name,
             shared: '2. Not Shared',
           });
         }
       }
-      
-      // Build XLSX
-      const header = [
-        "Member","Work Email","Group","Start Date","Start Time","End Date","End Time","Theme Color","Custom Label","Unpaid Break (minutes)","Notes","Shared"
-      ];
-      const aoa = [header, ...rows.map(r => [
-        r.member,
-        r.workEmail,
-        r.group,
-        r.startDate,
-        r.startTime,
-        r.endDate,
-        r.endTime,
-        r.themeColor,
-        r.customLabel,
-        r.unpaidBreak,
-        r.notes,
-        r.shared,
-      ])];
-      
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Shifts");
-      
-      const blob = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-      const fileHandle = await (window as any).showSaveFilePicker({
-        suggestedName: `special-event-${selectedEvent.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.xlsx`,
-        types: [{ description: "Excel", accept: { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"] } }],
-      });
-      const writable = await (fileHandle as any).createWritable();
-      await writable.write(blob);
-      await writable.close();
-      
-      setAlertDialog({ title: 'Success', message: `Exported ${rows.length} shifts to XLSX file.` });
+
+      await saveWorkbook(
+        XLSX,
+        wb,
+        `special-event-${resolvedEvent.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.xlsx`
+      );
+
+      setAlertDialog({ title: 'Success', message: `Exported ${nextRow - 1} shifts to XLSX file.` });
     } catch (error: any) {
       console.error('Export failed:', error);
       setAlertDialog({ title: 'Export Failed', message: error.message || 'Failed to export XLSX file.' });
@@ -544,15 +693,11 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
 
   // Print-friendly XLSX export (user-readable layout)
   const handlePrintExport = async () => {
-    if (!selectedEvent) return;
-    
+    if (!resolvedEvent) return;
+
     try {
-      // Load XLSX library
-      const XLSX_URL = "https://cdn.sheetjs.com/xlsx-latest/package/xlsx.mjs";
-      // @ts-ignore
-      const XLSX = await import(/* @vite-ignore */ XLSX_URL);
-      
-      // Helper functions
+      const XLSX = await loadXlsx();
+
       const formatDate = (dateStr: string) => {
         const date = new Date(dateStr + 'T00:00:00');
         return date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -563,67 +708,69 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
         const ampm = hours >= 12 ? 'PM' : 'AM';
         return `${h}:${minutes.toString().padStart(2, '0')} ${ampm}`;
       };
-      
-      // Build rows for printer-friendly layout
+
       const rows: any[] = [];
-      
-      // Event header row
-      rows.push(['Event:', selectedEvent.name]);
-      rows.push(['Date:', formatDate(selectedEvent.event_date)]);
-      rows.push(['Time:', `${formatTime(selectedEvent.start_time)} - ${formatTime(selectedEvent.end_time)}`]);
-      if (selectedEvent.description) {
-        rows.push(['Description:', selectedEvent.description]);
+
+      rows.push(['Event:', resolvedEvent.name]);
+      rows.push(['Date:', formatDate(resolvedEvent.event_date)]);
+      rows.push(['Time:', `${formatTime(resolvedEvent.start_time)} - ${formatTime(resolvedEvent.end_time)}`]);
+      if (resolvedEvent.description) {
+        rows.push(['Description:', resolvedEvent.description]);
       }
-      rows.push([]); // empty row
-      
-      // Table header
-      rows.push(['Menu Item', 'Kitchen Staff', 'Waiters']);
-      
+      rows.push([]);
+
+      rows.push([
+        resolvedEvent.item_label || defaultEventConfig.item_label,
+        resolvedEvent.role_a_label || defaultEventConfig.role_a_label,
+        resolvedEvent.role_b_label || defaultEventConfig.role_b_label,
+      ]);
+
       for (const item of menuItems) {
         if (item.is_header) {
-          // Section header row with background color
           rows.push([item.name, '', '']);
         } else {
           const kitchenAssignments = getAssignments(item.id, 'kitchen');
           const waiterAssignments = getAssignments(item.id, 'waiter');
-          
-          const kitchenNames = kitchenAssignments.map((a: Assignment) => {
-            const person = people.find(p => p.id === a.person_id);
-            return person ? `${person.first_name} ${person.last_name}` : '';
-          }).filter(Boolean).join(', ');
-          
-          const waiterNames = waiterAssignments.map((a: Assignment) => {
-            const person = people.find(p => p.id === a.person_id);
-            return person ? `${person.first_name} ${person.last_name}` : '';
-          }).filter(Boolean).join(', ');
-          
-          rows.push([item.name, kitchenNames || '(none)', waiterNames || '(none)']);
+
+          const kitchenNames = kitchenAssignments
+            .map((a: Assignment) => {
+              const person = peopleById.get(a.person_id);
+              return person ? `${person.first_name} ${person.last_name}` : '';
+            })
+            .filter(Boolean)
+            .join(', ');
+
+          const waiterNames = waiterAssignments
+            .map((a: Assignment) => {
+              const person = peopleById.get(a.person_id);
+              return person ? `${person.first_name} ${person.last_name}` : '';
+            })
+            .filter(Boolean)
+            .join(', ');
+
+          const nameCell = item.details ? `${item.name}\n${item.details}` : item.name;
+          rows.push([nameCell, kitchenNames || '(none)', waiterNames || '(none)']);
         }
       }
-      
-      // Build XLSX with a more readable layout
+
       const ws = XLSX.utils.aoa_to_sheet(rows);
-      
-      // Apply some styling (column widths)
+
       const colWidths = [
-        { wch: 40 }, // Menu Item
-        { wch: 30 }, // Kitchen Staff
-        { wch: 30 }, // Waiters
+        { wch: 40 },
+        { wch: 30 },
+        { wch: 30 },
       ];
       ws['!cols'] = colWidths;
-      
+
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Event Schedule");
-      
-      const blob = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-      const fileHandle = await (window as any).showSaveFilePicker({
-        suggestedName: `special-event-${selectedEvent.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-print.xlsx`,
-        types: [{ description: "Excel", accept: { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"] } }],
-      });
-      const writable = await (fileHandle as any).createWritable();
-      await writable.write(blob);
-      await writable.close();
-      
+
+      await saveWorkbook(
+        XLSX,
+        wb,
+        `special-event-${resolvedEvent.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-print.xlsx`
+      );
+
       setAlertDialog({ title: 'Success', message: `Exported printer-friendly schedule to XLSX file.` });
     } catch (error: any) {
       console.error('Print export failed:', error);
@@ -740,6 +887,68 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
                     rows={3}
                   />
                 </div>
+                <div className={s.formFieldFull}>
+                  <label className={s.label}>Item label</label>
+                  <Input
+                    value={editingEvent?.item_label ?? defaultEventConfig.item_label}
+                    onChange={(_, data) => setEditingEvent({ ...editingEvent, item_label: data.value })}
+                    placeholder="Menu Item / Station / Task"
+                  />
+                </div>
+                <div className={s.formRow}>
+                  <div className={s.formField}>
+                    <label className={s.label}>Column A label</label>
+                    <Input
+                      value={editingEvent?.role_a_label ?? defaultEventConfig.role_a_label}
+                      onChange={(_, data) => setEditingEvent({ ...editingEvent, role_a_label: data.value })}
+                      placeholder={defaultEventConfig.role_a_label}
+                    />
+                  </div>
+                  <div className={s.formField}>
+                    <label className={s.label}>Column B label</label>
+                    <Input
+                      value={editingEvent?.role_b_label ?? defaultEventConfig.role_b_label}
+                      onChange={(_, data) => setEditingEvent({ ...editingEvent, role_b_label: data.value })}
+                      placeholder={defaultEventConfig.role_b_label}
+                    />
+                  </div>
+                </div>
+                <div className={s.formRow}>
+                  <div className={s.formField}>
+                    <label className={s.label}>Column A group (Teams export)</label>
+                    <Input
+                      value={editingEvent?.role_a_group ?? defaultEventConfig.role_a_group}
+                      onChange={(_, data) => setEditingEvent({ ...editingEvent, role_a_group: data.value })}
+                      placeholder={defaultEventConfig.role_a_group}
+                    />
+                  </div>
+                  <div className={s.formField}>
+                    <label className={s.label}>Column B group (Teams export)</label>
+                    <Input
+                      value={editingEvent?.role_b_group ?? defaultEventConfig.role_b_group}
+                      onChange={(_, data) => setEditingEvent({ ...editingEvent, role_b_group: data.value })}
+                      placeholder={defaultEventConfig.role_b_group}
+                    />
+                  </div>
+                </div>
+                <div className={s.formRow}>
+                  <div className={s.formField}>
+                    <label className={s.label}>Column A theme (Teams)</label>
+                    <Input
+                      value={editingEvent?.role_a_theme ?? defaultEventConfig.role_a_theme}
+                      onChange={(_, data) => setEditingEvent({ ...editingEvent, role_a_theme: data.value })}
+                      placeholder={defaultEventConfig.role_a_theme}
+                    />
+                  </div>
+                  <div className={s.formField}>
+                    <label className={s.label}>Column B theme (Teams)</label>
+                    <Input
+                      value={editingEvent?.role_b_theme ?? defaultEventConfig.role_b_theme}
+                      onChange={(_, data) => setEditingEvent({ ...editingEvent, role_b_theme: data.value })}
+                      placeholder={defaultEventConfig.role_b_theme}
+                    />
+                  </div>
+                </div>
               </DialogContent>
               <DialogActions>
                 <Button onClick={() => setShowEventDialog(false)}>Cancel</Button>
@@ -776,30 +985,35 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
   }
 
   // Render event detail view
+  const itemLabel = resolvedEvent?.item_label || defaultEventConfig.item_label;
+  const roleALabel = resolvedEvent?.role_a_label || defaultEventConfig.role_a_label;
+  const roleBLabel = resolvedEvent?.role_b_label || defaultEventConfig.role_b_label;
+  const itemLabelLower = itemLabel.toLowerCase();
+
   return (
     <div className={s.root}>
       <div className={s.detailView}>
-        <div className={s.detailHeader}>
-          <div>
-            <Button appearance="subtle" onClick={() => setSelectedEventId(null)}>
-              ← Back to Events
-            </Button>
-            <div className={s.detailTitle}>{selectedEvent?.name}</div>
-            <div className={s.detailMeta}>
-              {selectedEvent && new Date(selectedEvent.event_date).toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })} • {selectedEvent?.start_time} - {selectedEvent?.end_time}
+          <div className={s.detailHeader}>
+            <div>
+              <Button appearance="subtle" onClick={() => setSelectedEventId(null)}>
+                ← Back to Events
+              </Button>
+              <div className={s.detailTitle}>{resolvedEvent?.name}</div>
+              <div className={s.detailMeta}>
+                {resolvedEvent && new Date(resolvedEvent.event_date).toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })} • {resolvedEvent?.start_time} - {resolvedEvent?.end_time}
+              </div>
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: tokens.spacingHorizontalS }}>
-            <Button icon={<Edit20Regular />} onClick={() => selectedEvent && handleEditEvent(selectedEvent)}>
-              Edit Event
-            </Button>
+            <div style={{ display: 'flex', gap: tokens.spacingHorizontalS }}>
+              <Button icon={<Edit20Regular />} onClick={() => resolvedEvent && handleEditEvent(resolvedEvent)}>
+                Edit Event
+              </Button>
             <Button icon={<Add20Regular />} onClick={handleCreateMenuItem}>
-              Add Menu Item
+              Add {itemLabel}
             </Button>
             <Button appearance="primary" onClick={handleExport}>
               Export to Teams
@@ -813,17 +1027,17 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
         {menuItems.length === 0 ? (
           <div className={s.emptyState}>
             <div style={{ fontSize: tokens.fontSizeBase400, marginBottom: tokens.spacingVerticalM }}>
-              No menu items yet
+              No {itemLabelLower} yet
             </div>
-            <div>Add menu items to start building your event schedule.</div>
+            <div>Add {itemLabelLower} to start building your event schedule.</div>
           </div>
         ) : (
           <table className={s.menuTable}>
             <thead>
               <tr className={`${s.menuRow} ${s.tableHeader}`}>
-                <th className={s.tableHeaderCell} style={{ width: '30%' }}>Menu Item</th>
-                <th className={s.tableHeaderCell} style={{ width: '30%' }}>Kitchen Staff</th>
-                <th className={s.tableHeaderCell} style={{ width: '30%' }}>Waiters</th>
+                <th className={s.tableHeaderCell} style={{ width: '30%' }}>{itemLabel}</th>
+                <th className={s.tableHeaderCell} style={{ width: '30%' }}>{roleALabel}</th>
+                <th className={s.tableHeaderCell} style={{ width: '30%' }}>{roleBLabel}</th>
                 <th className={s.tableHeaderCell} style={{ width: '10%' }}>Actions</th>
               </tr>
             </thead>
@@ -859,11 +1073,19 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
 
                 const kitchenAssignments = getAssignments(item.id, 'kitchen');
                 const waiterAssignments = getAssignments(item.id, 'waiter');
+                const { sectionStart, sectionEnd } = getSectionBounds(index);
+                const disableUp = index <= sectionStart;
+                const disableDown = index >= sectionEnd;
 
                 return (
                   <tr key={item.id} className={s.menuRow}>
                     <td className={s.menuCell}>
                       <div className={s.menuItemName}>{item.name}</div>
+                      {item.details && (
+                        <div style={{ color: tokens.colorNeutralForeground3, fontSize: tokens.fontSizeBase200 }}>
+                          {item.details}
+                        </div>
+                      )}
                     </td>
                     <td className={s.menuCell}>
                       <div className={s.quotaIndicator}>
@@ -888,7 +1110,7 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
                         })}
                         {kitchenAssignments.length < item.kitchen_quota && (
                           <Dropdown
-                            placeholder="+ Assign"
+                            placeholder={`+ Assign ${roleALabel}`}
                             size="small"
                             onOptionSelect={(_, data) => {
                               const personId = parseInt(data.optionValue || '0');
@@ -930,7 +1152,7 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
                         })}
                         {waiterAssignments.length < item.waiter_quota && (
                           <Dropdown
-                            placeholder="+ Assign"
+                            placeholder={`+ Assign ${roleBLabel}`}
                             size="small"
                             onOptionSelect={(_, data) => {
                               const personId = parseInt(data.optionValue || '0');
@@ -951,20 +1173,20 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
                     </td>
                     <td className={s.menuCell}>
                       <div className={s.controlButtons}>
-                        <Button
-                          size="small"
-                          appearance="subtle"
-                          icon={<ArrowUp20Regular />}
-                          onClick={() => handleMoveMenuItem(item, 'up')}
-                          disabled={index === 0 || menuItems[index - 1]?.is_header === 1}
-                        />
-                        <Button
-                          size="small"
-                          appearance="subtle"
-                          icon={<ArrowDown20Regular />}
-                          onClick={() => handleMoveMenuItem(item, 'down')}
-                          disabled={index === menuItems.length - 1}
-                        />
+                          <Button
+                            size="small"
+                            appearance="subtle"
+                            icon={<ArrowUp20Regular />}
+                            onClick={() => handleMoveMenuItem(item, 'up')}
+                            disabled={disableUp}
+                          />
+                          <Button
+                            size="small"
+                            appearance="subtle"
+                            icon={<ArrowDown20Regular />}
+                            onClick={() => handleMoveMenuItem(item, 'down')}
+                            disabled={disableDown}
+                          />
                         <Menu>
                           <MenuTrigger disableButtonEnhancement>
                             <Button size="small" appearance="subtle" icon={<MoreHorizontal20Regular />} />
@@ -994,23 +1216,32 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
       </div>
 
       {/* Menu Item Dialog */}
-      <Dialog open={showMenuDialog} onOpenChange={(_, data) => setShowMenuDialog(data.open)}>
-        <DialogSurface>
-          <DialogBody>
-            <DialogTitle>{editingMenuItem?.id ? 'Edit Menu Item' : 'New Menu Item'}</DialogTitle>
+          <Dialog open={showMenuDialog} onOpenChange={(_, data) => setShowMenuDialog(data.open)}>
+            <DialogSurface>
+              <DialogBody>
+              <DialogTitle>{editingMenuItem?.id ? `Edit ${itemLabel}` : `New ${itemLabel}`}</DialogTitle>
             <DialogContent>
-              <div className={s.formFieldFull}>
-                <label className={s.label}>Item Name *</label>
-                <Input
-                  value={editingMenuItem?.name || ''}
-                  onChange={(_, data) => setEditingMenuItem({ ...editingMenuItem, name: data.value })}
-                  placeholder="Coordinate Smoked BBQ Short Ribs"
-                />
-              </div>
-              <div className={s.formFieldFull}>
-                <label>
-                  <input
-                    type="checkbox"
+                <div className={s.formFieldFull}>
+                  <label className={s.label}>Item Name *</label>
+                  <Input
+                    value={editingMenuItem?.name || ''}
+                    onChange={(_, data) => setEditingMenuItem({ ...editingMenuItem, name: data.value })}
+                    placeholder="Coordinate Smoked BBQ Short Ribs"
+                  />
+                </div>
+                <div className={s.formFieldFull}>
+                  <label className={s.label}>Details / Notes</label>
+                  <Textarea
+                    value={editingMenuItem?.details || ''}
+                    onChange={(_, data) => setEditingMenuItem({ ...editingMenuItem, details: data.value })}
+                    placeholder="Timing, location, prep notes, or other context"
+                    rows={2}
+                  />
+                </div>
+                <div className={s.formFieldFull}>
+                  <label>
+                    <input
+                      type="checkbox"
                     checked={editingMenuItem?.is_header === 1}
                     onChange={(e) => setEditingMenuItem({ ...editingMenuItem, is_header: e.target.checked ? 1 : 0 })}
                   />
@@ -1029,7 +1260,7 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
               ) : (
                 <div className={s.formRow}>
                   <div className={s.formField}>
-                    <label className={s.label}>Kitchen Staff Quota</label>
+                    <label className={s.label}>{roleALabel} Quota</label>
                     <Input
                       type="number"
                       min={0}
@@ -1040,7 +1271,7 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
                     />
                   </div>
                   <div className={s.formField}>
-                    <label className={s.label}>Waiter Quota</label>
+                    <label className={s.label}>{roleBLabel} Quota</label>
                     <Input
                       type="number"
                       min={0}
@@ -1126,19 +1357,81 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
                   />
                 </div>
               </div>
-              <div className={s.formFieldFull}>
-                <label className={s.label}>Description (optional)</label>
-                <Textarea
-                  value={editingEvent?.description || ''}
-                  onChange={(_, data) => setEditingEvent({ ...editingEvent, description: data.value })}
-                  placeholder="Event details..."
-                  rows={3}
+            <div className={s.formFieldFull}>
+              <label className={s.label}>Description (optional)</label>
+              <Textarea
+                value={editingEvent?.description || ''}
+                onChange={(_, data) => setEditingEvent({ ...editingEvent, description: data.value })}
+                placeholder="Event details..."
+                rows={3}
+              />
+            </div>
+            <div className={s.formFieldFull}>
+              <label className={s.label}>Item label</label>
+              <Input
+                value={editingEvent?.item_label ?? defaultEventConfig.item_label}
+                onChange={(_, data) => setEditingEvent({ ...editingEvent, item_label: data.value })}
+                placeholder="Menu Item / Station / Task"
+              />
+            </div>
+            <div className={s.formRow}>
+              <div className={s.formField}>
+                <label className={s.label}>Column A label</label>
+                <Input
+                  value={editingEvent?.role_a_label ?? defaultEventConfig.role_a_label}
+                  onChange={(_, data) => setEditingEvent({ ...editingEvent, role_a_label: data.value })}
+                  placeholder={defaultEventConfig.role_a_label}
                 />
               </div>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setShowEventDialog(false)}>Cancel</Button>
-              <Button appearance="primary" onClick={handleSaveEvent}>
+              <div className={s.formField}>
+                <label className={s.label}>Column B label</label>
+                <Input
+                  value={editingEvent?.role_b_label ?? defaultEventConfig.role_b_label}
+                  onChange={(_, data) => setEditingEvent({ ...editingEvent, role_b_label: data.value })}
+                  placeholder={defaultEventConfig.role_b_label}
+                />
+              </div>
+            </div>
+            <div className={s.formRow}>
+              <div className={s.formField}>
+                <label className={s.label}>Column A group (Teams export)</label>
+                <Input
+                  value={editingEvent?.role_a_group ?? defaultEventConfig.role_a_group}
+                  onChange={(_, data) => setEditingEvent({ ...editingEvent, role_a_group: data.value })}
+                  placeholder={defaultEventConfig.role_a_group}
+                />
+              </div>
+              <div className={s.formField}>
+                <label className={s.label}>Column B group (Teams export)</label>
+                <Input
+                  value={editingEvent?.role_b_group ?? defaultEventConfig.role_b_group}
+                  onChange={(_, data) => setEditingEvent({ ...editingEvent, role_b_group: data.value })}
+                  placeholder={defaultEventConfig.role_b_group}
+                />
+              </div>
+            </div>
+            <div className={s.formRow}>
+              <div className={s.formField}>
+                <label className={s.label}>Column A theme (Teams)</label>
+                <Input
+                  value={editingEvent?.role_a_theme ?? defaultEventConfig.role_a_theme}
+                  onChange={(_, data) => setEditingEvent({ ...editingEvent, role_a_theme: data.value })}
+                  placeholder={defaultEventConfig.role_a_theme}
+                />
+              </div>
+              <div className={s.formField}>
+                <label className={s.label}>Column B theme (Teams)</label>
+                <Input
+                  value={editingEvent?.role_b_theme ?? defaultEventConfig.role_b_theme}
+                  onChange={(_, data) => setEditingEvent({ ...editingEvent, role_b_theme: data.value })}
+                  placeholder={defaultEventConfig.role_b_theme}
+                />
+              </div>
+            </div>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setShowEventDialog(false)}>Cancel</Button>
+            <Button appearance="primary" onClick={handleSaveEvent}>
                 {editingEvent?.id ? 'Save' : 'Create'}
               </Button>
             </DialogActions>

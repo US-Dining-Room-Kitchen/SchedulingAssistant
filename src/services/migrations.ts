@@ -276,6 +276,26 @@ export const migrate28AddSpecialEventAssignment: Migration = (db) => {
   );`);
 };
 
+// 29. Expand special event customization options
+export const migrate29ExpandSpecialEventCustomization: Migration = (db) => {
+  const addColumn = (table: string, column: string, definition: string) => {
+    try {
+      db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+    } catch (e) {
+      // Column may already exist
+    }
+  };
+
+  addColumn('special_event', "item_label TEXT NOT NULL DEFAULT 'Menu Item'");
+  addColumn('special_event', "role_a_label TEXT NOT NULL DEFAULT 'Kitchen Staff'");
+  addColumn('special_event', "role_b_label TEXT NOT NULL DEFAULT 'Waiters'");
+  addColumn('special_event', "role_a_group TEXT NOT NULL DEFAULT 'Kitchen'");
+  addColumn('special_event', "role_b_group TEXT NOT NULL DEFAULT 'Dining Room'");
+  addColumn('special_event', "role_a_theme TEXT NOT NULL DEFAULT '1. DarkPink'");
+  addColumn('special_event', "role_b_theme TEXT NOT NULL DEFAULT '1. DarkYellow'");
+  addColumn('special_event_menu_item', 'details TEXT');
+};
+
 export const migrate6AddExportGroup: Migration = (db) => {
   db.run(`CREATE TABLE IF NOT EXISTS export_group (
       group_id INTEGER PRIMARY KEY,
@@ -793,6 +813,7 @@ const migrations: Record<number, Migration> = {
   26: migrate26AddSpecialEvent,
   27: migrate27AddSpecialEventMenuItem,
   28: migrate28AddSpecialEventAssignment,
+  29: migrate29ExpandSpecialEventCustomization,
 };
 
 export function addMigration(version: number, fn: Migration) {
