@@ -347,15 +347,32 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
 
     const segs = expandSegments(segNorm);
     for (const s of segs) {
-      // Determine which day letters are in this week
+      // Determine which day letters are in this week by checking all days in the month
       const daysInWeek: DayLetter[] = [];
-      for (const dayLetter of DAY_ORDER) {
-        const date = dateForDay(row.month, dayLetter);
+      const [y, m] = row.month.split('-').map((n) => parseInt(n, 10));
+      const lastDayOfMonth = new Date(y, m, 0).getDate(); // Day 0 of next month = last day of this month
+      
+      for (let dayOfMonth = 1; dayOfMonth <= lastDayOfMonth; dayOfMonth++) {
+        const date = new Date(y, m - 1, dayOfMonth);
+        const dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+        
+        // Convert dayOfWeek to DayLetter (skip weekends)
+        let dayLetter: DayLetter | undefined;
+        if (dayOfWeek === 1) dayLetter = 'M';
+        else if (dayOfWeek === 2) dayLetter = 'T';
+        else if (dayOfWeek === 3) dayLetter = 'W';
+        else if (dayOfWeek === 4) dayLetter = 'TH';
+        else if (dayOfWeek === 5) dayLetter = 'F';
+        else continue; // Skip weekends
+        
+        // Check if this date is in the target week
         const weekNum = getWeekOfMonth(date, weekStartMode);
         if (weekNum === row.week_number) {
           // Check availability for this day
           if (isAllowedByAvail(dayLetter, s, row)) {
-            daysInWeek.push(dayLetter);
+            if (!daysInWeek.includes(dayLetter)) {
+              daysInWeek.push(dayLetter);
+            }
           }
         }
       }
@@ -759,15 +776,32 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
 
   // Update lunchPerDayMap with week overrides (higher priority)
   for (const row of lunchPerWeeks) {
-    // Determine which day letters are in this week
+    // Determine which day letters are in this week by checking all days in the month
     const daysInWeek: DayLetter[] = [];
-    for (const dayLetter of DAY_ORDER) {
-      const date = dateForDay(row.month, dayLetter);
+    const [y, m] = row.month.split('-').map((n) => parseInt(n, 10));
+    const lastDayOfMonth = new Date(y, m, 0).getDate(); // Day 0 of next month = last day of this month
+    
+    for (let dayOfMonth = 1; dayOfMonth <= lastDayOfMonth; dayOfMonth++) {
+      const date = new Date(y, m - 1, dayOfMonth);
+      const dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+      
+      // Convert dayOfWeek to DayLetter (skip weekends)
+      let dayLetter: DayLetter | undefined;
+      if (dayOfWeek === 1) dayLetter = 'M';
+      else if (dayOfWeek === 2) dayLetter = 'T';
+      else if (dayOfWeek === 3) dayLetter = 'W';
+      else if (dayOfWeek === 4) dayLetter = 'TH';
+      else if (dayOfWeek === 5) dayLetter = 'F';
+      else continue; // Skip weekends
+      
+      // Check if this date is in the target week
       const weekNum = getWeekOfMonth(date, weekStartMode);
       if (weekNum === row.week_number) {
         // Check availability for this day
         if (isAllowedForLunch(dayLetter, row)) {
-          daysInWeek.push(dayLetter);
+          if (!daysInWeek.includes(dayLetter)) {
+            daysInWeek.push(dayLetter);
+          }
         }
       }
     }
