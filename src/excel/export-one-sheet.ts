@@ -326,9 +326,9 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     console.error('Failed to load week_start_mode:', e);
   }
 
-  // Map (person_id|segment) -> Map<DayLetter, role_id> for precise subtraction
+  // Map (person_id|segment) -> Map<DayLetter, {roleId, weeks}> for precise subtraction and week tracking
   const psKey = (pid:number, seg:Seg) => `${pid}|${seg}`;
-  const perDayMap = new Map<string, Map<DayLetter, number>>();
+  const perDayMap = new Map<string, Map<DayLetter, {roleId: number, weeks: Set<number>}>>();
 
   // 1) Build perDayMap from weekday overrides (just the map, respecting AVAILABILITY)
   for (const row of perDays) {
@@ -343,10 +343,25 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
 
       let dayMap = perDayMap.get(psKey(row.person_id, s));
       if (!dayMap) {
-        dayMap = new Map<DayLetter, number>();
+        dayMap = new Map<DayLetter, {roleId: number, weeks: Set<number>}>();
         perDayMap.set(psKey(row.person_id, s), dayMap);
       }
-      dayMap.set(dayLetter, row.role_id);
+      
+      // Calculate which weeks this day letter appears in for this override
+      const weeks = new Set<number>();
+      const [y, m] = row.month.split('-').map((n) => parseInt(n, 10));
+      const lastDayOfMonth = new Date(y, m, 0).getDate();
+      for (let dayOfMonth = 1; dayOfMonth <= lastDayOfMonth; dayOfMonth++) {
+        const date = new Date(y, m - 1, dayOfMonth);
+        const dow = date.getDay();
+        const dl = dayOfWeekToDayLetter(dow);
+        if (dl === dayLetter) {
+          const weekNum = getWeekOfMonth(date, weekStartMode);
+          if (weekNum > 0) weeks.add(weekNum);
+        }
+      }
+      
+      dayMap.set(dayLetter, {roleId: row.role_id, weeks});
     }
   }
 
@@ -386,13 +401,13 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
 
       let dayMap = perDayMap.get(psKey(row.person_id, s));
       if (!dayMap) {
-        dayMap = new Map<DayLetter, number>();
+        dayMap = new Map<DayLetter, {roleId: number, weeks: Set<number>}>();
         perDayMap.set(psKey(row.person_id, s), dayMap);
       }
 
       // Apply week override to all applicable days (overwrites any weekday overrides)
       for (const dayLetter of daysInWeek) {
-        dayMap.set(dayLetter, row.role_id);
+        dayMap.set(dayLetter, {roleId: row.role_id, weeks: new Set([row.week_number])});
       }
     }
   }
@@ -405,9 +420,7 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
 
     // Group entries by role_id and calculate weeks for each day
     const roleIdToDaysAndWeeks = new Map<number, { days: DayLetter[]; weeks: Set<number> }>();
-    for (const [dayLetter, roleId] of dayMap.entries()) {
-      const date = dateForDay(monthKey, dayLetter);
-      const weekNum = getWeekOfMonth(date, weekStartMode);
+    for (const [dayLetter, {roleId, weeks}] of dayMap.entries()) {
       
       let entry = roleIdToDaysAndWeeks.get(roleId);
       if (!entry) {
@@ -415,7 +428,10 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
         roleIdToDaysAndWeeks.set(roleId, entry);
       }
       entry.days.push(dayLetter);
-      if (weekNum > 0) entry.weeks.add(weekNum);
+      // Add all weeks from this day letter's override
+      for (const w of weeks) {
+        entry.weeks.add(w);
+      }
     }
 
     // For each role, add to buckets
@@ -471,21 +487,51 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
     for (const s of segs) {
       const dayMap = perDayMap.get(psKey(row.person_id, s));
 
-      const keepLetters: DayLetter[] = [];
-      const keepWeeks = new Set<number>();
-      for (const d of DAY_ORDER) {
-        if (!isAllowedByAvail(d, s, row)) continue; // default not effective when unavailable
-
-        const overriddenRoleId = dayMap?.get(d);
-        if (overriddenRoleId == null || overriddenRoleId === row.role_id) {
-          keepLetters.push(d);
-          const date = dateForDay(monthKey, d);
-          const weekNum = getWeekOfMonth(date, weekStartMode);
-          if (weekNum > 0) keepWeeks.add(weekNum);
+      // For defaults, we need to check each day/week combination
+      // to see if there's an override to a DIFFERENT role for that specific week
+      const keepDaysPerWeek = new Map<number, Set<DayLetter>>();
+      
+      const [y, m] = row.month.split('-').map((n) => parseInt(n, 10));
+      const lastDayOfMonth = new Date(y, m, 0).getDate();
+      
+      // Iterate through all days in the month
+      for (let dayOfMonth = 1; dayOfMonth <= lastDayOfMonth; dayOfMonth++) {
+        const date = new Date(y, m - 1, dayOfMonth);
+        const dow = date.getDay();
+        const dayLetter = dayOfWeekToDayLetter(dow);
+        if (!dayLetter) continue; // Skip weekends
+        
+        // Check availability for this day
+        if (!isAllowedByAvail(dayLetter, s, row)) continue;
+        
+        const weekNum = getWeekOfMonth(date, weekStartMode);
+        if (weekNum <= 0) continue;
+        
+        // Check if there's an override for this day letter
+        const override = dayMap?.get(dayLetter);
+        if (override) {
+          // There's an override. Check if it's for this specific week
+          if (override.weeks.has(weekNum)) {
+            // There's an override for this week
+            if (override.roleId !== row.role_id) {
+              // Override to a DIFFERENT role - skip this day for this week
+              continue;
+            }
+            // else: Override to the SAME role - include it
+          }
+          // else: Override exists but not for this week - include it in default
         }
+        // No override (or override to same role) - include this day for this week
+        
+        let daysInWeek = keepDaysPerWeek.get(weekNum);
+        if (!daysInWeek) {
+          daysInWeek = new Set<DayLetter>();
+          keepDaysPerWeek.set(weekNum, daysInWeek);
+        }
+        daysInWeek.add(dayLetter);
       }
 
-      if (keepLetters.length === 0) continue;
+      if (keepDaysPerWeek.size === 0) continue;
 
       const kind: 'regular' | 'commuter' = row.commuter ? 'commuter' : 'regular';
       const groupBucket = buckets[kind][code] || (buckets[kind][code] = {});
@@ -504,12 +550,12 @@ export async function exportMonthOneSheetXlsx(month: string): Promise<void> {
       }
       
       // Add days and weeks to the entry
-      for (const d of keepLetters) {
-        if (s === 'AM') entry.AM.add(d);
-        else entry.PM.add(d);
-      }
-      for (const weekNum of keepWeeks) {
+      for (const [weekNum, daysInWeek] of keepDaysPerWeek.entries()) {
         entry.weeks.add(weekNum);
+        for (const d of daysInWeek) {
+          if (s === 'AM') entry.AM.add(d);
+          else entry.PM.add(d);
+        }
       }
       
       groupBucket[row.person] = personEntries;
