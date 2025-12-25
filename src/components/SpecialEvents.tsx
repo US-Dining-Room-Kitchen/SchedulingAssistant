@@ -62,6 +62,45 @@ interface SpecialEvent {
   created_at: string;
 }
 
+interface EventColumn {
+  id: number;
+  event_id: number;
+  name: string;
+  column_type: 'label' | 'assignment' | 'time_slot';
+  sort_order: number;
+  start_time: string | null;
+  end_time: string | null;
+  teams_group: string | null;
+  teams_theme: string | null;
+  width: number;
+}
+
+interface EventRow {
+  id: number;
+  event_id: number;
+  sort_order: number;
+  is_header: number;
+  header_color: string | null;
+}
+
+interface EventCell {
+  id: number;
+  row_id: number;
+  column_id: number;
+  text_value: string | null;
+  quota: number;
+}
+
+interface Assignment {
+  id: number;
+  event_id: number;
+  menu_item_id: number | null;
+  person_id: number;
+  role_type: string | null;
+  cell_id: number | null;
+}
+
+// Legacy interfaces for backward compatibility during migration
 interface MenuItem {
   id: number;
   event_id: number;
@@ -72,14 +111,6 @@ interface MenuItem {
   is_header: number;
   header_color: string | null;
   details?: string | null;
-}
-
-interface Assignment {
-  id: number;
-  event_id: number;
-  menu_item_id: number;
-  person_id: number;
-  role_type: 'kitchen' | 'waiter';
 }
 
 // Helper function to determine if a menu item represents a coordinator role
@@ -249,9 +280,12 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [showMenuDialog, setShowMenuDialog] = useState(false);
+  const [showColumnDialog, setShowColumnDialog] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Partial<SpecialEvent> | null>(null);
   const [editingMenuItem, setEditingMenuItem] = useState<Partial<MenuItem> | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<{ type: 'event' | 'menuItem'; id: number } | null>(null);
+  const [editingColumn, setEditingColumn] = useState<Partial<EventColumn> | null>(null);
+  const [editingCell, setEditingCell] = useState<{ cell: Partial<EventCell>; rowId: number; columnId: number } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ type: 'event' | 'menuItem' | 'column' | 'row'; id: number } | null>(null);
   const [alertDialog, setAlertDialog] = useState<{ title: string; message: string } | null>(null);
 
   // Load events
@@ -260,16 +294,41 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
     return all(`SELECT * FROM special_event ORDER BY event_date DESC, created_at DESC`);
   }, [sqlDb, all]);
 
-  // Load menu items for selected event
-  const menuItems = useMemo(() => {
+  // Load columns for selected event
+  const columns = useMemo(() => {
     if (!sqlDb || !selectedEventId) return [];
-    return all(`SELECT * FROM special_event_menu_item WHERE event_id = ? ORDER BY sort_order`, [selectedEventId]);
+    return all(`SELECT * FROM special_event_column WHERE event_id = ? ORDER BY sort_order`, [selectedEventId]);
   }, [sqlDb, all, selectedEventId]);
+
+  // Load rows for selected event
+  const rows = useMemo(() => {
+    if (!sqlDb || !selectedEventId) return [];
+    return all(`SELECT * FROM special_event_row WHERE event_id = ? ORDER BY sort_order`, [selectedEventId]);
+  }, [sqlDb, all, selectedEventId]);
+
+  // Load cells for selected event
+  const cells = useMemo(() => {
+    if (!sqlDb || !selectedEventId) return [];
+    const rowIds = rows.map((r: EventRow) => r.id);
+    if (rowIds.length === 0) return [];
+    const placeholders = rowIds.map(() => '?').join(',');
+    return all(`SELECT * FROM special_event_cell WHERE row_id IN (${placeholders})`, rowIds);
+  }, [sqlDb, all, selectedEventId, rows]);
 
   // Load assignments for selected event
   const assignments = useMemo(() => {
     if (!sqlDb || !selectedEventId) return [];
     return all(`SELECT * FROM special_event_assignment WHERE event_id = ?`, [selectedEventId]);
+  }, [sqlDb, all, selectedEventId]);
+
+  // Legacy: Load menu items for backward compatibility
+  const menuItems = useMemo(() => {
+    if (!sqlDb || !selectedEventId) return [];
+    try {
+      return all(`SELECT * FROM special_event_menu_item WHERE event_id = ? ORDER BY sort_order`, [selectedEventId]);
+    } catch {
+      return [];
+    }
   }, [sqlDb, all, selectedEventId]);
 
   const selectedEvent = events.find((e: SpecialEvent) => e.id === selectedEventId);
@@ -294,15 +353,52 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
     return map;
   }, [people]);
 
-  const assignmentsByMenuId = useMemo(() => {
-    const map = new Map<number, { kitchen: Assignment[]; waiter: Assignment[] }>();
+  // Map cells by row and column for quick lookup
+  const cellsByRowCol = useMemo(() => {
+    const map = new Map<string, EventCell>();
+    cells.forEach((cell: EventCell) => {
+      const key = `${cell.row_id}-${cell.column_id}`;
+      map.set(key, cell);
+    });
+    return map;
+  }, [cells]);
+
+  // Map assignments by cell_id
+  const assignmentsByCellId = useMemo(() => {
+    const map = new Map<number, Assignment[]>();
     assignments.forEach((assignment: Assignment) => {
-      const existing = map.get(assignment.menu_item_id) || { kitchen: [], waiter: [] };
-      existing[assignment.role_type].push(assignment);
-      map.set(assignment.menu_item_id, existing);
+      if (assignment.cell_id) {
+        const existing = map.get(assignment.cell_id) || [];
+        existing.push(assignment);
+        map.set(assignment.cell_id, existing);
+      }
     });
     return map;
   }, [assignments]);
+
+  // Legacy: Map assignments by menu_item_id for backward compatibility
+  const assignmentsByMenuId = useMemo(() => {
+    const map = new Map<number, { kitchen: Assignment[]; waiter: Assignment[] }>();
+    assignments.forEach((assignment: Assignment) => {
+      if (assignment.menu_item_id && assignment.role_type) {
+        const existing = map.get(assignment.menu_item_id) || { kitchen: [], waiter: [] };
+        const roleKey = assignment.role_type as 'kitchen' | 'waiter';
+        existing[roleKey].push(assignment);
+        map.set(assignment.menu_item_id, existing);
+      }
+    });
+    return map;
+  }, [assignments]);
+
+  // Helper function to get cell for a row/column
+  const getCell = (rowId: number, columnId: number): EventCell | undefined => {
+    return cellsByRowCol.get(`${rowId}-${columnId}`);
+  };
+
+  // Helper function to get assignments for a cell
+  const getCellAssignments = (cellId: number): Assignment[] => {
+    return assignmentsByCellId.get(cellId) || [];
+  };
 
   // Event CRUD
   const handleCreateEvent = () => {
@@ -407,10 +503,211 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
       }
     } else if (confirmDelete.type === 'menuItem') {
       run(`DELETE FROM special_event_menu_item WHERE id=?`, [confirmDelete.id]);
+    } else if (confirmDelete.type === 'column') {
+      run(`DELETE FROM special_event_column WHERE id=?`, [confirmDelete.id]);
+    } else if (confirmDelete.type === 'row') {
+      run(`DELETE FROM special_event_row WHERE id=?`, [confirmDelete.id]);
     }
     
     refreshCaches();
     setConfirmDelete(null);
+  };
+
+  // Column CRUD
+  const handleCreateColumn = () => {
+    setEditingColumn({
+      event_id: selectedEventId!,
+      name: '',
+      column_type: 'label',
+      sort_order: columns.length,
+      start_time: null,
+      end_time: null,
+      teams_group: null,
+      teams_theme: null,
+      width: 150,
+    });
+    setShowColumnDialog(true);
+  };
+
+  const handleEditColumn = (column: EventColumn) => {
+    setEditingColumn(column);
+    setShowColumnDialog(true);
+  };
+
+  const handleSaveColumn = () => {
+    if (!editingColumn?.name) {
+      setAlertDialog({ title: 'Validation Error', message: 'Column name is required.' });
+      return;
+    }
+
+    if (editingColumn.id) {
+      run(
+        `UPDATE special_event_column SET name=?, column_type=?, start_time=?, end_time=?, teams_group=?, teams_theme=?, width=? WHERE id=?`,
+        [
+          editingColumn.name,
+          editingColumn.column_type,
+          editingColumn.start_time,
+          editingColumn.end_time,
+          editingColumn.teams_group,
+          editingColumn.teams_theme,
+          editingColumn.width,
+          editingColumn.id,
+        ]
+      );
+    } else {
+      run(
+        `INSERT INTO special_event_column (event_id, name, column_type, sort_order, start_time, end_time, teams_group, teams_theme, width) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          editingColumn.event_id,
+          editingColumn.name,
+          editingColumn.column_type,
+          editingColumn.sort_order,
+          editingColumn.start_time,
+          editingColumn.end_time,
+          editingColumn.teams_group,
+          editingColumn.teams_theme,
+          editingColumn.width,
+        ]
+      );
+      
+      // Create cells for this new column in all existing rows
+      const newColId = all(`SELECT last_insert_rowid() as id`)[0]?.id;
+      if (newColId) {
+        rows.forEach((row: EventRow) => {
+          run(
+            `INSERT INTO special_event_cell (row_id, column_id, text_value, quota) VALUES (?, ?, ?, ?)`,
+            [row.id, newColId, null, 1]
+          );
+        });
+      }
+    }
+    
+    refreshCaches();
+    setShowColumnDialog(false);
+    setEditingColumn(null);
+  };
+
+  const handleMoveColumn = (column: EventColumn, direction: 'up' | 'down') => {
+    const currentIndex = columns.findIndex((c: EventColumn) => c.id === column.id);
+    if (currentIndex === -1) return;
+    if (direction === 'up' && currentIndex === 0) return;
+    if (direction === 'down' && currentIndex === columns.length - 1) return;
+
+    const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    const swapColumn = columns[swapIndex];
+    if (!swapColumn) return;
+
+    run(`UPDATE special_event_column SET sort_order=? WHERE id=?`, [swapColumn.sort_order, column.id]);
+    run(`UPDATE special_event_column SET sort_order=? WHERE id=?`, [column.sort_order, swapColumn.id]);
+
+    refreshCaches();
+  };
+
+  const handleDeleteColumn = (id: number) => {
+    setConfirmDelete({ type: 'column', id });
+  };
+
+  // Row CRUD
+  const handleCreateRow = () => {
+    const newSortOrder = rows.length;
+    run(
+      `INSERT INTO special_event_row (event_id, sort_order, is_header, header_color) VALUES (?, ?, ?, ?)`,
+      [selectedEventId, newSortOrder, 0, '#0070C0']
+    );
+    
+    const newRowId = all(`SELECT last_insert_rowid() as id`)[0]?.id;
+    
+    // Create cells for all columns
+    columns.forEach((column: EventColumn) => {
+      run(
+        `INSERT INTO special_event_cell (row_id, column_id, text_value, quota) VALUES (?, ?, ?, ?)`,
+        [newRowId, column.id, null, 1]
+      );
+    });
+    
+    refreshCaches();
+  };
+
+  const handleCreateSectionHeader = () => {
+    const newSortOrder = rows.length;
+    run(
+      `INSERT INTO special_event_row (event_id, sort_order, is_header, header_color) VALUES (?, ?, ?, ?)`,
+      [selectedEventId, newSortOrder, 1, '#0070C0']
+    );
+    
+    const newRowId = all(`SELECT last_insert_rowid() as id`)[0]?.id;
+    
+    // Create cells for all columns (header rows typically only use first column)
+    columns.forEach((column: EventColumn) => {
+      run(
+        `INSERT INTO special_event_cell (row_id, column_id, text_value, quota) VALUES (?, ?, ?, ?)`,
+        [newRowId, column.id, null, 1]
+      );
+    });
+    
+    refreshCaches();
+  };
+
+  const handleDeleteRow = (id: number) => {
+    setConfirmDelete({ type: 'row', id });
+  };
+
+  const getSectionBounds = (index: number) => {
+    let sectionStart = 0;
+    for (let i = index; i >= 0; i--) {
+      if (rows[i]?.is_header) {
+        sectionStart = i + 1;
+        break;
+      }
+    }
+
+    let sectionEnd = rows.length - 1;
+    for (let i = index + 1; i < rows.length; i++) {
+      if (rows[i]?.is_header) {
+        sectionEnd = i - 1;
+        break;
+      }
+    }
+
+    return { sectionStart, sectionEnd };
+  };
+
+  const handleMoveRow = (row: EventRow, direction: 'up' | 'down') => {
+    const currentIndex = rows.findIndex((r: EventRow) => r.id === row.id);
+    if (currentIndex === -1) return;
+
+    const { sectionStart, sectionEnd } = getSectionBounds(currentIndex);
+
+    if (direction === 'up' && currentIndex <= sectionStart) return;
+    if (direction === 'down' && currentIndex >= sectionEnd) return;
+
+    const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    const swapRow = rows[swapIndex];
+    if (!swapRow) return;
+
+    run(`UPDATE special_event_row SET sort_order=? WHERE id=?`, [swapRow.sort_order, row.id]);
+    run(`UPDATE special_event_row SET sort_order=? WHERE id=?`, [row.sort_order, swapRow.id]);
+
+    refreshCaches();
+  };
+
+  // Cell editing
+  const handleUpdateCell = (rowId: number, columnId: number, updates: Partial<EventCell>) => {
+    const cell = getCell(rowId, columnId);
+    
+    if (cell) {
+      const setClause = Object.keys(updates).map(k => `${k}=?`).join(', ');
+      const values = [...Object.values(updates), cell.id];
+      run(`UPDATE special_event_cell SET ${setClause} WHERE id=?`, values);
+    } else {
+      // Create cell if it doesn't exist
+      run(
+        `INSERT INTO special_event_cell (row_id, column_id, text_value, quota) VALUES (?, ?, ?, ?)`,
+        [rowId, columnId, updates.text_value || null, updates.quota || 1]
+      );
+    }
+    
+    refreshCaches();
   };
 
   // Menu item CRUD
@@ -531,7 +828,21 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
     refreshCaches();
   };
 
-  // Get assignments for a specific menu item and role type
+  // New: Cell-based assignment management
+  const handleAssignPersonToCell = (cellId: number, personId: number) => {
+    // Check if already assigned
+    const cellAssignments = getCellAssignments(cellId);
+    const exists = cellAssignments.some((a) => a.person_id === personId);
+    if (exists) return;
+
+    run(
+      `INSERT INTO special_event_assignment (event_id, cell_id, person_id) VALUES (?, ?, ?)`,
+      [selectedEventId, cellId, personId]
+    );
+    refreshCaches();
+  };
+
+  // Get assignments for a specific menu item and role type (legacy support)
   const getAssignments = (menuItemId: number, roleType: 'kitchen' | 'waiter') => {
     const entry = assignmentsByMenuId.get(menuItemId);
     return entry ? entry[roleType] : [];
@@ -629,52 +940,119 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
         );
         nextRow += 1;
       };
-      const nonHeaderItems = menuItems.filter((item: MenuItem) => !item.is_header);
 
-      for (const item of nonHeaderItems) {
-        const kitchenAssignments = getAssignments(item.id, 'kitchen');
-        const waiterAssignments = getAssignments(item.id, 'waiter');
+      // Check if we have grid data or legacy data
+      const hasGridData = columns.length > 0 && rows.length > 0;
+      
+      if (hasGridData) {
+        // New grid-based export
+        const assignmentColumns = columns.filter((col: EventColumn) => 
+          col.column_type === 'assignment' || col.column_type === 'time_slot'
+        );
+        const labelColumns = columns.filter((col: EventColumn) => col.column_type === 'label');
+        const nonHeaderRows = rows.filter((row: EventRow) => !row.is_header);
 
-        for (const assignment of kitchenAssignments) {
-          const person = peopleById.get(assignment.person_id);
-          if (!person) continue;
+        for (const row of nonHeaderRows) {
+          // Get label cell values for context
+          const labelTexts = labelColumns.map((col: EventColumn) => {
+            const cell = getCell(row.id, col.id);
+            return cell?.text_value || '';
+          }).filter(Boolean);
 
-          appendRow({
-            member: `${person.last_name}, ${person.first_name}`,
-            workEmail: person.work_email || '',
-            group: resolvedEvent.role_a_group || defaultEventConfig.role_a_group,
-            startDate: fmtDateMDY(startDateTime),
-            startTime: fmtTime24(startDateTime),
-            endDate: fmtDateMDY(endDateTime),
-            endTime: fmtTime24(endDateTime),
-            themeColor: resolvedEvent.role_a_theme || defaultEventConfig.role_a_theme,
-            customLabel: item.name,
-            unpaidBreak: 0,
-            notes: item.details ? `${resolvedEvent.name} — ${item.details}` : resolvedEvent.name,
-            shared: '2. Not Shared',
-          });
+          for (const column of assignmentColumns) {
+            const cell = getCell(row.id, column.id);
+            if (!cell) continue;
+
+            const cellAssignments = getCellAssignments(cell.id);
+            
+            // Determine time for this column
+            let colStartTime = startDateTime;
+            let colEndTime = endDateTime;
+            if (column.column_type === 'time_slot' && column.start_time && column.end_time) {
+              const [colStartHour, colStartMin] = column.start_time.split(':').map(Number);
+              const [colEndHour, colEndMin] = column.end_time.split(':').map(Number);
+              colStartTime = new Date(eventDate);
+              colStartTime.setHours(colStartHour, colStartMin, 0, 0);
+              colEndTime = new Date(eventDate);
+              colEndTime.setHours(colEndHour, colEndMin, 0, 0);
+            }
+
+            for (const assignment of cellAssignments) {
+              const person = peopleById.get(assignment.person_id);
+              if (!person) continue;
+
+              const customLabel = labelTexts.length > 0 ? labelTexts[0] : column.name;
+              const notes = labelTexts.length > 1 
+                ? `${resolvedEvent.name} — ${labelTexts.join(' / ')}`
+                : `${resolvedEvent.name}${labelTexts[0] ? ' — ' + labelTexts[0] : ''}`;
+
+              appendRow({
+                member: `${person.last_name}, ${person.first_name}`,
+                workEmail: person.work_email || '',
+                group: column.teams_group || 'General',
+                startDate: fmtDateMDY(colStartTime),
+                startTime: fmtTime24(colStartTime),
+                endDate: fmtDateMDY(colEndTime),
+                endTime: fmtTime24(colEndTime),
+                themeColor: column.teams_theme || '1. DarkBlue',
+                customLabel,
+                unpaidBreak: 0,
+                notes,
+                shared: '2. Not Shared',
+              });
+            }
+          }
         }
+      } else {
+        // Legacy menu-item based export
+        const nonHeaderItems = menuItems.filter((item: MenuItem) => !item.is_header);
 
-        for (const assignment of waiterAssignments) {
-          const person = peopleById.get(assignment.person_id);
-          if (!person) continue;
+        for (const item of nonHeaderItems) {
+          const kitchenAssignments = getAssignments(item.id, 'kitchen');
+          const waiterAssignments = getAssignments(item.id, 'waiter');
 
-          appendRow({
-            member: `${person.last_name}, ${person.first_name}`,
-            workEmail: person.work_email || '',
-            group: resolvedEvent.role_b_group || defaultEventConfig.role_b_group,
-            startDate: fmtDateMDY(startDateTime),
-            startTime: fmtTime24(startDateTime),
-            endDate: fmtDateMDY(endDateTime),
-            endTime: fmtTime24(endDateTime),
-            themeColor: resolvedEvent.role_b_theme || defaultEventConfig.role_b_theme,
-            customLabel: item.name,
-            unpaidBreak: 0,
-            notes: item.details ? `${resolvedEvent.name} — ${item.details}` : resolvedEvent.name,
-            shared: '2. Not Shared',
-          });
+          for (const assignment of kitchenAssignments) {
+            const person = peopleById.get(assignment.person_id);
+            if (!person) continue;
+
+            appendRow({
+              member: `${person.last_name}, ${person.first_name}`,
+              workEmail: person.work_email || '',
+              group: resolvedEvent.role_a_group || defaultEventConfig.role_a_group,
+              startDate: fmtDateMDY(startDateTime),
+              startTime: fmtTime24(startDateTime),
+              endDate: fmtDateMDY(endDateTime),
+              endTime: fmtTime24(endDateTime),
+              themeColor: resolvedEvent.role_a_theme || defaultEventConfig.role_a_theme,
+              customLabel: item.name,
+              unpaidBreak: 0,
+              notes: item.details ? `${resolvedEvent.name} — ${item.details}` : resolvedEvent.name,
+              shared: '2. Not Shared',
+            });
+          }
+
+          for (const assignment of waiterAssignments) {
+            const person = peopleById.get(assignment.person_id);
+            if (!person) continue;
+
+            appendRow({
+              member: `${person.last_name}, ${person.first_name}`,
+              workEmail: person.work_email || '',
+              group: resolvedEvent.role_b_group || defaultEventConfig.role_b_group,
+              startDate: fmtDateMDY(startDateTime),
+              startTime: fmtTime24(startDateTime),
+              endDate: fmtDateMDY(endDateTime),
+              endTime: fmtTime24(endDateTime),
+              themeColor: resolvedEvent.role_b_theme || defaultEventConfig.role_b_theme,
+              customLabel: item.name,
+              unpaidBreak: 0,
+              notes: item.details ? `${resolvedEvent.name} — ${item.details}` : resolvedEvent.name,
+              shared: '2. Not Shared',
+            });
+          }
         }
       }
+      
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Shifts");
 
@@ -691,6 +1069,7 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
     }
   };
 
+  // Print-friendly XLSX export (user-readable layout)
   // Print-friendly XLSX export (user-readable layout)
   const handlePrintExport = async () => {
     if (!resolvedEvent) return;
@@ -709,67 +1088,126 @@ export default function SpecialEvents({ sqlDb, all, run, people, refreshCaches }
         return `${h}:${minutes.toString().padStart(2, '0')} ${ampm}`;
       };
 
-      const rows: any[] = [];
+      const exportRows: any[] = [];
 
-      rows.push(['Event:', resolvedEvent.name]);
-      rows.push(['Date:', formatDate(resolvedEvent.event_date)]);
-      rows.push(['Time:', `${formatTime(resolvedEvent.start_time)} - ${formatTime(resolvedEvent.end_time)}`]);
+      exportRows.push(['Event:', resolvedEvent.name]);
+      exportRows.push(['Date:', formatDate(resolvedEvent.event_date)]);
+      exportRows.push(['Time:', `${formatTime(resolvedEvent.start_time)} - ${formatTime(resolvedEvent.end_time)}`]);
       if (resolvedEvent.description) {
-        rows.push(['Description:', resolvedEvent.description]);
+        exportRows.push(['Description:', resolvedEvent.description]);
       }
-      rows.push([]);
+      exportRows.push([]);
 
-      rows.push([
-        resolvedEvent.item_label || defaultEventConfig.item_label,
-        resolvedEvent.role_a_label || defaultEventConfig.role_a_label,
-        resolvedEvent.role_b_label || defaultEventConfig.role_b_label,
-      ]);
+      // Check if we have grid data or legacy data
+      const hasGridData = columns.length > 0 && rows.length > 0;
 
-      for (const item of menuItems) {
-        if (item.is_header) {
-          rows.push([item.name, '', '']);
-        } else {
-          const kitchenAssignments = getAssignments(item.id, 'kitchen');
-          const waiterAssignments = getAssignments(item.id, 'waiter');
+      if (hasGridData) {
+        // New grid-based print export
+        const headerRow = columns.map((col: EventColumn) => col.name);
+        exportRows.push(headerRow);
 
-          const kitchenNames = kitchenAssignments
-            .map((a: Assignment) => {
-              const person = peopleById.get(a.person_id);
-              return person ? `${person.first_name} ${person.last_name}` : '';
-            })
-            .filter(Boolean)
-            .join(', ');
+        for (const eventRow of rows) {
+          if (eventRow.is_header) {
+            // Header row - span all columns with the first cell's text
+            const firstCell = getCell(eventRow.id, columns[0]?.id);
+            const headerText = firstCell?.text_value || '';
+            const headerRowData = [headerText, ...Array(columns.length - 1).fill('')];
+            exportRows.push(headerRowData);
+          } else {
+            // Regular row
+            const rowData = columns.map((col: EventColumn) => {
+              const cell = getCell(eventRow.id, col.id);
+              if (!cell) return '';
 
-          const waiterNames = waiterAssignments
-            .map((a: Assignment) => {
-              const person = peopleById.get(a.person_id);
-              return person ? `${person.first_name} ${person.last_name}` : '';
-            })
-            .filter(Boolean)
-            .join(', ');
-
-          const nameCell = item.details ? `${item.name}\n${item.details}` : item.name;
-          rows.push([nameCell, kitchenNames || '(none)', waiterNames || '(none)']);
+              if (col.column_type === 'label') {
+                return cell.text_value || '';
+              } else if (col.column_type === 'assignment' || col.column_type === 'time_slot') {
+                const cellAssignments = getCellAssignments(cell.id);
+                const names = cellAssignments
+                  .map((a: Assignment) => {
+                    const person = peopleById.get(a.person_id);
+                    return person ? `${person.first_name} ${person.last_name}` : '';
+                  })
+                  .filter(Boolean)
+                  .join(', ');
+                return names || '(none)';
+              }
+              return '';
+            });
+            exportRows.push(rowData);
+          }
         }
+
+        const ws = XLSX.utils.aoa_to_sheet(exportRows);
+
+        // Dynamic column widths
+        const colWidths = columns.map((col: EventColumn) => ({
+          wch: col.width ? col.width / 7 : 20  // Approximate conversion from pixels to character width
+        }));
+        ws['!cols'] = colWidths;
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Event Schedule");
+
+        await saveWorkbook(
+          XLSX,
+          wb,
+          `special-event-${resolvedEvent.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-print.xlsx`
+        );
+      } else {
+        // Legacy menu-item based print export
+        exportRows.push([
+          resolvedEvent.item_label || defaultEventConfig.item_label,
+          resolvedEvent.role_a_label || defaultEventConfig.role_a_label,
+          resolvedEvent.role_b_label || defaultEventConfig.role_b_label,
+        ]);
+
+        for (const item of menuItems) {
+          if (item.is_header) {
+            exportRows.push([item.name, '', '']);
+          } else {
+            const kitchenAssignments = getAssignments(item.id, 'kitchen');
+            const waiterAssignments = getAssignments(item.id, 'waiter');
+
+            const kitchenNames = kitchenAssignments
+              .map((a: Assignment) => {
+                const person = peopleById.get(a.person_id);
+                return person ? `${person.first_name} ${person.last_name}` : '';
+              })
+              .filter(Boolean)
+              .join(', ');
+
+            const waiterNames = waiterAssignments
+              .map((a: Assignment) => {
+                const person = peopleById.get(a.person_id);
+                return person ? `${person.first_name} ${person.last_name}` : '';
+              })
+              .filter(Boolean)
+              .join(', ');
+
+            const nameCell = item.details ? `${item.name}\n${item.details}` : item.name;
+            exportRows.push([nameCell, kitchenNames || '(none)', waiterNames || '(none)']);
+          }
+        }
+
+        const ws = XLSX.utils.aoa_to_sheet(exportRows);
+
+        const colWidths = [
+          { wch: 40 },
+          { wch: 30 },
+          { wch: 30 },
+        ];
+        ws['!cols'] = colWidths;
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Event Schedule");
+
+        await saveWorkbook(
+          XLSX,
+          wb,
+          `special-event-${resolvedEvent.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-print.xlsx`
+        );
       }
-
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-
-      const colWidths = [
-        { wch: 40 },
-        { wch: 30 },
-        { wch: 30 },
-      ];
-      ws['!cols'] = colWidths;
-
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Event Schedule");
-
-      await saveWorkbook(
-        XLSX,
-        wb,
-        `special-event-${resolvedEvent.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-print.xlsx`
-      );
 
       setAlertDialog({ title: 'Success', message: `Exported printer-friendly schedule to XLSX file.` });
     } catch (error: any) {
