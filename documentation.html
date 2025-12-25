@@ -165,6 +165,7 @@
                     <a href="#training" class="nav-link block px-3 py-1.5 rounded-md text-sm text-[#424242] ml-2">Training Matrix</a>
                     <a href="#baseline" class="nav-link block px-3 py-1.5 rounded-md text-sm text-[#424242] ml-2">Baseline Needs</a>
                     <a href="#monthly" class="nav-link block px-3 py-1.5 rounded-md text-sm text-[#424242] ml-2">Monthly Defaults</a>
+                    <a href="#special-events" class="nav-link block px-3 py-1.5 rounded-md text-sm text-[#424242] ml-2">Special Events</a>
                     <a href="#history" class="nav-link block px-3 py-1.5 rounded-md text-sm text-[#424242] ml-2">Crew History</a>
                     <a href="#export" class="nav-link block px-3 py-1.5 rounded-md text-sm text-[#424242] ml-2">Export Preview</a>
                     
@@ -233,6 +234,7 @@
                                     <tr class="border-b"><td class="p-3 font-semibold">Multi-User Sync</td><td class="p-3">Multiple users can edit simultaneously with automatic conflict resolution.</td></tr>
                                     <tr class="border-b"><td class="p-3 font-semibold">Availability Tracking</td><td class="p-3">Track AM, PM, or Full-Day availability per person.</td></tr>
                                     <tr class="border-b"><td class="p-3 font-semibold">Time-Off Integration</td><td class="p-3">Import vacation/sick leave from Teams CSV exports.</td></tr>
+                                    <tr class="border-b"><td class="p-3 font-semibold">Special Events</td><td class="p-3">Plan volunteer receptions, dinners, and events with menu-based scheduling.</td></tr>
                                     <tr class="border-b"><td class="p-3 font-semibold">Trainee Tracking</td><td class="p-3">6-month rotation management with progress tracking across training areas.</td></tr>
                                     <tr class="border-b"><td class="p-3 font-semibold">Training Matrix</td><td class="p-3">Ensures staff are qualified for assigned roles.</td></tr>
                                     <tr class="border-b"><td class="p-3 font-semibold">AI Actions Menu</td><td class="p-3">Tutorial and troubleshooting prompts to help users navigate the app.</td></tr>
@@ -1014,6 +1016,137 @@
                         </div>
                     </div>
 
+                    <!-- 6.6 Special Events -->
+                    <div id="special-events" class="mb-24">
+                        <h3 class="text-xl font-bold mb-4 text-[#0078d4]">Special Events</h3>
+                        <p class="text-sm text-[#616161] mb-8">Plan and manage special receptions, dinners, and volunteer events that occur outside of regular working hours. Unlike the Daily Run Board, Special Events show all crew members regardless of their standard availability since these events are typically volunteer-based.</p>
+                        
+                        <h4 class="font-bold text-[#242424] mb-4">Creating a Special Event</h4>
+                        <p class="text-xs text-[#616161] mb-6">Navigate to the <strong>Events</strong> tab in the sidebar and click <strong>"New Event"</strong> to create a special event.</p>
+                        
+                        <div class="grid md:grid-cols-2 gap-6 mb-8">
+                            <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                                <h5 class="font-bold text-sm text-[#242424] mb-2">Event Details</h5>
+                                <ul class="text-xs text-[#616161] space-y-2">
+                                    <li><strong>Name:</strong> Event title (e.g., "Saturday Reception")</li>
+                                    <li><strong>Date:</strong> Event date</li>
+                                    <li><strong>Time Range:</strong> Start and end times (default: 4pm-8pm)</li>
+                                    <li><strong>Description:</strong> Optional event details</li>
+                                </ul>
+                            </div>
+                            <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                                <h5 class="font-bold text-sm text-[#242424] mb-2">Event Actions</h5>
+                                <ul class="text-xs text-[#616161] space-y-2">
+                                    <li><strong>Edit:</strong> Modify event details</li>
+                                    <li><strong>Duplicate:</strong> Copy event for recurring types</li>
+                                    <li><strong>Delete:</strong> Remove event and all assignments</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <h4 class="font-bold text-[#242424] mb-4">Menu-Based Schedule Planning</h4>
+                        <p class="text-xs text-[#616161] mb-6">Once you've created an event, click on it to open the detail view where you can add menu items and assign staff.</p>
+                        
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-8">
+                            <h5 class="font-bold text-sm text-[#242424] mb-3">Menu Items</h5>
+                            <p class="text-xs text-[#616161] mb-3">Menu items represent the tasks or dishes that need staffing for the event.</p>
+                            <ul class="text-xs text-[#616161] space-y-2">
+                                <li><strong>Item Name:</strong> Description of the task (e.g., "Coordinate Smoked BBQ Short Ribs")</li>
+                                <li><strong>Kitchen Quota:</strong> Number of kitchen staff needed</li>
+                                <li><strong>Waiter Quota:</strong> Number of waiters needed</li>
+                                <li><strong>Section Headers:</strong> Create colored headers to organize menu items (e.g., "Coordinators", "Appetizers")</li>
+                            </ul>
+                        </div>
+
+                        <h4 class="font-bold text-[#242424] mb-4">Staff Assignment</h4>
+                        <p class="text-xs text-[#616161] mb-6">Assign people to kitchen or waiter roles for each menu item. All active crew members are available for assignment, regardless of their normal availability, since special events are volunteer-based.</p>
+                        
+                        <div class="table-container mb-8">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-[#003B5C] text-white border-b">
+                                    <tr>
+                                        <th class="p-3 font-semibold text-white">Role Type</th>
+                                        <th class="p-3 font-semibold text-white">Badge Color</th>
+                                        <th class="p-3 font-semibold text-white">Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                    <tr>
+                                        <td class="p-3 font-semibold">Kitchen Staff</td>
+                                        <td class="p-3"><span class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">Red</span></td>
+                                        <td class="p-3">Food preparation and cooking tasks</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Kitchen Coordinator</td>
+                                        <td class="p-3"><span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">Blue</span></td>
+                                        <td class="p-3">Kitchen coordination roles (detected by item name)</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Waiters</td>
+                                        <td class="p-3"><span class="px-2 py-1 bg-cyan-100 text-cyan-800 rounded text-xs">Cyan</span></td>
+                                        <td class="p-3">Serving and guest interaction</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 font-semibold">Waiter Coordinator</td>
+                                        <td class="p-3"><span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">Gold</span></td>
+                                        <td class="p-3">Waiter coordination roles (detected by item name)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h4 class="font-bold text-[#242424] mb-4">Visual Quota Indicators</h4>
+                        <p class="text-xs text-[#616161] mb-6">Each menu item displays a progress indicator showing how many people are assigned vs. the quota (e.g., "2 / 3" means 2 of 3 positions filled).</p>
+
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-8">
+                            <h5 class="font-bold text-sm text-[#242424] mb-3">Assignment Tips</h5>
+                            <ul class="text-xs text-[#616161] space-y-2">
+                                <li>• Click on a person's badge to remove their assignment</li>
+                                <li>• Use the "+ Assign" dropdown to add people to unfilled positions</li>
+                                <li>• Reorder menu items using the up/down arrow buttons</li>
+                                <li>• Use section headers to organize menu items by category</li>
+                            </ul>
+                        </div>
+
+                        <h4 class="font-bold text-[#242424] mb-4">Exporting to Microsoft Teams</h4>
+                        <p class="text-xs text-[#616161] mb-6">Click <strong>"Export to Teams"</strong> to generate a Microsoft Teams Shifts-compatible Excel file that can be bulk imported into Teams.</p>
+                        
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-8">
+                            <h5 class="font-bold text-sm text-[#242424] mb-3">XLSX Export Format</h5>
+                            <p class="text-xs text-[#616161] mb-3">The exported spreadsheet contains one row per person per menu item assignment with the following columns:</p>
+                            <ul class="text-xs text-[#616161] space-y-2">
+                                <li>• <strong>Member:</strong> Full name (Last, First)</li>
+                                <li>• <strong>Work Email:</strong> Person's email address</li>
+                                <li>• <strong>Group:</strong> "Kitchen" or "Dining Room"</li>
+                                <li>• <strong>Start Date/Time:</strong> Event start time</li>
+                                <li>• <strong>End Date/Time:</strong> Event end time</li>
+                                <li>• <strong>Theme Color:</strong> "1. DarkPink" (Kitchen) or "1. DarkYellow" (Dining Room)</li>
+                                <li>• <strong>Custom Label:</strong> Menu item name</li>
+                                <li>• <strong>Notes:</strong> Event name for reference</li>
+                                <li>• <strong>Shared:</strong> "2. Not Shared"</li>
+                            </ul>
+                        </div>
+
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-8">
+                            <h5 class="font-bold text-sm text-[#242424] mb-3">Importing into Teams</h5>
+                            <ol class="text-xs text-[#616161] space-y-2">
+                                <li>1. In Microsoft Teams, navigate to your schedule</li>
+                                <li>2. Click "More options" → "Import schedule"</li>
+                                <li>3. Select the exported XLSX file</li>
+                                <li>4. Review the preview and confirm the import</li>
+                                <li>5. All event assignments will appear as shifts in Teams</li>
+                            </ol>
+                        </div>
+
+                        <div class="p-4 bg-[#fff8f0] border border-[#fce1c5] rounded-lg flex gap-3 items-start">
+                            <i class="fas fa-exclamation-circle text-[#8a4e02] mt-1"></i>
+                            <div class="text-xs text-[#8a4e02]">
+                                <p class="font-semibold mb-1">Important: Volunteer Events</p>
+                                <p>Special Events bypass normal availability checks since these are volunteer-based events. All active crew members can be assigned regardless of their regular schedule.</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- 6.7 Export Preview -->
                     <div id="export" class="mb-24">
                         <h3 class="text-xl font-bold mb-4 text-[#0078d4]">Export Preview</h3>
@@ -1104,8 +1237,11 @@
                             </ul>
                         </div>
 
-                        <h4 class="font-bold text-[#242424] mb-4">Exporting to XLSX</h4>
-                        <p class="text-xs text-[#616161] mb-4">Click the "Export to XLSX" button to download a formatted spreadsheet compatible with Microsoft Teams Shifts bulk import.</p>
+                        <h4 class="font-bold text-[#242424] mb-4">Exporting to Teams</h4>
+                        <p class="text-xs text-[#616161] mb-4">Click the "Export to Teams" button to download a formatted spreadsheet compatible with Microsoft Teams Shifts bulk import.</p>
+
+                        <h4 class="font-bold text-[#242424] mb-4">Print-Friendly Export</h4>
+                        <p class="text-xs text-[#616161] mb-4">Click the "Print" button to download a user-readable, printer-friendly XLSX file that follows the layout of the app page itself.</p>
                         
                         <div class="p-4 bg-[#f0f7ff] border border-[#cce5ff] rounded-lg flex gap-3 items-start">
                             <i class="fas fa-lightbulb text-[#0078d4] mt-1"></i>
