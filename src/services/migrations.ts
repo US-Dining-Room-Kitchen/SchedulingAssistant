@@ -340,18 +340,38 @@ export const migrate30AddSpecialEventGrid: Migration = (db) => {
   }
 
   // 3. Migrate existing data
-  // Get all events
-  const eventsResult = db.exec(`SELECT id, item_label, role_a_label, role_b_label, role_a_group, role_b_group, role_a_theme, role_b_theme FROM special_event;`);
-  const events = (eventsResult[0]?.values || []).map((row: any[]) => ({
-    id: row[0],
-    item_label: row[1] || 'Menu Item',
-    role_a_label: row[2] || 'Kitchen Staff',
-    role_b_label: row[3] || 'Waiters',
-    role_a_group: row[4] || 'Kitchen',
-    role_b_group: row[5] || 'Dining Room',
-    role_a_theme: row[6] || '1. DarkPink',
-    role_b_theme: row[7] || '1. DarkYellow',
-  }));
+  // Get all events - use defensive query that checks for column existence
+  let eventsResult;
+  let events: any[] = [];
+  
+  try {
+    // Try to get events with the new columns from migration 29
+    eventsResult = db.exec(`SELECT id, item_label, role_a_label, role_b_label, role_a_group, role_b_group, role_a_theme, role_b_theme FROM special_event;`);
+    events = (eventsResult[0]?.values || []).map((row: any[]) => ({
+      id: row[0],
+      item_label: row[1] || 'Menu Item',
+      role_a_label: row[2] || 'Kitchen Staff',
+      role_b_label: row[3] || 'Waiters',
+      role_a_group: row[4] || 'Kitchen',
+      role_b_group: row[5] || 'Dining Room',
+      role_a_theme: row[6] || '1. DarkPink',
+      role_b_theme: row[7] || '1. DarkYellow',
+    }));
+  } catch (e) {
+    // Columns don't exist yet (migration 29 not run), get just the id and use defaults
+    console.log('Legacy special_event table detected, using default labels');
+    eventsResult = db.exec(`SELECT id FROM special_event;`);
+    events = (eventsResult[0]?.values || []).map((row: any[]) => ({
+      id: row[0],
+      item_label: 'Menu Item',
+      role_a_label: 'Kitchen Staff',
+      role_b_label: 'Waiters',
+      role_a_group: 'Kitchen',
+      role_b_group: 'Dining Room',
+      role_a_theme: '1. DarkPink',
+      role_b_theme: '1. DarkYellow',
+    }));
+  }
 
   for (const event of events) {
     console.log(`Migrating event ${event.id}...`);
