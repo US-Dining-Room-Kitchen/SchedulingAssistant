@@ -29,6 +29,7 @@ import AvailabilityOverrideManager from "./AvailabilityOverrideManager";
 import AutoFillSettings from "./AutoFillSettings";
 import SkillsEditor from "./SkillsEditor";
 import WeekCalculationSettings from "./WeekCalculationSettings";
+import TimeOffThresholdSettings from "./TimeOffThresholdSettings";
 
 const useAdminViewStyles = makeStyles({
   root: {
@@ -69,13 +70,15 @@ interface AdminViewProps {
   run: (sql: string, params?: any[]) => void;
   refresh: () => void;
   segments: SegmentRow[];
+  onTimeOffThresholdChange?: (threshold: number) => void;
 }
 
-export default function AdminView({ sqlDb, all, run, refresh, segments }: AdminViewProps) {
+export default function AdminView({ sqlDb, all, run, refresh, segments, onTimeOffThresholdChange }: AdminViewProps) {
   const s = useAdminViewStyles();
   const [showOverrides, setShowOverrides] = React.useState(false);
   const [showAutoFillSettings, setShowAutoFillSettings] = React.useState(false);
   const [showWeekCalcSettings, setShowWeekCalcSettings] = React.useState(false);
+  const [showTimeOffThresholdSettings, setShowTimeOffThresholdSettings] = React.useState(false);
   
   return (
     <div className={s.root}>
@@ -92,6 +95,9 @@ export default function AdminView({ sqlDb, all, run, refresh, segments }: AdminV
             </Button>
             <Button appearance="outline" onClick={() => setShowWeekCalcSettings(true)}>
               Week Calculation Settings
+            </Button>
+            <Button appearance="outline" onClick={() => setShowTimeOffThresholdSettings(true)}>
+              Time-Off Threshold Settings
             </Button>
           </div>
         </Card>
@@ -163,6 +169,16 @@ export default function AdminView({ sqlDb, all, run, refresh, segments }: AdminV
           onClose={() => setShowWeekCalcSettings(false)}
           all={all}
           run={run}
+        />
+      )}
+      
+      {showTimeOffThresholdSettings && (
+        <TimeOffThresholdSettings 
+          open={showTimeOffThresholdSettings} 
+          onClose={() => setShowTimeOffThresholdSettings(false)}
+          all={all}
+          run={run}
+          onThresholdChange={onTimeOffThresholdChange}
         />
       )}
     </div>
