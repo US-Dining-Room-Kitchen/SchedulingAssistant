@@ -1,10 +1,13 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Combobox, Option } from "@fluentui/react-components";
+import { getContrastColor } from "../../config/domain";
 
 export interface SmartOption {
   value: string;
   label: string;
   disabled?: boolean;
+  /** Optional background color (hex) for the option */
+  color?: string;
 }
 
 interface SmartSelectProps {
@@ -37,6 +40,13 @@ export default function SmartSelect({
     [options, value]
   );
 
+  // Get the color for the selected option to style the closed state
+  const selectedColor = selectedOption?.color;
+  const closedStyle: React.CSSProperties | undefined = selectedColor ? {
+    backgroundColor: selectedColor,
+    color: getContrastColor(selectedColor),
+  } : undefined;
+
   const [inputValue, setInputValue] = useState(selectedOption?.label ?? "");
 
   useEffect(() => {
@@ -63,12 +73,30 @@ export default function SmartSelect({
         maxWidth: "100%",
         minWidth: 0,
         boxSizing: "border-box",
+        ...closedStyle,
         ...style,
       }}
     >
       {options.map((o) => (
         <Option key={o.value} value={o.value} disabled={o.disabled} text={o.label}>
-          {o.label}
+          {o.color ? (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                width: "100%",
+                padding: "4px 8px",
+                margin: "-4px -8px",
+                backgroundColor: o.color,
+                color: getContrastColor(o.color),
+                borderRadius: "4px",
+              }}
+            >
+              {o.label}
+            </span>
+          ) : (
+            o.label
+          )}
         </Option>
       ))}
     </Combobox>

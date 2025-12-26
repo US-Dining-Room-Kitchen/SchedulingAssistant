@@ -49,6 +49,7 @@ import { getWeekDateRange, formatDateRange, type WeekStartMode } from "../utils/
 import AlertDialog from "./AlertDialog";
 import { useDialogs } from "../hooks/useDialogs";
 import { logger } from "../utils/logger";
+import { getContrastColor, findThemeByValue } from "../config/domain";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
 type WeekdayKey = 1 | 2 | 3 | 4 | 5;
@@ -96,6 +97,15 @@ const themeColors = (theme: string | null | undefined) => {
   if (!theme) return { bg: undefined as string | undefined, fg: undefined as string | undefined };
   const key = theme.replace(/^\d+\.\s*/, "");
   return groupThemePalette[key] || { bg: undefined, fg: undefined };
+};
+
+/** Get hex color for a role based on its group's theme */
+const getRoleColor = (role: any, groups: any[]): string | undefined => {
+  if (!role?.group_id) return undefined;
+  const group = groups.find((g: any) => g.id === role.group_id);
+  if (!group?.theme) return undefined;
+  const themeData = findThemeByValue(group.theme);
+  return themeData?.color;
 };
 
 const AVERAGE_EPSILON = 0.05;
@@ -1173,15 +1183,41 @@ export default function MonthlyDefaults({
                   onGroupFilterChange(String(value));
                 }}
                 disabled={groups.length === 0}
+                style={(() => {
+                  if (groupFilterId === 'all') return undefined;
+                  const group = groups.find((g: any) => String(g.id) === groupFilterId);
+                  const themeData = group ? findThemeByValue(group.theme) : undefined;
+                  return themeData ? { backgroundColor: themeData.color, color: getContrastColor(themeData.color) } : undefined;
+                })()}
               >
                 <Option value="all" text="All groups">
                   All groups
                 </Option>
-                {groups.map((group: any) => (
-                  <Option key={group.id} value={String(group.id)} text={group.name}>
-                    {group.name}
-                  </Option>
-                ))}
+                {groups.map((group: any) => {
+                  const themeData = findThemeByValue(group.theme);
+                  return (
+                    <Option key={group.id} value={String(group.id)} text={group.name}>
+                      {themeData ? (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            width: "100%",
+                            padding: "4px 8px",
+                            margin: "-4px -8px",
+                            backgroundColor: themeData.color,
+                            color: getContrastColor(themeData.color),
+                            borderRadius: "4px",
+                          }}
+                        >
+                          {group.name}
+                        </span>
+                      ) : (
+                        group.name
+                      )}
+                    </Option>
+                  );
+                })}
               </Dropdown>
               <Button appearance="secondary" onClick={onClose}>
                 Close
@@ -1238,7 +1274,7 @@ export default function MonthlyDefaults({
                         return (
                           <TableCell key={w}>
                             <SmartSelect
-                              options={[{ value: "", label: "(default)" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name }))]}
+                              options={[{ value: "", label: "(default)" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name, color: getRoleColor(r, groups) }))]}
                               value={ov?.role_id != null ? String(ov.role_id) : null}
                               onChange={(v) => {
                                 const rid = v ? Number(v) : null;
@@ -1330,7 +1366,7 @@ export default function MonthlyDefaults({
                         return (
                           <TableCell key={w}>
                             <SmartSelect
-                              options={[{ value: "", label: "(default)" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name }))]}
+                              options={[{ value: "", label: "(default)" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name, color: getRoleColor(r, groups) }))]}
                               value={ov?.role_id != null ? String(ov.role_id) : null}
                               onChange={(v) => {
                                 const rid = v ? Number(v) : null;
@@ -1526,7 +1562,7 @@ export default function MonthlyDefaults({
                     return (
                       <TableCell key={seg}>
                         <SmartSelect
-                          options={[{ value: "", label: "--" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name }))]}
+                          options={[{ value: "", label: "--" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name, color: getRoleColor(r, groups) }))]}
                           value={def?.role_id != null ? String(def.role_id) : null}
                           onChange={(v) => {
                             const rid = v ? Number(v) : null;

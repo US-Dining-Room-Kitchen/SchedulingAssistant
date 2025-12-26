@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Button, Input, Field, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, Text, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider } from "@fluentui/react-components";
+import { Button, Input, Field, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, Text, makeStyles, tokens, Toolbar, ToolbarButton, ToolbarDivider, Dropdown, Option } from "@fluentui/react-components";
 import AlertDialog from "./AlertDialog";
 import ConfirmDialog from "./ConfirmDialog";
 import { useDialogs } from "../hooks/useDialogs";
+import { SHIFTS_THEMES, getContrastColor, findThemeByValue } from "../config/domain";
 
 interface GroupEditorProps {
   all: (sql: string, params?: any[]) => any[];
@@ -122,7 +123,23 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
             {groups.map((g: any) => (
               <TableRow key={g.id}>
                 <TableCell>{g.name}</TableCell>
-                <TableCell>{g.theme || ""}</TableCell>
+                <TableCell>
+                  {g.theme ? (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        padding: "2px 8px",
+                        backgroundColor: findThemeByValue(g.theme)?.color || tokens.colorNeutralBackground3,
+                        color: findThemeByValue(g.theme) ? getContrastColor(findThemeByValue(g.theme)!.color) : undefined,
+                        borderRadius: tokens.borderRadiusSmall,
+                        fontSize: tokens.fontSizeBase200,
+                      }}
+                    >
+                      {findThemeByValue(g.theme)?.label || g.theme}
+                    </span>
+                  ) : ""}
+                </TableCell>
                 <TableCell>{g.custom_color || ""}</TableCell>
                 <TableCell style={{ textAlign: "right" }}>
                   <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -142,7 +159,43 @@ export default function GroupEditor({ all, run, refresh }: GroupEditorProps) {
             <Input value={form.name} onChange={(_, d) => setForm({ ...form, name: d.value })} />
           </Field>
           <Field label="Theme">
-            <Input value={form.theme} onChange={(_, d) => setForm({ ...form, theme: d.value })} />
+            <Dropdown
+              selectedOptions={form.theme ? [form.theme] : []}
+              value={findThemeByValue(form.theme)?.label || form.theme || ""}
+              onOptionSelect={(_, data) => {
+                const v = data.optionValue ?? "";
+                setForm({ ...form, theme: v });
+              }}
+              placeholder="(None)"
+              style={findThemeByValue(form.theme) ? {
+                backgroundColor: findThemeByValue(form.theme)!.color,
+                color: getContrastColor(findThemeByValue(form.theme)!.color),
+              } : undefined}
+            >
+              <Option value="" text="(None)">(None)</Option>
+              {SHIFTS_THEMES.map((theme) => (
+                <Option
+                  key={theme.value}
+                  value={theme.value}
+                  text={theme.label}
+                >
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      width: "100%",
+                      padding: "4px 8px",
+                      margin: "-4px -8px",
+                      backgroundColor: theme.color,
+                      color: getContrastColor(theme.color),
+                      borderRadius: tokens.borderRadiusSmall,
+                    }}
+                  >
+                    {theme.label}
+                  </span>
+                </Option>
+              ))}
+            </Dropdown>
           </Field>
           <Field label="Custom Color">
             <Input value={form.custom_color} onChange={(_, d) => setForm({ ...form, custom_color: d.value })} />
