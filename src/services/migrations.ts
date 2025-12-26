@@ -238,6 +238,65 @@ export const migrate25AddWeekStartMode: Migration = (db) => {
   }
 };
 
+// 26. Add multi-condition support for segment adjustments
+export const migrate26AddMultiConditionSegmentAdjustments: Migration = (db) => {
+  try {
+    console.log('Starting migration 26 - Add multi-condition segment adjustments');
+    
+    // 1. Create the new segment_adjustment_condition table
+    db.run(`CREATE TABLE IF NOT EXISTS segment_adjustment_condition (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      adjustment_id INTEGER NOT NULL,
+      condition_segment TEXT NOT NULL,
+      condition_role_id INTEGER,
+      FOREIGN KEY (adjustment_id) REFERENCES segment_adjustment(id) ON DELETE CASCADE,
+      FOREIGN KEY (condition_role_id) REFERENCES role(id)
+    );`);
+    
+    // 2. Check if logic_operator column already exists
+    const tableInfo = db.exec(`PRAGMA table_info(segment_adjustment);`);
+    const hasLogicOperator = tableInfo[0]?.values?.some((row: any[]) => row[1] === 'logic_operator');
+    
+    if (!hasLogicOperator) {
+      // Add logic_operator column without NOT NULL constraint initially
+      db.run(`ALTER TABLE segment_adjustment ADD COLUMN logic_operator TEXT DEFAULT 'AND';`);
+      
+      // Update existing rows to have 'AND' as the default
+      db.run(`UPDATE segment_adjustment SET logic_operator = 'AND' WHERE logic_operator IS NULL;`);
+    }
+    
+    // 3. Migrate existing data from segment_adjustment to segment_adjustment_condition
+    // Get all existing adjustments
+    const existingAdjustments = db.exec(`SELECT id, condition_segment, condition_role_id FROM segment_adjustment;`);
+    
+    if (existingAdjustments && existingAdjustments[0] && existingAdjustments[0].values) {
+      for (const row of existingAdjustments[0].values) {
+        const [adjustmentId, conditionSegment, conditionRoleId] = row;
+        
+        // Check if this adjustment already has conditions in the new table
+        const existingConditions = db.exec(
+          `SELECT COUNT(*) FROM segment_adjustment_condition WHERE adjustment_id = ?;`,
+          [adjustmentId]
+        );
+        const conditionCount = existingConditions[0]?.values?.[0]?.[0] || 0;
+        
+        // Only migrate if no conditions exist yet
+        if (conditionCount === 0 && conditionSegment) {
+          db.run(
+            `INSERT INTO segment_adjustment_condition (adjustment_id, condition_segment, condition_role_id) VALUES (?, ?, ?);`,
+            [adjustmentId, conditionSegment, conditionRoleId]
+          );
+        }
+      }
+    }
+    
+    console.log('Migration 26 complete');
+  } catch (e) {
+    console.error('migrate26AddMultiConditionSegmentAdjustments failed:', e);
+    throw e;
+  }
+};
+
 export const migrate6AddExportGroup: Migration = (db) => {
   db.run(`CREATE TABLE IF NOT EXISTS export_group (
       group_id INTEGER PRIMARY KEY,
@@ -752,10 +811,65 @@ const migrations: Record<number, Migration> = {
   23: migrate23AddTrainingAreaOverride,
   24: migrate24AddSyncVersion,
   25: migrate25AddWeekStartMode,
+  26: migrate26AddMultiConditionSegmentAdjustments,
 };
 
 export function addMigration(version: number, fn: Migration) {
   migrations[version] = fn;
+}
+
+/**
+ * Ensure critical schema elements exist, regardless of migration version.
+ * This fixes databases where the version was set but the migration failed.
+ */
+export function ensureSchemaIntegrity(db: Database) {
+  try {
+    // Ensure segment_adjustment_condition table exists
+    const tables = db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='segment_adjustment_condition';`);
+    if (!tables[0]?.values?.length) {
+      console.log('[SchemaIntegrity] Creating missing segment_adjustment_condition table');
+      db.run(`CREATE TABLE IF NOT EXISTS segment_adjustment_condition (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        adjustment_id INTEGER NOT NULL,
+        condition_segment TEXT NOT NULL,
+        condition_role_id INTEGER,
+        FOREIGN KEY (adjustment_id) REFERENCES segment_adjustment(id) ON DELETE CASCADE,
+        FOREIGN KEY (condition_role_id) REFERENCES role(id)
+      );`);
+    }
+    
+    // Ensure logic_operator column exists in segment_adjustment
+    const tableInfo = db.exec(`PRAGMA table_info(segment_adjustment);`);
+    const hasLogicOperator = tableInfo[0]?.values?.some((row: any[]) => row[1] === 'logic_operator');
+    if (!hasLogicOperator) {
+      console.log('[SchemaIntegrity] Adding missing logic_operator column');
+      db.run(`ALTER TABLE segment_adjustment ADD COLUMN logic_operator TEXT DEFAULT 'AND';`);
+      db.run(`UPDATE segment_adjustment SET logic_operator = 'AND' WHERE logic_operator IS NULL;`);
+    }
+    
+    // Migrate any adjustments that don't have corresponding conditions
+    const adjustmentsWithoutConditions = db.exec(`
+      SELECT sa.id, sa.condition_segment, sa.condition_role_id 
+      FROM segment_adjustment sa
+      LEFT JOIN segment_adjustment_condition sac ON sa.id = sac.adjustment_id
+      WHERE sac.id IS NULL AND sa.condition_segment IS NOT NULL AND sa.condition_segment != ''
+    ;`);
+    
+    if (adjustmentsWithoutConditions[0]?.values?.length) {
+      console.log(`[SchemaIntegrity] Migrating ${adjustmentsWithoutConditions[0].values.length} adjustments to condition table`);
+      for (const row of adjustmentsWithoutConditions[0].values) {
+        const [adjustmentId, conditionSegment, conditionRoleId] = row;
+        db.run(
+          `INSERT INTO segment_adjustment_condition (adjustment_id, condition_segment, condition_role_id) VALUES (?, ?, ?);`,
+          [adjustmentId, conditionSegment, conditionRoleId]
+        );
+      }
+    }
+    
+    console.log('[SchemaIntegrity] Schema integrity check complete');
+  } catch (e) {
+    console.error('[SchemaIntegrity] Error ensuring schema integrity:', e);
+  }
 }
 
 export function applyMigrations(db: Database) {
@@ -787,6 +901,10 @@ export function applyMigrations(db: Database) {
       }
     }
   }
+  
+  // Always ensure schema integrity after migrations
+  // This fixes databases where the version was set but migrations failed
+  ensureSchemaIntegrity(db);
 }
 
 export default migrations;

@@ -4,6 +4,7 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import type { Segment, SegmentRow } from "../services/segments";
 import type { SegmentAdjustmentRow } from "../services/segmentAdjustments";
+import { listSegmentAdjustmentConditions } from "../services/segmentAdjustments";
 import "../styles/scrollbar.css";
 import PersonName from "./PersonName";
 import { getAutoFillPriority } from "./AutoFillSettings";
@@ -829,7 +830,8 @@ export default function DailyRunBoard({
     }
   }
 
-  // Precompute segment times for the selected date at top-level for reuse in move dialog
+  // Base segment times for the selected date (without per-person adjustments)
+  // Per-person adjustments are calculated in RoleCard for accurate time-off overlap
   const segTimesTop = useMemo(() => {
     const day = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate());
     const mk = (t: string) => {
@@ -840,21 +842,79 @@ export default function DailyRunBoard({
     for (const srow of segments) {
       map[srow.name] = { start: mk(srow.start_time), end: mk(srow.end_time) };
     }
-    const rows = all(`SELECT segment, role_id FROM assignment WHERE date=?`, [ymd(selectedDateObj)]);
-    const segRoleMap = new Map<string, Set<number>>();
+    return map;
+  }, [segments, selectedDateObj]);
+
+  // Get all assignments for this date grouped by person
+  const personAssignmentsTop = useMemo(() => {
+    const rows = all(
+      `SELECT person_id, segment, role_id FROM assignment WHERE date=?`,
+      [ymd(selectedDateObj)]
+    ) as { person_id: number; segment: string; role_id: number }[];
+    
+    const byPerson = new Map<number, Map<string, Set<number>>>();
     for (const r of rows) {
-      let set = segRoleMap.get(r.segment);
-      if (!set) {
-        set = new Set<number>();
-        segRoleMap.set(r.segment, set);
+      let personMap = byPerson.get(r.person_id);
+      if (!personMap) {
+        personMap = new Map<string, Set<number>>();
+        byPerson.set(r.person_id, personMap);
       }
-      set.add(r.role_id);
+      let roleSet = personMap.get(r.segment);
+      if (!roleSet) {
+        roleSet = new Set<number>();
+        personMap.set(r.segment, roleSet);
+      }
+      roleSet.add(r.role_id);
     }
+    return byPerson;
+  }, [all, ymd, selectedDateObj]);
+
+  // Calculate segment times for a specific person (applies adjustments based on THEIR assignments)
+  const getSegTimesForPersonTop = useCallback((personId: number): Record<string, { start: Date; end: Date }> => {
+    const map: Record<string, { start: Date; end: Date }> = {};
+    for (const [segName, times] of Object.entries(segTimesTop)) {
+      map[segName] = { start: new Date(times.start), end: new Date(times.end) };
+    }
+
+    const segRoleMap = personAssignmentsTop.get(personId);
+    if (!segRoleMap) return map;
+
+    const checkAdjustmentConditions = (adj: SegmentAdjustmentRow): boolean => {
+      try {
+        const conditions = listSegmentAdjustmentConditions(sqlDb, adj.id);
+        if (conditions.length === 0) {
+          const roles = segRoleMap.get(adj.condition_segment);
+          if (!roles) return false;
+          if (adj.condition_role_id != null && !roles.has(adj.condition_role_id)) return false;
+          return true;
+        }
+        const logicOp = adj.logic_operator || 'AND';
+        if (logicOp === 'AND') {
+          return conditions.every(cond => {
+            const roles = segRoleMap.get(cond.condition_segment);
+            if (!roles) return false;
+            if (cond.condition_role_id != null && !roles.has(cond.condition_role_id)) return false;
+            return true;
+          });
+        } else {
+          return conditions.some(cond => {
+            const roles = segRoleMap.get(cond.condition_segment);
+            if (!roles) return false;
+            if (cond.condition_role_id != null && !roles.has(cond.condition_role_id)) return false;
+            return true;
+          });
+        }
+      } catch (e) {
+        const roles = segRoleMap.get(adj.condition_segment);
+        if (!roles) return false;
+        if (adj.condition_role_id != null && !roles.has(adj.condition_role_id)) return false;
+        return true;
+      }
+    };
+
     const addMinutes = (d: Date, mins: number) => new Date(d.getTime() + mins * 60000);
     for (const adj of segmentAdjustments) {
-      const roles = segRoleMap.get(adj.condition_segment);
-      if (!roles) continue;
-      if (adj.condition_role_id != null && !roles.has(adj.condition_role_id)) continue;
+      if (!checkAdjustmentConditions(adj)) continue;
       const target = map[adj.target_segment];
       if (!target) continue;
       const cond = map[adj.condition_segment];
@@ -869,7 +929,7 @@ export default function DailyRunBoard({
       (target as any)[adj.target_field] = addMinutes(base, adj.offset_minutes);
     }
     return map;
-  }, [all, segments, selectedDateObj, ymd, segmentAdjustments]);
+  }, [segTimesTop, personAssignmentsTop, segmentAdjustments, sqlDb]);
 
   const segDurationMinutesTop = useMemo(() => {
     const st = segTimesTop[seg]?.start;
@@ -881,43 +941,59 @@ export default function DailyRunBoard({
   void segDurationMinutesTop;
 
   // Compute effective assigned counts per role (exclude heavy time-off overlaps)
+  // Uses per-person segment times based on their individual assignments
   const assignedEffectiveCountMap = useMemo(() => {
     const map = new Map<number, number>();
-    const st = segTimesTop[seg]?.start;
-    const en = segTimesTop[seg]?.end;
-    if (!st || !en || seg === "Early") {
+    const baseSt = segTimesTop[seg]?.start;
+    const baseEn = segTimesTop[seg]?.end;
+    if (!baseSt || !baseEn || seg === "Early") {
       // Fallback to raw counts
       for (const r of roles) map.set(r.id, assignedCountMap.get(r.id) || 0);
       return map;
     }
-    const segStart = st.getTime();
-    const segEnd = en.getTime();
-    const half = Math.ceil((segEnd - segStart) / 2);
+    
     const dayStart = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate(), 0, 0, 0, 0);
     const dayEnd = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + 1, 0, 0, 0, 0);
     const timeOff = all(
       `SELECT person_id, start_ts, end_ts FROM timeoff WHERE NOT (? >= end_ts OR ? <= start_ts)`,
       [dayStart.toISOString(), dayEnd.toISOString()]
     ) as any[];
-    const ovlByPerson = new Map<number, number>();
+    
+    // Group time-off entries by person
+    const timeOffByPerson = new Map<number, { start_ts: string; end_ts: string }[]>();
     for (const t of timeOff) {
-      const s = new Date(t.start_ts).getTime();
-      const e = new Date(t.end_ts).getTime();
-      const ovl = Math.max(0, Math.min(e, segEnd) - Math.max(s, segStart));
-      if (ovl <= 0) continue;
-      const prev = ovlByPerson.get(t.person_id) || 0;
-      ovlByPerson.set(t.person_id, prev + ovl);
+      const entries = timeOffByPerson.get(t.person_id) || [];
+      entries.push(t);
+      timeOffByPerson.set(t.person_id, entries);
     }
+    
     const assigns = all(`SELECT person_id, role_id FROM assignment WHERE date=? AND segment=?`, [ymd(selectedDateObj), seg]) as any[];
     for (const r of roles) map.set(r.id, 0);
+    
     for (const a of assigns) {
-      const ovl = ovlByPerson.get(a.person_id) || 0;
+      // Get this person's adjusted segment times
+      const personSegTimes = getSegTimesForPersonTop(a.person_id);
+      const st = personSegTimes[seg]?.start || baseSt;
+      const en = personSegTimes[seg]?.end || baseEn;
+      const segStart = st.getTime();
+      const segEnd = en.getTime();
+      const half = Math.ceil((segEnd - segStart) / 2);
+      
+      // Calculate overlap for this person
+      const personTimeOff = timeOffByPerson.get(a.person_id) || [];
+      let ovl = 0;
+      for (const t of personTimeOff) {
+        const s = new Date(t.start_ts).getTime();
+        const e = new Date(t.end_ts).getTime();
+        ovl += Math.max(0, Math.min(e, segEnd) - Math.max(s, segStart));
+      }
+      
       const heavy = ovl >= half;
       if (heavy) continue;
       map.set(a.role_id, (map.get(a.role_id) || 0) + 1);
     }
     return map;
-  }, [all, roles, seg, segTimesTop, selectedDateObj, ymd, assignedCountMap]);
+  }, [all, roles, seg, segTimesTop, selectedDateObj, ymd, assignedCountMap, getSegTimesForPersonTop]);
 
   const GroupCard = React.memo(function GroupCard({ group, isDraggable }: { group: any; isDraggable: boolean }) {
     const rolesForGroup = roles.filter((r) => r.group_id === group.id);
@@ -1040,8 +1116,8 @@ export default function DailyRunBoard({
       return arr;
     }, [opts, trainedBefore]);
 
-    // Calculate dynamic segment times (mimic App.segmentTimesForDate)
-    const segTimes = useMemo(() => {
+    // Base segment times (without per-person adjustments)
+    const baseSegTimes = useMemo(() => {
       const day = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate());
       const mk = (t: string) => {
         const [h, m] = t.split(":").map(Number);
@@ -1051,23 +1127,92 @@ export default function DailyRunBoard({
       for (const srow of segments) {
         map[srow.name] = { start: mk(srow.start_time), end: mk(srow.end_time) };
       }
-      const rows = all(`SELECT segment, role_id FROM assignment WHERE date=?`, [ymd(selectedDateObj)]);
-      const segRoleMap = new Map<string, Set<number>>();
+      return map;
+    }, [segments, selectedDateObj]);
+
+    // Get assignments for a specific person on this date
+    const personAssignments = useMemo(() => {
+      const rows = all(
+        `SELECT person_id, segment, role_id FROM assignment WHERE date=?`,
+        [ymd(selectedDateObj)]
+      ) as { person_id: number; segment: string; role_id: number }[];
+      
+      // Group by person_id -> Map<segment, Set<role_id>>
+      const byPerson = new Map<number, Map<string, Set<number>>>();
       for (const r of rows) {
-        let set = segRoleMap.get(r.segment);
-        if (!set) {
-          set = new Set<number>();
-          segRoleMap.set(r.segment, set);
+        let personMap = byPerson.get(r.person_id);
+        if (!personMap) {
+          personMap = new Map<string, Set<number>>();
+          byPerson.set(r.person_id, personMap);
         }
-        set.add(r.role_id);
+        let roleSet = personMap.get(r.segment);
+        if (!roleSet) {
+          roleSet = new Set<number>();
+          personMap.set(r.segment, roleSet);
+        }
+        roleSet.add(r.role_id);
       }
+      return byPerson;
+    }, [all, ymd, selectedDateObj]);
+
+    // Calculate segment times for a specific person (applies adjustments based on THEIR assignments)
+    const getSegTimesForPerson = useCallback((personId: number): Record<string, { start: Date; end: Date }> => {
+      // Start with a deep copy of base times
+      const map: Record<string, { start: Date; end: Date }> = {};
+      for (const [segName, times] of Object.entries(baseSegTimes)) {
+        map[segName] = { start: new Date(times.start), end: new Date(times.end) };
+      }
+
+      // Get this person's assignments (segment -> role_id set)
+      const segRoleMap = personAssignments.get(personId);
+      if (!segRoleMap) return map; // No assignments, return base times
+
+      // Helper function to check if adjustment conditions are met FOR THIS PERSON
+      const checkAdjustmentConditions = (adj: SegmentAdjustmentRow): boolean => {
+        try {
+          const conditions = listSegmentAdjustmentConditions(sqlDb, adj.id);
+          
+          // If no conditions in new table, fall back to old format
+          if (conditions.length === 0) {
+            const roles = segRoleMap.get(adj.condition_segment);
+            if (!roles) return false;
+            if (adj.condition_role_id != null && !roles.has(adj.condition_role_id)) return false;
+            return true;
+          }
+          
+          // Check multiple conditions with AND/OR logic
+          const logicOp = adj.logic_operator || 'AND';
+          
+          if (logicOp === 'AND') {
+            return conditions.every(cond => {
+              const roles = segRoleMap.get(cond.condition_segment);
+              if (!roles) return false;
+              if (cond.condition_role_id != null && !roles.has(cond.condition_role_id)) return false;
+              return true;
+            });
+          } else {
+            return conditions.some(cond => {
+              const roles = segRoleMap.get(cond.condition_segment);
+              if (!roles) return false;
+              if (cond.condition_role_id != null && !roles.has(cond.condition_role_id)) return false;
+              return true;
+            });
+          }
+        } catch (e) {
+          const roles = segRoleMap.get(adj.condition_segment);
+          if (!roles) return false;
+          if (adj.condition_role_id != null && !roles.has(adj.condition_role_id)) return false;
+          return true;
+        }
+      };
+
       const addMinutes = (d: Date, mins: number) => new Date(d.getTime() + mins * 60000);
       for (const adj of segmentAdjustments) {
-        const roles = segRoleMap.get(adj.condition_segment);
-        if (!roles) continue;
-        if (adj.condition_role_id != null && !roles.has(adj.condition_role_id)) continue;
+        if (!checkAdjustmentConditions(adj)) continue;
+        
         const target = map[adj.target_segment];
         if (!target) continue;
+        
         const cond = map[adj.condition_segment];
         let base: Date | undefined;
         switch (adj.baseline) {
@@ -1080,18 +1225,22 @@ export default function DailyRunBoard({
         (target as any)[adj.target_field] = addMinutes(base, adj.offset_minutes);
       }
       return map;
-    }, [all, segments, selectedDateObj, ymd, segmentAdjustments]);
+    }, [baseSegTimes, personAssignments, segmentAdjustments, sqlDb]);
+
+    // For backward compatibility, keep a global segTimes for segment duration display
+    // (uses base times without per-person adjustments)
+    const segTimes = baseSegTimes;
 
     // Compute time-off overlap vs this segment; derive partial/heavy flags
+    // Uses per-person segment times based on their individual assignments
     const overlapByPerson = useMemo(() => {
       if (seg === "Early") return new Map<number, { minutes: number; heavy: boolean; partial: boolean }>();
-      const st = segTimes[seg]?.start;
-      const en = segTimes[seg]?.end;
       const map = new Map<number, { minutes: number; heavy: boolean; partial: boolean }>();
-      if (!st || !en) return map;
-      const segStart = st.getTime();
-      const segEnd = en.getTime();
-      const segMinutes = Math.max(0, Math.round((segEnd - segStart) / 60000));
+      
+      // Base segment times for fallback
+      const baseSt = baseSegTimes[seg]?.start;
+      const baseEn = baseSegTimes[seg]?.end;
+      if (!baseSt || !baseEn) return map;
 
       // Fetch all timeoff entries overlapping this calendar day to minimize per-person queries
       const dayStart = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate(), 0, 0, 0, 0);
@@ -1100,8 +1249,19 @@ export default function DailyRunBoard({
         `SELECT person_id, start_ts, end_ts FROM timeoff WHERE NOT (? >= end_ts OR ? <= start_ts)`,
         [dayStart.toISOString(), dayEnd.toISOString()]
       );
+      
       for (const r of rows as any[]) {
         const pid = r.person_id as number;
+        
+        // Get this person's adjusted segment times
+        const personSegTimes = getSegTimesForPerson(pid);
+        const st = personSegTimes[seg]?.start || baseSt;
+        const en = personSegTimes[seg]?.end || baseEn;
+        
+        const segStart = st.getTime();
+        const segEnd = en.getTime();
+        const segMinutes = Math.max(0, Math.round((segEnd - segStart) / 60000));
+        
         const s = new Date(r.start_ts).getTime();
         const e = new Date(r.end_ts).getTime();
         const ovl = Math.max(0, Math.min(e, segEnd) - Math.max(s, segStart));
@@ -1113,7 +1273,7 @@ export default function DailyRunBoard({
         map.set(pid, { minutes, heavy, partial });
       }
       return map;
-    }, [all, seg, segTimes, selectedDateObj]);
+    }, [all, seg, baseSegTimes, selectedDateObj, getSegTimesForPerson]);
 
     const segDurationMinutes = useMemo(() => {
       if (seg === "Early") return 0;
