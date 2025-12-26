@@ -1,5 +1,60 @@
 import type { Segment } from "../services/segments";
 
+/**
+ * Microsoft Teams Shifts theme options.
+ * These match the exact format used in Teams Shifts Excel exports.
+ * Order matches the Teams app dropdown: White, Blue, Green, Purple, Pink, Yellow, Gray, Dark blue, Dark green, Dark purple, Dark pink, Dark yellow
+ */
+export const SHIFTS_THEMES = [
+  { value: "1. White", label: "White", color: "#f5f5f5" },
+  { value: "2. Blue", label: "Blue", color: "#91caff" },
+  { value: "3. Green", label: "Green", color: "#bbf7d0" },
+  { value: "4. Purple", label: "Purple", color: "#e9d5ff" },
+  { value: "5. Pink", label: "Pink", color: "#fbcfe8" },
+  { value: "6. Yellow", label: "Yellow", color: "#fef08a" },
+  { value: "7. Gray", label: "Gray", color: "#d4d4d4" },
+  { value: "8. DarkBlue", label: "Dark Blue", color: "#3b82f6" },
+  { value: "9. DarkGreen", label: "Dark Green", color: "#22c55e" },
+  { value: "10. DarkPurple", label: "Dark Purple", color: "#a855f7" },
+  { value: "11. DarkPink", label: "Dark Pink", color: "#ec4899" },
+  { value: "12. DarkYellow", label: "Dark Yellow", color: "#eab308" },
+] as const;
+
+export type ShiftsThemeValue = typeof SHIFTS_THEMES[number]["value"];
+
+/**
+ * Calculate relative luminance of a hex color using WCAG formula.
+ * Returns a value between 0 (black) and 1 (white).
+ */
+function getLuminance(hex: string): number {
+  const rgb = hex.replace(/^#/, "");
+  const r = parseInt(rgb.slice(0, 2), 16) / 255;
+  const g = parseInt(rgb.slice(2, 4), 16) / 255;
+  const b = parseInt(rgb.slice(4, 6), 16) / 255;
+
+  const toLinear = (c: number) => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+/**
+ * Get the appropriate text color (black or white) for a given background hex color.
+ * Uses WCAG luminance calculation to determine contrast.
+ */
+export function getContrastColor(hexBg: string): string {
+  const luminance = getLuminance(hexBg);
+  // Use white text on dark backgrounds (luminance < 0.5)
+  return luminance < 0.5 ? "#ffffff" : "#000000";
+}
+
+/**
+ * Find a theme by its value string.
+ * Supports both exact match and legacy formats.
+ */
+export function findThemeByValue(value: string | null | undefined): typeof SHIFTS_THEMES[number] | undefined {
+  if (!value) return undefined;
+  return SHIFTS_THEMES.find(t => t.value === value);
+}
+
 export const GROUPS: Record<string, { theme: string; color: string }> = {
   "Bakery": { theme: "4. Purple", color: "#e9d5ff" },
   "Lunch": { theme: "11. DarkPink", color: "#f9a8d4" },

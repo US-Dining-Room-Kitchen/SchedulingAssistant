@@ -6,6 +6,7 @@ import type { Segment } from "../services/segments";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, usePersistentFilters } from "./filters/PeopleFilters";
 import { REQUIRED_TRAINING_AREAS, isInTrainingPeriod } from "../utils/trainingConstants";
 import FluentDateInput from "./FluentDateInput";
+import { getContrastColor, findThemeByValue } from "../config/domain";
 
 function pad2(n: number) {
   return n < 10 ? `0${n}` : `${n}`;
@@ -291,6 +292,16 @@ export default function CrewHistoryView({
     colorStyleCache.current.set(hex, style);
     return style;
   }
+  
+  /** Get hex color for a role based on its group's theme */
+  function getRoleColor(role: any): string | undefined {
+    if (!role?.group_id) return undefined;
+    const group = groups.find((g: any) => g.id === role.group_id);
+    if (!group?.theme) return undefined;
+    const themeData = findThemeByValue(group.theme);
+    return themeData?.color;
+  }
+  
   const [defs, setDefs] = useState<any[]>([]);
   const [filters, setFilters] = usePersistentFilters('crewHistoryFilters');
   const segmentNames = useMemo(
@@ -559,7 +570,7 @@ export default function CrewHistoryView({
   const options = roleListForSegment(seg);
     return (
       <SmartSelect
-        options={[{ value: "", label: "--" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name }))]}
+        options={[{ value: "", label: "--" }, ...options.map((r: any) => ({ value: String(r.id), label: r.name, color: getRoleColor(r) }))]}
         value={def?.role_id != null ? String(def.role_id) : null}
         onChange={(v) => {
           const rid = v ? Number(v) : null;
@@ -676,12 +687,41 @@ export default function CrewHistoryView({
               selectedOptions={groupFilter}
               value={groupFilterLabel}
               onOptionSelect={(_, data) => setGroupFilter(data.selectedOptions as string[])}
+              style={(() => {
+                // For multi-select with single selection, show that group's color
+                if (groupFilter.length === 1) {
+                  const group = groups.find((g: any) => g.name === groupFilter[0]);
+                  const themeData = group ? findThemeByValue(group.theme) : undefined;
+                  return themeData ? { backgroundColor: themeData.color, color: getContrastColor(themeData.color) } : undefined;
+                }
+                return undefined;
+              })()}
             >
-              {groups.map((g) => (
-                <Option key={g.name} value={g.name} text={g.name}>
-                  {g.name}
-                </Option>
-              ))}
+              {groups.map((g) => {
+                const themeData = findThemeByValue(g.theme);
+                return (
+                  <Option key={g.name} value={g.name} text={g.name}>
+                    {themeData ? (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          width: "100%",
+                          padding: "4px 8px",
+                          margin: "-4px -8px",
+                          backgroundColor: themeData.color,
+                          color: getContrastColor(themeData.color),
+                          borderRadius: "4px",
+                        }}
+                      >
+                        {g.name}
+                      </span>
+                    ) : (
+                      g.name
+                    )}
+                  </Option>
+                );
+              })}
             </Dropdown>
           </div>
           <Checkbox label="Trainees only" checked={showOnlyTrainees} onChange={(_, data) => setShowOnlyTrainees(!!data.checked)} />
