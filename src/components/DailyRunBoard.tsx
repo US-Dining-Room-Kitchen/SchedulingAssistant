@@ -414,8 +414,8 @@ export default function DailyRunBoard({
   // Department events for the selected date
   const departmentEvents = useMemo((): DepartmentEvent[] => {
     if (!sqlDb) return [];
-    return getEventsForDate(sqlDb, ymd(selectedDateObj));
-  }, [sqlDb, ymd, selectedDateObj]);
+    return getEventsForDate(all, ymd(selectedDateObj));
+  }, [all, ymd, selectedDateObj]);
 
   // Adjusted segments (accounts for department events carving out time)
   const adjustedSegments = useMemo(() => {

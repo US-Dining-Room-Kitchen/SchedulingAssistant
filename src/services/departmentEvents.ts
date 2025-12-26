@@ -27,24 +27,25 @@ export interface AdjustedSegment {
 /**
  * Get department events for a specific date
  */
-export function getEventsForDate(db: any, date: string): DepartmentEvent[] {
-  const res = db.exec(
-    `SELECT id, title, date, start_time, end_time, group_id, role_id, description 
-     FROM department_event 
-     WHERE date = ? 
+export function getEventsForDate(all: (sql: string, params?: any[], db?: any) => any[], date: string): DepartmentEvent[] {
+  const rows = all(
+    `SELECT id, title, date, start_time, end_time, group_id, role_id, description
+     FROM department_event
+     WHERE date = ?
      ORDER BY start_time`,
     [date]
   );
-  const values = res[0]?.values || [];
-  return values.map((row: any[]) => ({
-    id: Number(row[0]),
-    title: String(row[1]),
-    date: String(row[2]),
-    start_time: String(row[3]),
-    end_time: String(row[4]),
-    group_id: row[5] != null ? Number(row[5]) : null,
-    role_id: row[6] != null ? Number(row[6]) : null,
-    description: row[7] != null ? String(row[7]) : null,
+
+  // rows are returned as objects from the `all` helper (getAsObject())
+  return rows.map((row: any) => ({
+    id: Number(row.id),
+    title: String(row.title),
+    date: String(row.date),
+    start_time: String(row.start_time),
+    end_time: String(row.end_time),
+    group_id: row.group_id != null ? Number(row.group_id) : null,
+    role_id: row.role_id != null ? Number(row.role_id) : null,
+    description: row.description != null ? String(row.description) : null,
   }));
 }
 
