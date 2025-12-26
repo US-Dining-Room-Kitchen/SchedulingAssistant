@@ -560,6 +560,7 @@ export default function App() {
   const [groups, setGroups] = useState<any[]>([]);
   const [segments, setSegments] = useState<SegmentRow[]>([]);
   const [segmentAdjustments, setSegmentAdjustments] = useState<SegmentAdjustmentRow[]>([]);
+  const [timeOffThreshold, setTimeOffThreshold] = useState<number>(50); // Default 50%
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const d = new Date();
@@ -899,6 +900,19 @@ export default function App() {
     const adj = listSegmentAdjustments(db);
     setSegmentAdjustments(adj);
     loadMonthlyDefaults(selectedMonth, db);
+    
+    // Load time-off block threshold from meta table
+    try {
+      const thresholdRows = all(`SELECT value FROM meta WHERE key='time_off_block_threshold'`, [], db);
+      if (thresholdRows.length > 0 && thresholdRows[0].value) {
+        const val = parseInt(thresholdRows[0].value, 10);
+        if (!isNaN(val) && val >= 25 && val <= 75) {
+          setTimeOffThreshold(val);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load time_off_block_threshold:', e);
+    }
   }
 
   // People CRUD minimal
@@ -1171,15 +1185,49 @@ export default function App() {
     return out;
   }
 
-  function isSegmentBlockedByTimeOff(personId: number, date: Date, segment: Segment): boolean {
-    // For UI adding, any overlap => return true (spec Q34 = Block)
+  /**
+   * Calculate time-off overlap information for a person/date/segment.
+   * Returns overlap percentage and minutes.
+   */
+  function getTimeOffOverlapInfo(personId: number, date: Date, segment: Segment): { hasOverlap: boolean; overlapPercent: number; overlapMinutes: number } {
     const intervals = listTimeOffIntervals(personId, date);
-    if (intervals.length === 0) return false;
+    if (intervals.length === 0) return { hasOverlap: false, overlapPercent: 0, overlapMinutes: 0 };
+    
     const seg = segmentTimesForDate(date)[segment];
-    if (!seg) return false;
-    const start = seg.start.getTime();
-    const end = seg.end.getTime();
-    return intervals.some(({ start: s, end: e }) => Math.max(s.getTime(), start) < Math.min(e.getTime(), end));
+    if (!seg) return { hasOverlap: false, overlapPercent: 0, overlapMinutes: 0 };
+    
+    const segStart = seg.start.getTime();
+    const segEnd = seg.end.getTime();
+    const segMinutes = Math.max(0, Math.round((segEnd - segStart) / 60000));
+    
+    if (segMinutes === 0) return { hasOverlap: false, overlapPercent: 0, overlapMinutes: 0 };
+    
+    // Sum up all overlapping time-off intervals
+    let totalOverlapMs = 0;
+    for (const interval of intervals) {
+      const s = interval.start.getTime();
+      const e = interval.end.getTime();
+      const overlap = Math.max(0, Math.min(e, segEnd) - Math.max(s, segStart));
+      totalOverlapMs += overlap;
+    }
+    
+    const overlapMinutes = Math.round(totalOverlapMs / 60000);
+    const overlapPercent = Math.round((overlapMinutes / segMinutes) * 100);
+    
+    return {
+      hasOverlap: overlapMinutes > 0,
+      overlapPercent,
+      overlapMinutes,
+    };
+  }
+
+  /**
+   * Check if a segment is blocked by time-off for a person.
+   * Now uses configurable threshold - only blocks if overlap >= threshold%.
+   */
+  function isSegmentBlockedByTimeOff(personId: number, date: Date, segment: Segment, threshold = timeOffThreshold): boolean {
+    const { overlapPercent } = getTimeOffOverlapInfo(personId, date, segment);
+    return overlapPercent >= threshold;
   }
 
   function listTimeOffIntervals(personId: number, date: Date): Array<{start: Date; end: Date; reason?: string}> {
@@ -1748,18 +1796,23 @@ async function exportShifts() {
         }
         if (!availOk) return false;
 
-        if (segment !== "Early" && isSegmentBlockedByTimeOff(p.id, date, segment)) return false;
+        // Only filter out people who are blocked (overlap >= threshold)
+        // People with partial overlap (< threshold) are included with partialTimeOff flag
+        if (isSegmentBlockedByTimeOff(p.id, date, segment)) return false;
 
         return true;
       })
       .map((p: any) => {
         const isTrained = trained.has(p.id);
         const warn = isTrained ? "" : "(Untrained)";
+        const overlapInfo = getTimeOffOverlapInfo(p.id, date, segment);
         return {
           id: p.id,
           label: `${p.last_name}, ${p.first_name}${warn ? ` ${warn}` : ""}`,
           blocked: false,
           trained: isTrained,
+          partialTimeOff: overlapInfo.hasOverlap && overlapInfo.overlapPercent < timeOffThreshold,
+          overlapPercent: overlapInfo.overlapPercent,
         };
       });
   }
@@ -2434,6 +2487,7 @@ function PeopleEditor(){
                   setShowNeedsEditor={setShowNeedsEditor}
                   canEdit={canEdit}
                   peopleOptionsForSegment={peopleOptionsForSegment}
+                  getTimeOffOverlapInfo={getTimeOffOverlapInfo}
                   getRequiredFor={getRequiredFor}
                   addAssignment={addAssignment}
                   deleteAssignment={deleteAssignment}
@@ -2527,7 +2581,7 @@ function PeopleEditor(){
           )}
           {activeTab === 'ADMIN' && (
             <Suspense fallback={<div className="p-4 text-slate-600">Loading Admin…</div>}>
-              <AdminView sqlDb={sqlDb} all={all} run={run} refresh={refreshCaches} segments={segments} />
+              <AdminView sqlDb={sqlDb} all={all} run={run} refresh={refreshCaches} segments={segments} onTimeOffThresholdChange={setTimeOffThreshold} />
             </Suspense>
           )}
         </>

@@ -619,13 +619,13 @@
                                         </tr>
                                         <tr>
                                             <td class="p-3 font-semibold">Partial Time Off</td>
-                                            <td class="p-3">Person has some time-off during this segment but not major overlap. Shows in italic text with yellow color in dropdowns.</td>
-                                            <td class="p-3">✅ Yes</td>
+                                            <td class="p-3">Person has time-off overlap below the configured threshold (default 50%). Shows in italic text with yellow color in dropdowns. A confirmation dialog prompts you to confirm the assignment. Counts toward staffing needs.</td>
+                                            <td class="p-3">✅ Yes (with confirmation, counts toward needs)</td>
                                         </tr>
                                         <tr>
                                             <td class="p-3 font-semibold">Time Off</td>
-                                            <td class="p-3">Person has major overlap with time-off during this segment.</td>
-                                            <td class="p-3">❌ No (blocked)</td>
+                                            <td class="p-3">Person has time-off overlap at or above the configured threshold (default 50%). The threshold can be adjusted in Admin &gt; Time-Off Threshold Settings (range: 25-75%). Shows in italic text with orange color in dropdowns. Does <strong>not</strong> count toward staffing needs but can still be assigned if needed.</td>
+                                            <td class="p-3">✅ Yes (does not count toward needs)</td>
                                         </tr>
                                         <tr>
                                             <td class="p-3 font-semibold">X/Y Badge</td>
@@ -1109,6 +1109,41 @@
                             </h5>
                             <p class="text-xs text-[#616161]">Browse all time-off records. Delete entries that are no longer relevant or were imported in error.</p>
                         </div>
+                    </div>
+
+                    <h3 class="text-xl font-bold mb-6 text-[#0078d4] flex items-center gap-2">
+                        <i class="fas fa-cogs"></i>
+                        Settings
+                    </h3>
+                    <p class="text-sm text-[#616161] mb-6">Configure application-wide settings that control scheduling behavior.</p>
+                    
+                    <div class="table-container mb-12">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                <tr>
+                                    <th class="p-3 font-semibold">Setting</th>
+                                    <th class="p-3 font-semibold">Description</th>
+                                    <th class="p-3 font-semibold">Options</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                <tr>
+                                    <td class="p-3 font-semibold">Auto-Fill Settings</td>
+                                    <td class="p-3">Configure how the auto-fill feature prioritizes candidates when filling open roles.</td>
+                                    <td class="p-3">Various priority rules</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Week Calculation Settings</td>
+                                    <td class="p-3">Choose how week numbers are calculated for week-by-week overrides in Monthly Defaults. "First Monday" mode starts Week 1 on the first Monday; "First Day" mode starts Week 1 on the 1st of the month.</td>
+                                    <td class="p-3">First Monday (default), First Day</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Time-Off Threshold Settings</td>
+                                    <td class="p-3">Set the percentage of time-off overlap that blocks scheduling. If overlap is below this threshold, you'll be prompted for confirmation instead of being blocked. Changes apply immediately.</td>
+                                    <td class="p-3">25% - 75% (default: 50%)</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
 
                     <h3 class="text-xl font-bold mb-6 text-[#0078d4] flex items-center gap-2">

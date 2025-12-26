@@ -297,6 +297,17 @@ export const migrate26AddMultiConditionSegmentAdjustments: Migration = (db) => {
   }
 };
 
+// 27. Add time_off_block_threshold setting to meta table
+export const migrate27AddTimeOffThreshold: Migration = (db) => {
+  try {
+    // Initialize time_off_block_threshold to 50% as default
+    db.run(`INSERT OR IGNORE INTO meta (key, value) VALUES ('time_off_block_threshold', '50');`);
+    console.log('Migration 27 complete - added time_off_block_threshold setting');
+  } catch (e) {
+    console.error('migrate27AddTimeOffThreshold failed:', e);
+  }
+};
+
 export const migrate6AddExportGroup: Migration = (db) => {
   db.run(`CREATE TABLE IF NOT EXISTS export_group (
       group_id INTEGER PRIMARY KEY,
@@ -812,6 +823,7 @@ const migrations: Record<number, Migration> = {
   24: migrate24AddSyncVersion,
   25: migrate25AddWeekStartMode,
   26: migrate26AddMultiConditionSegmentAdjustments,
+  27: migrate27AddTimeOffThreshold,
 };
 
 export function addMigration(version: number, fn: Migration) {

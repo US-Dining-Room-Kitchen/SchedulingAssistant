@@ -258,7 +258,8 @@ interface DailyRunBoardProps {
     date: Date,
     segment: Segment,
     role: any
-  ) => Array<{ id: number; label: string; blocked: boolean; trained: boolean }>;
+  ) => Array<{ id: number; label: string; blocked: boolean; trained: boolean; partialTimeOff?: boolean; overlapPercent?: number }>;
+  getTimeOffOverlapInfo: (personId: number, date: Date, segment: Segment) => { hasOverlap: boolean; overlapPercent: number; overlapMinutes: number };
   getRequiredFor: (
     date: Date,
     groupId: number,
@@ -306,6 +307,7 @@ export default function DailyRunBoard({
   setShowNeedsEditor,
   canEdit,
   peopleOptionsForSegment,
+  getTimeOffOverlapInfo,
   getRequiredFor,
   addAssignment,
   deleteAssignment,
@@ -764,8 +766,8 @@ export default function DailyRunBoard({
           else ok = avail === 'AM' || avail === 'PM' || avail === 'B';
           if (!ok) continue;
           
-          // Check time-off blocking (skip Early segment)
-          if (seg !== 'Early' && isSegmentBlockedByTimeOff(person.id, selectedDateObj, seg)) continue;
+          // Check time-off blocking (uses configurable threshold - blocks only if overlap >= threshold%)
+          if (isSegmentBlockedByTimeOff(person.id, selectedDateObj, seg)) continue;
           
           // Check if already assigned
           const dateStr = ymd(selectedDateObj);
@@ -1430,16 +1432,24 @@ export default function DailyRunBoard({
             onOpenChange={(_, d) => setOpenAdd(Boolean(d.open))}
             selectedOptions={addSel}
             value={addSelectedLabel}
-            onOptionSelect={(_, data) => {
+            onOptionSelect={async (_, data) => {
               const val = data.optionValue ?? '';
               if (!val) return;
               const pid = Number(val);
-              const info = overlapByPerson.get(pid);
-              if (info?.heavy) {
-                dialogs.showAlert("This person is blocked by time off with major overlap for this segment.", "Time Off Conflict");
-                setAddSel([]);
-                return;
+              
+              // Check for partial time-off and show confirmation dialog
+              const overlapInfo = getTimeOffOverlapInfo(pid, selectedDateObj, seg);
+              if (overlapInfo.hasOverlap && overlapInfo.overlapPercent > 0) {
+                const confirmed = await dialogs.showConfirm(
+                  `This person has ${overlapInfo.overlapPercent}% time-off overlap during this segment. Schedule anyway?`,
+                  "Partial Time Off"
+                );
+                if (!confirmed) {
+                  setAddSel([]);
+                  return;
+                }
               }
+              
               addAssignment(selectedDate, pid, role.id, seg);
               setAddSel([]);
             }}
@@ -1459,9 +1469,12 @@ export default function DailyRunBoard({
                   <Option
                     key={o.id}
                     value={String(o.id)}
-                    disabled={isHeavy}
                     text={text}
-                    style={isPartial ? { fontStyle: 'italic', color: tokens.colorPaletteYellowForeground1 } : undefined}
+                    style={isHeavy 
+                      ? { fontStyle: 'italic', color: tokens.colorPaletteDarkOrangeForeground1 } 
+                      : isPartial 
+                        ? { fontStyle: 'italic', color: tokens.colorPaletteYellowForeground1 } 
+                        : undefined}
                   >
                     {text}
                   </Option>
@@ -1502,11 +1515,9 @@ export default function DailyRunBoard({
       </Body1>
               {canEdit && (
                 <div className={s.actionsRow}>
-                  {!overlapByPerson.get(a.person_id)?.heavy && (
-                    <Button size="small" appearance="secondary" onClick={() => handleMove(a)}>
-                      Move
-                    </Button>
-                  )}
+                  <Button size="small" appearance="secondary" onClick={() => handleMove(a)}>
+                    Move
+                  </Button>
                   <Button size="small" appearance="secondary" onClick={async () => {
                     try {
                       const confirmed = await dialogs.showConfirm(
@@ -1536,10 +1547,15 @@ export default function DailyRunBoard({
     if (!moveContext || moveTargetId == null) return;
     const chosen = moveContext.targets.find((t) => t.role.id === moveTargetId);
     if (!chosen) return;
-    const confirmed = await dialogs.showConfirm(
-      `Move ${moveContext.assignment.last_name}, ${moveContext.assignment.first_name} to ${chosen.group.name} - ${chosen.role.name}?`,
-      "Confirm Move"
-    );
+    
+    // Check for partial time-off overlap
+    const overlapInfo = getTimeOffOverlapInfo(moveContext.assignment.person_id, selectedDateObj, seg);
+    let message = `Move ${moveContext.assignment.last_name}, ${moveContext.assignment.first_name} to ${chosen.group.name} - ${chosen.role.name}?`;
+    if (overlapInfo.hasOverlap && overlapInfo.overlapPercent > 0) {
+      message += `\n\nNote: This person has ${overlapInfo.overlapPercent}% time-off overlap during this segment.`;
+    }
+    
+    const confirmed = await dialogs.showConfirm(message, "Confirm Move");
     if (!confirmed) return;
     deleteAssignment(moveContext.assignment.id);
     addAssignment(selectedDate, moveContext.assignment.person_id, chosen.role.id, seg);
