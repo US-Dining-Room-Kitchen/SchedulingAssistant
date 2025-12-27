@@ -547,6 +547,7 @@ export default function App() {
     (window as any).sqlDb = sqlDb;
   }, [sqlDb]);
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
+  const fileOpenedAtRef = useRef<number | null>(null); // Timestamp when file was opened (for conflict detection)
   const [userEmail, setUserEmail] = useState<string>("");
   const [status, setStatus] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>(() => fmtDateMDY(new Date()));
@@ -602,7 +603,14 @@ export default function App() {
   const [confirmDialog, setConfirmDialog] = useState<{
     title?: string;
     message: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
     onConfirm: () => void;
+    onCancel?: () => void;
+    extraAction?: {
+      label: string;
+      onClick: () => void;
+    };
   } | null>(null);
 
   // Email input dialog (replaces prompt)
@@ -730,7 +738,7 @@ export default function App() {
       return;
     }
     try {
-      // Ask user for SQLite DB
+      // Ask user for SQLite DB - request directory access for sync
       const [handle] = await (window as any).showOpenFilePicker({
         types: [{ description: "SQLite DB", accept: { "application/octet-stream": [".db", ".sqlite"] } }],
         multiple: false,
@@ -742,19 +750,42 @@ export default function App() {
 
       setSqlDb(db);
       fileHandleRef.current = handle;
+      fileOpenedAtRef.current = file.lastModified; // Track when we opened the file for conflict detection
       setStatus(`Opened ${file.name}`);
       refreshCaches(db);
 
       // Prompt for user email (needed for sync system and personalization)
       setEmailDialog({
-        onSubmit: (email: string) => {
+        onSubmit: async (email: string) => {
           setUserEmail(email);
           setEmailDialog(null);
           toast.showSuccess("Database opened successfully");
+
+          // Initialize sync system - request access to parent directory for changes folder
+          try {
+            // Ask user to select the folder containing the database (for sync access)
+            const parentDirHandle = await (window as any).showDirectoryPicker({
+              mode: 'readwrite',
+              startIn: 'documents',
+            });
+            
+            // Create or get the changes subfolder
+            const changesFolderHandle = await parentDirHandle.getDirectoryHandle('changes', { create: true });
+            changesFolderHandleRef.current = changesFolderHandle;
+            
+            // Initialize the sync engine
+            await sync.initializeSync(changesFolderHandle, email, handle);
+            toast.showInfo("Multi-user sync enabled");
+            logger.info("Sync system initialized for", email);
+          } catch (syncErr: any) {
+            // User may have cancelled directory picker or sync init failed - continue without sync
+            logger.warn("Sync initialization skipped:", syncErr?.message || syncErr);
+            toast.showInfo("Sync not enabled - save will overwrite file directly");
+          }
         },
         onCancel: () => {
           setEmailDialog(null);
-          toast.showInfo("Database opened (email not provided)");
+          toast.showInfo("Database opened (sync not enabled)");
         }
       });
     } catch (e:any) {
@@ -815,6 +846,54 @@ export default function App() {
     if (!sqlDb) return;
     if (!fileHandleRef.current) return saveDbAs();
     
+    // Check if file has been modified externally (even without full sync)
+    try {
+      const currentFile = await fileHandleRef.current.getFile();
+      const currentModified = currentFile.lastModified;
+      
+      // Compare with when we opened the file
+      if (fileOpenedAtRef.current && currentModified > fileOpenedAtRef.current) {
+        // File was modified by someone else!
+        setConfirmDialog({
+          title: "File Modified Externally",
+          message: "This file was modified by another user or process since you opened it. Saving now will overwrite their changes.\n\nWould you like to:\n• Click 'Save Anyway' to overwrite with your version\n• Click 'Reload' to discard your changes and load the latest version\n• Click 'Cancel' to go back without saving",
+          confirmLabel: "Save Anyway",
+          cancelLabel: "Cancel",
+          onConfirm: async () => {
+            setConfirmDialog(null);
+            await writeDbToHandle(fileHandleRef.current!);
+          },
+          onCancel: () => {
+            setConfirmDialog(null);
+          },
+          extraAction: {
+            label: "Reload",
+            onClick: async () => {
+              setConfirmDialog(null);
+              // Reload the file
+              try {
+                const file = await fileHandleRef.current!.getFile();
+                const buf = await file.arrayBuffer();
+                const db = new SQL.Database(new Uint8Array(buf));
+                applyMigrations(db);
+                setSqlDb(db);
+                fileOpenedAtRef.current = file.lastModified;
+                setStatus(`Reloaded ${file.name}`);
+                refreshCaches(db);
+                toast.showInfo("Database reloaded with latest changes");
+              } catch (reloadErr: any) {
+                toast.showError("Failed to reload: " + (reloadErr?.message || "Unknown error"));
+              }
+            }
+          }
+        });
+        return;
+      }
+    } catch (checkErr) {
+      // If we can't check the file, proceed with save
+      logger.warn("Could not check file modification time:", checkErr);
+    }
+    
     // If sync is enabled, push changes first
     if (sync.isInitialized && sync.syncEngine) {
       const pushResult = await sync.pushChanges();
@@ -850,6 +929,15 @@ export default function App() {
     const writable = await (handle as any).createWritable();
     await writable.write(data);
     await writable.close();
+    
+    // Update our baseline timestamp after successful save
+    try {
+      const file = await handle.getFile();
+      fileOpenedAtRef.current = file.lastModified;
+    } catch (e) {
+      // Ignore - best effort
+    }
+    
     setStatus("Saved.");
     toast.showSuccess("Database saved successfully");
     
@@ -2682,8 +2770,11 @@ function PeopleEditor(){
           open={true}
           title={confirmDialog.title}
           message={confirmDialog.message}
+          confirmText={confirmDialog.confirmLabel}
+          cancelText={confirmDialog.cancelLabel}
           onConfirm={confirmDialog.onConfirm}
-          onCancel={() => setConfirmDialog(null)}
+          onCancel={confirmDialog.onCancel || (() => setConfirmDialog(null))}
+          extraAction={confirmDialog.extraAction}
         />
       )}
       
