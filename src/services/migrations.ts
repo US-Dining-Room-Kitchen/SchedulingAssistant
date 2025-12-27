@@ -897,6 +897,25 @@ export function ensureSchemaIntegrity(db: Database) {
       }
     }
     
+    // Ensure department_event table exists
+    const deptEventTables = db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='department_event';`);
+    if (!deptEventTables[0]?.values?.length) {
+      console.log('[SchemaIntegrity] Creating missing department_event table');
+      db.run(`CREATE TABLE IF NOT EXISTS department_event (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        date TEXT NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        group_id INTEGER,
+        role_id INTEGER,
+        description TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (group_id) REFERENCES grp(id),
+        FOREIGN KEY (role_id) REFERENCES role(id)
+      );`);
+    }
+    
     console.log('[SchemaIntegrity] Schema integrity check complete');
   } catch (e) {
     console.error('[SchemaIntegrity] Error ensuring schema integrity:', e);
