@@ -32,6 +32,7 @@ import {
 import {
   performThreeWayMerge,
   performTwoWayMerge,
+  performNWayMerge,
   applyConflictResolutions,
   copyNonSyncedTables,
   type MergeResult,
@@ -461,7 +462,10 @@ function getMetaValue(db: Database, key: string): string | null {
 }
 
 /**
- * Performs a merge of multiple working files
+ * Performs a merge of multiple working files using n-way merge
+ * 
+ * All working files are compared against base simultaneously to detect
+ * conflicts when 2+ users modified the same row.
  */
 async function performMerge(
   SQL: SqlJsStatic,
@@ -491,10 +495,7 @@ async function performMerge(
   const targetDb = new SQL.Database(new Uint8Array(baseData));
   applyMigrations(targetDb);
 
-  let allConflicts: MergeConflict[] = [];
-  let totalAutoMerged = 0;
-  let totalInserted = 0;
-  let totalDeleted = 0;
+  let result: MergeResult;
 
   if (workingFiles.length === 1) {
     // Simple 2-way merge
@@ -503,16 +504,11 @@ async function performMerge(
     const wfDb = new SQL.Database(new Uint8Array(wfData));
     applyMigrations(wfDb);
 
-    const result = performTwoWayMerge(baseDb, wfDb, targetDb);
-    allConflicts = result.conflicts;
-    totalAutoMerged = result.autoMergedCount;
-    totalInserted = result.insertedCount;
-    totalDeleted = result.deletedCount;
-
+    result = performTwoWayMerge(baseDb, wfDb, targetDb);
     wfDb.close();
 
   } else if (workingFiles.length === 2) {
-    // 3-way merge
+    // 3-way merge (optimized path for exactly 2 working files)
     const [wfA, wfB] = workingFiles;
     const wfAData = await readDatabaseFile(wfA.handle);
     const wfBData = await readDatabaseFile(wfB.handle);
@@ -521,77 +517,39 @@ async function performMerge(
     applyMigrations(dbA);
     applyMigrations(dbB);
 
-    const result = performThreeWayMerge(baseDb, dbA, dbB, targetDb);
-    allConflicts = result.conflicts;
-    totalAutoMerged = result.autoMergedCount;
-    totalInserted = result.insertedCount;
-    totalDeleted = result.deletedCount;
-
+    result = performThreeWayMerge(baseDb, dbA, dbB, targetDb);
     dbA.close();
     dbB.close();
 
   } else {
-    // Multiple files - merge sequentially (A + B first, then result + C, etc.)
-    let accumulatedDb = targetDb;
+    // N-way merge: compare all working files against base simultaneously
+    // This correctly detects conflicts between any pair of users
+    const workingDbs: { db: Database; email: string }[] = [];
     
-    for (let i = 0; i < workingFiles.length; i++) {
-      const wf = workingFiles[i];
+    for (const wf of workingFiles) {
       const wfData = await readDatabaseFile(wf.handle);
       const wfDb = new SQL.Database(new Uint8Array(wfData));
       applyMigrations(wfDb);
-
-      if (i === 0) {
-        // First file: 2-way merge with base
-        const result = performTwoWayMerge(baseDb, wfDb, accumulatedDb);
-        allConflicts.push(...result.conflicts);
-        totalAutoMerged += result.autoMergedCount;
-        totalInserted += result.insertedCount;
-        totalDeleted += result.deletedCount;
-      } else {
-        // Subsequent files: 2-way merge with accumulated result
-        const tempTarget = new SQL.Database(accumulatedDb.export());
-        const result = performTwoWayMerge(accumulatedDb, wfDb, tempTarget);
-        allConflicts.push(...result.conflicts);
-        totalAutoMerged += result.autoMergedCount;
-        totalInserted += result.insertedCount;
-        totalDeleted += result.deletedCount;
-        accumulatedDb = tempTarget;
-      }
-
-      wfDb.close();
+      workingDbs.push({ db: wfDb, email: wf.email });
     }
 
-    // Use the final accumulated result
-    if (accumulatedDb !== targetDb) {
-      const finalData = accumulatedDb.export();
-      targetDb.close();
-      return {
-        targetDb: new SQL.Database(finalData),
-        mergeResult: {
-          success: allConflicts.length === 0,
-          autoMergedCount: totalAutoMerged,
-          insertedCount: totalInserted,
-          deletedCount: totalDeleted,
-          conflicts: allConflicts,
-          changesByTable: {},
-        },
-        conflicts: allConflicts,
-      };
+    result = performNWayMerge(baseDb, workingDbs, targetDb);
+
+    // Close all working databases
+    for (const { db } of workingDbs) {
+      db.close();
     }
   }
+
+  // Copy non-synced tables (config tables like segment, role, grp, etc.)
+  // These don't have sync_id columns and are taken from base
+  copyNonSyncedTables(baseDb, targetDb);
 
   baseDb.close();
 
   return {
     targetDb,
-    mergeResult: {
-      success: allConflicts.length === 0,
-      autoMergedCount: totalAutoMerged,
-      insertedCount: totalInserted,
-      deletedCount: totalDeleted,
-      conflicts: allConflicts,
-      changesByTable: {},
-    },
-    conflicts: allConflicts,
+    mergeResult: result,
+    conflicts: result.conflicts,
   };
 }

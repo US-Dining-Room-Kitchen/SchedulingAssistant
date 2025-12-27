@@ -757,17 +757,19 @@ export const migrate29AddSyncTracking: Migration = (db) => {
       }
 
       // Create trigger for INSERT to set sync_id and modified_at
-      // Note: SQLite doesn't support variables in triggers, so we use a workaround
-      // The sync_id is set via application code, trigger just ensures modified_at is set
+      // Uses SQLite's hex(randomblob(16)) for UUID generation
       try {
         db.run(`DROP TRIGGER IF EXISTS ${table}_insert_sync;`);
         db.run(`
           CREATE TRIGGER ${table}_insert_sync
           AFTER INSERT ON ${table}
           FOR EACH ROW
-          WHEN NEW.modified_at IS NULL
+          WHEN NEW.sync_id IS NULL OR NEW.modified_at IS NULL
           BEGIN
-            UPDATE ${table} SET modified_at = datetime('now') WHERE rowid = NEW.rowid;
+            UPDATE ${table} SET 
+              sync_id = COALESCE(NEW.sync_id, lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)),2) || '-' || substr('89ab', abs(random()) % 4 + 1, 1) || substr(hex(randomblob(2)),2) || '-' || hex(randomblob(6)))),
+              modified_at = COALESCE(NEW.modified_at, datetime('now'))
+            WHERE rowid = NEW.rowid;
           END;
         `);
       } catch (e) {
@@ -788,6 +790,24 @@ export const migrate29AddSyncTracking: Migration = (db) => {
         `);
       } catch (e) {
         console.warn(`[migrate29] Could not create update trigger for ${table}:`, e);
+      }
+
+      // Create BEFORE DELETE trigger to convert hard deletes to soft deletes
+      // This prevents data loss during merge - deletions are tracked via deleted_at
+      try {
+        db.run(`DROP TRIGGER IF EXISTS ${table}_soft_delete;`);
+        db.run(`
+          CREATE TRIGGER ${table}_soft_delete
+          BEFORE DELETE ON ${table}
+          FOR EACH ROW
+          WHEN OLD.deleted_at IS NULL
+          BEGIN
+            UPDATE ${table} SET deleted_at = datetime('now'), modified_at = datetime('now') WHERE rowid = OLD.rowid;
+            SELECT RAISE(IGNORE);
+          END;
+        `);
+      } catch (e) {
+        console.warn(`[migrate29] Could not create soft delete trigger for ${table}:`, e);
       }
 
     } catch (e) {

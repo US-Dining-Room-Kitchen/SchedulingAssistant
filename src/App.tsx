@@ -21,12 +21,9 @@ import CrewHistoryView from "./components/CrewHistoryView";
 import Training from "./components/Training";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, usePersistentFilters } from "./components/filters/PeopleFilters";
 import { isInTrainingPeriod, weeksRemainingInTraining } from "./utils/trainingConstants";
-import ConflictResolutionDialog from "./components/ConflictResolutionDialog";
 import MergeConflictDialog from "./components/MergeConflictDialog";
-import { useSync } from "./sync/useSync";
 import { useFolderSync } from "./sync/useFolderSync";
 import { FileSystemUtils } from "./sync/FileSystemUtils";
-import { Conflict, ConflictResolution } from "./sync/types";
 import type { ConflictResolution as MergeConflictResolution } from "./sync/ThreeWayMerge";
 import { getWeekOfMonth, type WeekStartMode } from "./utils/weekCalculation";
 import AlertDialog from "./components/AlertDialog";
@@ -628,18 +625,6 @@ export default function App() {
   // Person delete confirmation
   const [personToDelete, setPersonToDelete] = useState<number | null>(null);
 
-  // Sync system
-  const changesFolderHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
-  const [syncConflicts, setSyncConflicts] = useState<{
-    conflicts: Conflict[];
-    autoMergedCount: number;
-  } | null>(null);
-  const sync = useSync({
-    db: sqlDb,
-    enabled: !!sqlDb,
-    backgroundSyncInterval: 30,
-  });
-
   // Folder-based sync system (3-way merge)
   const [folderSyncState, folderSyncActions] = useFolderSync();
 
@@ -997,33 +982,6 @@ export default function App() {
       logger.warn("Could not check file modification time:", checkErr);
     }
     
-    // If sync is enabled, push changes first
-    if (sync.isInitialized && sync.syncEngine) {
-      const pushResult = await sync.pushChanges();
-      if (!pushResult.success) {
-        const errorMsg = `Sync error: ${pushResult.error}`;
-        setStatus(errorMsg);
-        toast.showError(errorMsg);
-        return;
-      }
-      
-      // Pull and merge changes from others
-      const pullResult = await sync.pullChanges();
-      if (!pullResult.success && pullResult.conflicts) {
-        // Show conflict resolution dialog
-        setSyncConflicts({
-          conflicts: pullResult.conflicts,
-          autoMergedCount: pullResult.autoMergedCount || 0,
-        });
-        return;
-      } else if (pullResult.autoMergedCount && pullResult.autoMergedCount > 0) {
-        const msg = `Auto-merged ${pullResult.autoMergedCount} changes from other users`;
-        setStatus(msg);
-        toast.showInfo(msg);
-        refreshCaches(); // Refresh UI to show merged changes
-      }
-    }
-    
     await writeDbToHandle(fileHandleRef.current);
   }
 
@@ -1043,31 +1001,6 @@ export default function App() {
     
     setStatus("Saved.");
     toast.showSuccess("Database saved successfully");
-    
-    // Try to initialize sync if we have a handle and user email
-    // Note: Sync system is incomplete - this is a placeholder
-    if (!sync.isInitialized && userEmail && !changesFolderHandleRef.current) {
-      await tryInitializeSync(handle);
-    }
-  }
-
-  async function tryInitializeSync(dbHandle: FileSystemFileHandle) {
-    // INCOMPLETE: Multi-user sync system is not yet production-ready
-    // See SYNC_SYSTEM.md for details on the architecture
-    // This is a placeholder for future sync initialization
-    if (!userEmail) return;
-    
-    try {
-      // Try to get the parent directory
-      // Note: This is a limitation - File System Access API doesn't provide direct parent access
-      // We'll need to ask the user or use a different approach
-      // For now, we'll skip automatic initialization and require manual setup
-      
-      // Alternative: Store the directory handle in IndexedDB for future use
-      // This would be a production enhancement
-    } catch (error) {
-      logger.error('Failed to initialize sync:', error);
-    }
   }
 
   function syncTrainingFromMonthly(db = sqlDb) {
@@ -2650,7 +2583,6 @@ function PeopleEditor(){
         saveDb={saveDb}
         saveDbAs={saveDbAs}
         status={status}
-        syncStatus={sync.isInitialized ? sync.syncStatus : undefined}
         folderSyncActive={folderSyncState.isActive}
       />
       {showBrowserWarning && (
@@ -2834,26 +2766,6 @@ function PeopleEditor(){
             </DialogBody>
           </DialogSurface>
         </Dialog>
-      )}
-      {syncConflicts && (
-        <ConflictResolutionDialog
-          conflicts={syncConflicts.conflicts}
-          autoMergedCount={syncConflicts.autoMergedCount}
-          onResolve={async (resolutions) => {
-            const result = await sync.resolveConflicts(syncConflicts.conflicts, resolutions);
-            if (result.success) {
-              setSyncConflicts(null);
-              refreshCaches();
-              setStatus('Conflicts resolved successfully');
-            } else {
-              setStatus(`Error resolving conflicts: ${result.error}`);
-            }
-          }}
-          onCancel={() => {
-            setSyncConflicts(null);
-            setStatus('Sync cancelled - conflicts not resolved');
-          }}
-        />
       )}
       
       {/* Folder sync merge conflicts */}

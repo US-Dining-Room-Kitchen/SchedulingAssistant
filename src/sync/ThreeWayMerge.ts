@@ -410,6 +410,160 @@ export function performTwoWayMerge(
 }
 
 /**
+ * Extended conflict interface for n-way merge (supports more than 2 working files)
+ */
+export interface NWayMergeConflict extends MergeConflict {
+  /** All working file versions that modified this row */
+  workingVersions: {
+    email: string;
+    row: Record<string, unknown>;
+    modifiedAt: string | null;
+  }[];
+}
+
+/**
+ * Extended resolution for n-way conflicts
+ */
+export interface NWayConflictResolution {
+  syncId: string;
+  table: string;
+  /** Index of the working version to keep, or 'base' */
+  choice: 'base' | number;
+}
+
+/**
+ * Performs an n-way merge comparing all working files against the base
+ * 
+ * Unlike sequential 2-way merges, this compares ALL working files against base
+ * simultaneously, detecting conflicts when 2+ files modified the same row.
+ * 
+ * @param baseDb - The base database (source of truth)
+ * @param workingDbs - Array of working databases with their user emails
+ * @param targetDb - The database to write merged results to
+ */
+export function performNWayMerge(
+  baseDb: Database,
+  workingDbs: { db: Database; email: string }[],
+  targetDb: Database
+): MergeResult {
+  const result: MergeResult = {
+    success: true,
+    autoMergedCount: 0,
+    insertedCount: 0,
+    deletedCount: 0,
+    conflicts: [],
+    changesByTable: {},
+  };
+
+  for (const table of SYNCED_TABLES) {
+    const stats: TableMergeStats = { inserted: 0, updated: 0, deleted: 0, conflicts: 0 };
+    result.changesByTable[table] = stats;
+
+    try {
+      const columns = getTableColumns(baseDb, table);
+      if (!columns.includes('sync_id')) {
+        console.warn(`[NWayMerge] Table ${table} missing sync_id, skipping`);
+        continue;
+      }
+
+      const baseRows = getTableRows(baseDb, table);
+      
+      // Get rows from all working databases
+      const workingRowMaps: { email: string; rows: Map<string, Record<string, unknown>> }[] = 
+        workingDbs.map(({ db, email }) => ({
+          email,
+          rows: getTableRows(db, table),
+        }));
+
+      // Collect all sync_ids from base and all working files
+      const allSyncIds = new Set<string>([...baseRows.keys()]);
+      for (const { rows } of workingRowMaps) {
+        for (const syncId of rows.keys()) {
+          allSyncIds.add(syncId);
+        }
+      }
+
+      for (const syncId of allSyncIds) {
+        const baseRow = baseRows.get(syncId);
+        
+        // Find which working files modified this row
+        const modifiers: { email: string; row: Record<string, unknown>; modifiedAt: string | null }[] = [];
+        
+        for (const { email, rows } of workingRowMaps) {
+          const workingRow = rows.get(syncId);
+          if (isModified(baseRow, workingRow) && workingRow) {
+            modifiers.push({
+              email,
+              row: workingRow,
+              modifiedAt: workingRow.modified_at as string | null,
+            });
+          }
+        }
+
+        // Case 1: No modifications - keep base
+        if (modifiers.length === 0) {
+          if (baseRow) {
+            upsertRow(targetDb, table, baseRow, columns);
+          }
+          continue;
+        }
+
+        // Case 2: Only one working file modified - auto-merge
+        if (modifiers.length === 1) {
+          const { row } = modifiers[0];
+          upsertRow(targetDb, table, row, columns);
+          
+          if (!baseRow) {
+            stats.inserted++;
+            result.insertedCount++;
+          } else if (isDeleted(row)) {
+            stats.deleted++;
+            result.deletedCount++;
+          } else {
+            stats.updated++;
+            result.autoMergedCount++;
+          }
+          continue;
+        }
+
+        // Case 3: Multiple working files modified - CONFLICT
+        // For compatibility with existing MergeConflict interface, use first two modifiers
+        const conflict: MergeConflict = {
+          table,
+          syncId,
+          rowDescription: getRowDescription(table, modifiers[0].row || baseRow || {}),
+          baseRow: baseRow || null,
+          rowA: modifiers[0]?.row || null,
+          rowB: modifiers[1]?.row || null,
+          modifiedByA: modifiers[0]?.email || null,
+          modifiedByB: modifiers[1]?.email || null,
+          modifiedAtA: modifiers[0]?.modifiedAt || null,
+          modifiedAtB: modifiers[1]?.modifiedAt || null,
+        };
+
+        // If more than 2 modifiers, log warning (rare edge case)
+        if (modifiers.length > 2) {
+          console.warn(`[NWayMerge] Row ${syncId} in ${table} modified by ${modifiers.length} users - showing first 2 in conflict UI`);
+        }
+
+        result.conflicts.push(conflict);
+        stats.conflicts++;
+        result.success = false;
+
+        // Keep base version until user resolves
+        if (baseRow) {
+          upsertRow(targetDb, table, baseRow, columns);
+        }
+      }
+    } catch (e) {
+      console.error(`[NWayMerge] Error merging table ${table}:`, e);
+    }
+  }
+
+  return result;
+}
+
+/**
  * Applies user resolutions to conflicts and writes to target database
  */
 export function applyConflictResolutions(
