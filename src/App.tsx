@@ -22,9 +22,12 @@ import Training from "./components/Training";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, usePersistentFilters } from "./components/filters/PeopleFilters";
 import { isInTrainingPeriod, weeksRemainingInTraining } from "./utils/trainingConstants";
 import ConflictResolutionDialog from "./components/ConflictResolutionDialog";
+import MergeConflictDialog from "./components/MergeConflictDialog";
 import { useSync } from "./sync/useSync";
+import { useFolderSync } from "./sync/useFolderSync";
 import { FileSystemUtils } from "./sync/FileSystemUtils";
 import { Conflict, ConflictResolution } from "./sync/types";
+import type { ConflictResolution as MergeConflictResolution } from "./sync/ThreeWayMerge";
 import { getWeekOfMonth, type WeekStartMode } from "./utils/weekCalculation";
 import AlertDialog from "./components/AlertDialog";
 import ConfirmDialog from "./components/ConfirmDialog";
@@ -637,6 +640,9 @@ export default function App() {
     backgroundSyncInterval: 30,
   });
 
+  // Folder-based sync system (3-way merge)
+  const [folderSyncState, folderSyncActions] = useFolderSync();
+
   useEffect(() => {
     if (segments.length && !segments.find(s => s.name === activeRunSegment)) {
       const first = segments[0];
@@ -650,6 +656,22 @@ export default function App() {
       setShowBrowserWarning(true);
     }
   }, []);
+
+  // Auto-save for folder sync mode (every 30 seconds)
+  useEffect(() => {
+    if (!folderSyncState.isActive || !sqlDb) return;
+    
+    const interval = setInterval(async () => {
+      const result = await folderSyncActions.saveToWorking(sqlDb);
+      if (result.success) {
+        logger.info('[FolderSync] Auto-saved to working file');
+      } else {
+        logger.warn('[FolderSync] Auto-save failed:', result.error);
+      }
+    }, 30000); // 30 seconds
+    
+    return () => clearInterval(interval);
+  }, [folderSyncState.isActive, sqlDb, folderSyncActions]);
 
   useEffect(() => {
     if (sqlDb) loadMonthlyDefaults(selectedMonth);
@@ -776,6 +798,93 @@ export default function App() {
     }
   }
 
+  // Folder-based sync: Opens a folder containing schedule.base and working files
+  async function openFolderForSync() {
+    if (!SQL) {
+      setStatus("Database engine not initialized. Please wait and try again.");
+      setAlertDialog({ title: "Error", message: "Database engine not ready. Please wait a moment and try again." });
+      return;
+    }
+
+    try {
+      const result = await folderSyncActions.openFolder(SQL, applyMigrations);
+      
+      if (!result.success) {
+        toast.showError(folderSyncState.error || "Failed to open folder");
+        return;
+      }
+
+      if (result.needsEmail) {
+        // Show email dialog, then continue with setUserEmail
+        setEmailDialog({
+          onSubmit: async (email: string) => {
+            setEmailDialog(null);
+            
+            // Validate email format
+            if (!email.includes('@')) {
+              setAlertDialog({ title: "Invalid Email", message: "Please enter a valid email address." });
+              return;
+            }
+
+            const emailResult = await folderSyncActions.setUserEmail(email, SQL, applyMigrations);
+            
+            if (!emailResult.success) {
+              toast.showError(folderSyncState.error || "Failed to initialize with email");
+              return;
+            }
+
+            if (emailResult.db) {
+              setSqlDb(emailResult.db);
+              setUserEmail(email);
+              refreshCaches(emailResult.db);
+              
+              // Check if merge resulted in auto-merged changes
+              if (folderSyncState.lastScanResult?.needsMerge && !folderSyncState.pendingMerge) {
+                toast.showSuccess("Changes from other users merged automatically");
+              } else {
+                toast.showSuccess("Database opened successfully");
+              }
+              
+              setStatus(`Opened folder (${email})`);
+            } else if (folderSyncState.pendingMerge) {
+              // Conflicts need resolution - the dialog will show automatically
+              setStatus("Merge conflicts detected - please resolve");
+            }
+          },
+          onCancel: () => {
+            setEmailDialog(null);
+            folderSyncActions.reset();
+            toast.showInfo("Folder open cancelled");
+          }
+        });
+      } else if (result.db) {
+        setSqlDb(result.db);
+        refreshCaches(result.db);
+        toast.showSuccess("Database opened successfully");
+      }
+    } catch (e: any) {
+      logger.error("Failed to open folder:", e);
+      setAlertDialog({ title: "Error Opening Folder", message: e?.message || "Open failed" });
+      toast.showError(e?.message || "Open failed");
+    }
+  }
+
+  // Handle merge conflict resolution from folder sync
+  async function handleFolderMergeResolve(resolutions: MergeConflictResolution[]) {
+    if (!SQL) return;
+    
+    const result = await folderSyncActions.resolveMergeConflicts(resolutions, applyMigrations);
+    
+    if (result.success && result.db) {
+      setSqlDb(result.db);
+      refreshCaches(result.db);
+      toast.showSuccess("Conflicts resolved successfully");
+      setStatus("Merge completed");
+    } else {
+      toast.showError(folderSyncState.error || "Failed to resolve conflicts");
+    }
+  }
+
   async function saveDbAs() {
     if (!sqlDb) return;
     const handle = await (window as any).showSaveFilePicker({
@@ -824,6 +933,20 @@ export default function App() {
 
   async function saveDb() {
     if (!sqlDb) return;
+    
+    // If folder sync is active, save to working file
+    if (folderSyncState.isActive) {
+      const result = await folderSyncActions.saveToWorking(sqlDb);
+      if (result.success) {
+        setStatus("Saved to working file.");
+        toast.showSuccess("Database saved");
+      } else {
+        toast.showError(result.error || "Save failed");
+      }
+      return;
+    }
+    
+    // Legacy single-file mode
     if (!fileHandleRef.current) return saveDbAs();
     
     // Check if file has been modified externally (even without full sync)
@@ -2523,10 +2646,12 @@ function PeopleEditor(){
         canSave={canSave}
         createNewDb={createNewDb}
         openDbFromFile={openDbFromFile}
+        openFolderForSync={openFolderForSync}
         saveDb={saveDb}
         saveDbAs={saveDbAs}
         status={status}
         syncStatus={sync.isInitialized ? sync.syncStatus : undefined}
+        folderSyncActive={folderSyncState.isActive}
       />
       {showBrowserWarning && (
         <DatabaseFallback
@@ -2727,6 +2852,22 @@ function PeopleEditor(){
           onCancel={() => {
             setSyncConflicts(null);
             setStatus('Sync cancelled - conflicts not resolved');
+          }}
+        />
+      )}
+      
+      {/* Folder sync merge conflicts */}
+      {folderSyncState.pendingMerge && (
+        <MergeConflictDialog
+          open={true}
+          conflicts={folderSyncState.pendingMerge.conflicts}
+          userALabel={folderSyncState.pendingMerge.workingFiles[0]?.email || "User A"}
+          userBLabel={folderSyncState.pendingMerge.workingFiles[1]?.email || "User B"}
+          onResolve={handleFolderMergeResolve}
+          onCancel={() => {
+            folderSyncActions.reset();
+            setStatus('Merge cancelled');
+            toast.showInfo('Folder sync cancelled');
           }}
         />
       )}

@@ -665,6 +665,160 @@ export const migrate10BackfillGroupCustomColor: Migration = (db) => {
   }
 };
 
+/**
+ * Migration 29: Add sync tracking columns and triggers for 3-way merge support
+ * 
+ * Adds to user-data tables:
+ * - sync_id: UUID for globally unique record identity across merges
+ * - modified_at: ISO timestamp of last modification
+ * - modified_by: Email of user who made the change
+ * - deleted_at: Soft-delete timestamp (null = not deleted)
+ * 
+ * Adds triggers to auto-update modified_at on INSERT/UPDATE
+ * 
+ * Adds meta entries:
+ * - sync_uuid: Unique identifier for this database lineage
+ * - last_checkpoint: Timestamp of last solo-user checkpoint
+ */
+export const migrate29AddSyncTracking: Migration = (db) => {
+  // Tables that need sync tracking (user-data tables, not config/reference tables)
+  const userDataTables = [
+    'person',
+    'assignment',
+    'training',
+    'training_rotation',
+    'training_area_override',
+    'monthly_default',
+    'monthly_default_day',
+    'monthly_default_week',
+    'monthly_default_note',
+    'timeoff',
+    'availability_override',
+    'needs_baseline',
+    'needs_override',
+    'competency',
+    'person_quality',
+    'person_skill',
+    'department_event',
+  ];
+
+  // Generate a UUID for sync_id default values
+  const generateUUID = () => {
+    // Simple UUID v4 generator for SQLite
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  };
+
+  for (const table of userDataTables) {
+    try {
+      // Check if table exists
+      const tableExists = db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='${table}';`);
+      if (!tableExists[0]?.values?.length) {
+        console.log(`[migrate29] Table ${table} does not exist, skipping`);
+        continue;
+      }
+
+      // Get existing columns
+      const tableInfo = db.exec(`PRAGMA table_info(${table});`);
+      const existingColumns = new Set((tableInfo[0]?.values || []).map((row: any[]) => row[1]));
+
+      // Add sync_id column if missing
+      if (!existingColumns.has('sync_id')) {
+        db.run(`ALTER TABLE ${table} ADD COLUMN sync_id TEXT;`);
+        // Backfill existing rows with UUIDs
+        const rows = db.exec(`SELECT rowid FROM ${table};`);
+        for (const row of (rows[0]?.values || [])) {
+          db.run(`UPDATE ${table} SET sync_id = ? WHERE rowid = ?;`, [generateUUID(), row[0]]);
+        }
+        console.log(`[migrate29] Added sync_id to ${table}`);
+      }
+
+      // Add modified_at column if missing
+      if (!existingColumns.has('modified_at')) {
+        db.run(`ALTER TABLE ${table} ADD COLUMN modified_at TEXT;`);
+        // Backfill with current timestamp
+        db.run(`UPDATE ${table} SET modified_at = datetime('now') WHERE modified_at IS NULL;`);
+        console.log(`[migrate29] Added modified_at to ${table}`);
+      }
+
+      // Add modified_by column if missing
+      if (!existingColumns.has('modified_by')) {
+        db.run(`ALTER TABLE ${table} ADD COLUMN modified_by TEXT;`);
+        console.log(`[migrate29] Added modified_by to ${table}`);
+      }
+
+      // Add deleted_at column if missing
+      if (!existingColumns.has('deleted_at')) {
+        db.run(`ALTER TABLE ${table} ADD COLUMN deleted_at TEXT;`);
+        console.log(`[migrate29] Added deleted_at to ${table}`);
+      }
+
+      // Create trigger for INSERT to set sync_id and modified_at
+      // Note: SQLite doesn't support variables in triggers, so we use a workaround
+      // The sync_id is set via application code, trigger just ensures modified_at is set
+      try {
+        db.run(`DROP TRIGGER IF EXISTS ${table}_insert_sync;`);
+        db.run(`
+          CREATE TRIGGER ${table}_insert_sync
+          AFTER INSERT ON ${table}
+          FOR EACH ROW
+          WHEN NEW.modified_at IS NULL
+          BEGIN
+            UPDATE ${table} SET modified_at = datetime('now') WHERE rowid = NEW.rowid;
+          END;
+        `);
+      } catch (e) {
+        console.warn(`[migrate29] Could not create insert trigger for ${table}:`, e);
+      }
+
+      // Create trigger for UPDATE to set modified_at
+      try {
+        db.run(`DROP TRIGGER IF EXISTS ${table}_update_sync;`);
+        db.run(`
+          CREATE TRIGGER ${table}_update_sync
+          AFTER UPDATE ON ${table}
+          FOR EACH ROW
+          WHEN NEW.modified_at = OLD.modified_at OR NEW.modified_at IS NULL
+          BEGIN
+            UPDATE ${table} SET modified_at = datetime('now') WHERE rowid = NEW.rowid;
+          END;
+        `);
+      } catch (e) {
+        console.warn(`[migrate29] Could not create update trigger for ${table}:`, e);
+      }
+
+    } catch (e) {
+      console.error(`[migrate29] Error processing table ${table}:`, e);
+      // Continue with other tables
+    }
+  }
+
+  // Add sync_uuid to meta table (unique identifier for this database lineage)
+  try {
+    const existingUuid = db.exec(`SELECT value FROM meta WHERE key = 'sync_uuid';`);
+    if (!existingUuid[0]?.values?.length) {
+      const dbUuid = generateUUID();
+      db.run(`INSERT INTO meta (key, value) VALUES ('sync_uuid', ?);`, [dbUuid]);
+      console.log(`[migrate29] Created sync_uuid: ${dbUuid}`);
+    }
+  } catch (e) {
+    console.error('[migrate29] Error creating sync_uuid:', e);
+  }
+
+  // Add last_checkpoint to meta table (for solo-user checkpoint detection)
+  try {
+    db.run(`INSERT OR IGNORE INTO meta (key, value) VALUES ('last_checkpoint', datetime('now'));`);
+    console.log('[migrate29] Initialized last_checkpoint');
+  } catch (e) {
+    console.error('[migrate29] Error creating last_checkpoint:', e);
+  }
+
+  console.log('[migrate29] Sync tracking migration complete');
+};
+
 const migrations: Record<number, Migration> = {
   1: (db) => {
     db.run(`PRAGMA journal_mode=WAL;`);
@@ -843,6 +997,7 @@ const migrations: Record<number, Migration> = {
   26: migrate26AddMultiConditionSegmentAdjustments,
   27: migrate27AddTimeOffThreshold,
   28: migrate28AddDepartmentEvent,
+  29: migrate29AddSyncTracking,
 };
 
 export function addMigration(version: number, fn: Migration) {
