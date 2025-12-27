@@ -663,21 +663,21 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        // Load sql.js via CDN script tag (npm import is broken by Vite bundling)
-        const cdnUrl = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.min.js';
+        // Load sql.js from local files (CDN is blocked by tracking prevention in Edge)
+        const localUrl = '/sql-wasm/sql-wasm.js';
         
         // Check if already loaded
         if (!(window as any).initSqlJs) {
           await new Promise<void>((resolve, reject) => {
             const script = document.createElement('script');
-            script.src = cdnUrl;
+            script.src = localUrl;
             script.onload = () => {
-              logger.info("sql.js script loaded from CDN");
+              logger.info("sql.js script loaded from local files");
               resolve();
             };
             script.onerror = (e) => {
               logger.error("Failed to load sql.js script:", e);
-              reject(new Error('Failed to load sql.js from CDN'));
+              reject(new Error('Failed to load sql.js'));
             };
             document.head.appendChild(script);
           });
@@ -688,9 +688,9 @@ export default function App() {
           throw new Error('initSqlJs not found on window after script load');
         }
         
-        // Configure to load WASM files from CDN
+        // Configure to load WASM files from local public folder
         SQL = await initSqlJs({ 
-          locateFile: (file: string) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
+          locateFile: (file: string) => `/sql-wasm/${file}`
         });
         setReady(true);
         logger.info("sql.js initialized successfully");
