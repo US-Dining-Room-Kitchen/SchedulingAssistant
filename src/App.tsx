@@ -664,7 +664,9 @@ export default function App() {
     (async () => {
       try {
         // Load sql.js from local files (CDN is blocked by tracking prevention in Edge)
-        const localUrl = '/sql-wasm/sql-wasm.js';
+        // Use relative path for GitHub Pages compatibility (served from subdirectory)
+        const baseUrl = import.meta.env.BASE_URL || './';
+        const localUrl = `${baseUrl}sql-wasm/sql-wasm.js`;
         
         // Check if already loaded
         if (!(window as any).initSqlJs) {
@@ -688,9 +690,9 @@ export default function App() {
           throw new Error('initSqlJs not found on window after script load');
         }
         
-        // Configure to load WASM files from local public folder
+        // Configure to load WASM files from local public folder (relative path)
         SQL = await initSqlJs({ 
-          locateFile: (file: string) => `/sql-wasm/${file}`
+          locateFile: (file: string) => `${baseUrl}sql-wasm/${file}`
         });
         setReady(true);
         logger.info("sql.js initialized successfully");
