@@ -386,9 +386,14 @@
                                     <td class="p-3">Starting a new scheduling system or semester.</td>
                                 </tr>
                                 <tr>
-                                    <td class="p-3 font-semibold">Open DB</td>
-                                    <td class="p-3">Loads an existing <code>.db</code> file for editing.</td>
-                                    <td class="p-3">Regular daily use to modify schedules.</td>
+                                    <td class="p-3 font-semibold">Open → Open File...</td>
+                                    <td class="p-3">Loads an existing <code>.db</code> file for single-user editing.</td>
+                                    <td class="p-3">Solo editing when you're the only user.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold text-[#0078d4]">Open → Open Shared Folder...</td>
+                                    <td class="p-3">Opens a folder with multi-user 3-way merge support. <span class="text-[#0078d4] font-semibold">(Recommended for teams)</span></td>
+                                    <td class="p-3">Multiple users editing simultaneously via OneDrive.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -423,27 +428,117 @@
 
                     <h3 class="font-bold text-[#242424] mb-4 flex items-center gap-2">
                         <i class="fas fa-sync text-[#0078d4]"></i>
-                        Multi-User Sync System
+                        Multi-User Sync System (3-Way Merge)
                     </h3>
-                    <p class="text-sm text-[#616161] mb-4">Multiple users can edit the database simultaneously. The app uses an operational log system with automatic conflict resolution to merge changes seamlessly.</p>
+                    <p class="text-sm text-[#616161] mb-4">Multiple users can edit the database simultaneously using the <strong>Open Shared Folder</strong> feature. The app uses a Git-style 3-way merge system to combine changes from different users.</p>
                     
                     <div class="p-4 bg-[#f0f7ff] border border-[#cce5ff] rounded-lg flex gap-3 items-start mb-6">
                         <i class="fas fa-users text-[#0078d4] mt-1"></i>
                         <div>
-                            <p class="text-xs text-[#005a9e] font-semibold mb-1">Collaborative Editing</p>
-                            <p class="text-xs text-[#005a9e]">When opening a database, you'll be prompted to enter your Work Email to identify your changes. All users can edit simultaneously—no more waiting for locks!</p>
+                            <p class="text-xs text-[#005a9e] font-semibold mb-1">How Folder-Based Sync Works</p>
+                            <p class="text-xs text-[#005a9e]">Each user works on their own file (e.g., <code>schedule.john@company.com.db</code>) within a shared folder. When you open the folder, changes are automatically merged from all users. Conflicts (same record edited by multiple users) trigger a resolution dialog.</p>
                         </div>
+                    </div>
+
+                    <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-8">
+                        <h5 class="font-bold text-sm text-[#242424] mb-3">Folder Structure</h5>
+                        <div class="text-xs text-[#616161] font-mono bg-[#f5f5f5] p-3 rounded mb-3">
+                            📁 Scheduling Database/<br>
+                            &nbsp;&nbsp;├── schedule.base &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← Source of truth<br>
+                            &nbsp;&nbsp;├── schedule.john@co.com.db &nbsp;&nbsp;&nbsp;&nbsp;← John's working file<br>
+                            &nbsp;&nbsp;├── schedule.jane@co.com.db &nbsp;&nbsp;&nbsp;&nbsp;← Jane's working file<br>
+                            &nbsp;&nbsp;└── schedule.*.db.bak.2025-01-15 ← Auto-archived after merge<br>
+                        </div>
+                        <ul class="text-xs text-[#616161] space-y-1">
+                            <li>• <strong>schedule.base</strong>: The master database, updated after each successful merge</li>
+                            <li>• <strong>schedule.{email}.db</strong>: Your personal working file, auto-saved every 30 seconds</li>
+                            <li>• <strong>*.bak.*</strong>: Archived working files, automatically cleaned up after 3 days</li>
+                        </ul>
                     </div>
 
                     <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-8">
                         <h5 class="font-bold text-sm text-[#242424] mb-3">How the Sync System Works</h5>
                         <ol class="text-xs text-[#616161] space-y-2">
-                            <li><strong>1. User Identification:</strong> When you open a file, enter your email to identify your changes.</li>
-                            <li><strong>2. Change Tracking:</strong> All database operations are tracked with timestamps and user info.</li>
-                            <li><strong>3. Auto-Merge:</strong> Non-conflicting changes from other users are merged automatically in the background (every 30 seconds).</li>
-                            <li><strong>4. Conflict Resolution:</strong> If conflicts are detected (same field edited by multiple users), a dialog helps you resolve them.</li>
-                            <li><strong>5. Sync Status:</strong> The sync indicator in the top bar shows current sync state and active users.</li>
+                            <li><strong>1. Open Shared Folder:</strong> Click Open → Open Shared Folder and select your synced OneDrive folder.</li>
+                            <li><strong>2. Enter Your Email:</strong> Your email identifies your working file and tracks your changes.</li>
+                            <li><strong>3. Automatic Merge:</strong> If other users have made changes, they're merged automatically with your data.</li>
+                            <li><strong>4. Conflict Resolution:</strong> If the same record was edited by multiple users, choose which version to keep.</li>
+                            <li><strong>5. Auto-Save:</strong> Your changes are saved to your working file every 30 seconds.</li>
+                            <li><strong>6. Checkpoint:</strong> After 3 days as a solo user, changes are merged into the base file automatically.</li>
                         </ol>
+                    </div>
+
+                    <h4 class="font-bold text-[#242424] mb-4 flex items-center gap-2">
+                        <i class="fab fa-microsoft text-[#0078d4]"></i>
+                        OneDrive / SharePoint Setup for Teams
+                    </h4>
+                    <p class="text-sm text-[#616161] mb-4">For multi-user editing, create a shared folder in OneDrive or SharePoint. The folder will contain the base file and each user's working file.</p>
+
+                    <div class="p-4 bg-[#fff4e5] border border-[#ffe0b2] rounded-lg flex gap-3 items-start mb-6">
+                        <i class="fas fa-exclamation-triangle text-[#e65100] mt-1"></i>
+                        <div>
+                            <p class="text-xs text-[#bf360c] font-semibold mb-1">Important: "Always Keep on This Device"</p>
+                            <p class="text-xs text-[#bf360c]">Right-click the database folder in File Explorer and select <strong>"Always keep on this device"</strong>. This ensures files sync immediately—"Online-only" files may cause merge issues.</p>
+                        </div>
+                    </div>
+
+                    <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-6">
+                        <h5 class="font-bold text-sm text-[#242424] mb-3">Setup Steps for Team Access</h5>
+                        <ol class="text-xs text-[#616161] space-y-2">
+                            <li><strong>1. Create Shared Folder:</strong> In OneDrive or SharePoint, create a folder (e.g., "Scheduling Database") and share it with your team members with edit access.</li>
+                            <li><strong>2. Add to OneDrive:</strong> Each team member should "Add shortcut to OneDrive" so the folder syncs to their local machine.</li>
+                            <li><strong>3. Keep Files Local:</strong> Right-click the folder → <em>Always keep on this device</em>.</li>
+                            <li><strong>4. Open Folder:</strong> In the app, click <strong>Open → Open Shared Folder...</strong> and select the shared folder.</li>
+                            <li><strong>5. Enter Email:</strong> Each user enters their work email when prompted. This creates their personal working file.</li>
+                            <li><strong>6. Save Often:</strong> Changes auto-save every 30 seconds, but you can also press Ctrl+S to save immediately.</li>
+                        </ol>
+                    </div>
+
+                    <div class="table-container mb-8">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-[#fafafa] border-b text-[#616161]">
+                                <tr>
+                                    <th class="p-3 font-semibold">Sync Status</th>
+                                    <th class="p-3 font-semibold">Meaning</th>
+                                    <th class="p-3 font-semibold">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#f0f0f0] text-[#424242]">
+                                <tr>
+                                    <td class="p-3"><span class="inline-flex items-center gap-1"><i class="fas fa-check-circle text-green-600"></i> Synced</span></td>
+                                    <td class="p-3">All changes saved and synced with cloud.</td>
+                                    <td class="p-3">No action needed.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3"><span class="inline-flex items-center gap-1"><i class="fas fa-sync-alt text-blue-600"></i> Syncing</span></td>
+                                    <td class="p-3">Changes are being synced.</td>
+                                    <td class="p-3">Wait for completion.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3"><span class="inline-flex items-center gap-1"><i class="fas fa-cloud-download-alt text-amber-600"></i> External Changes</span></td>
+                                    <td class="p-3">Another user made changes.</td>
+                                    <td class="p-3">Click "Refresh" to merge.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3"><span class="inline-flex items-center gap-1"><i class="fas fa-wifi-slash text-gray-500"></i> Offline</span></td>
+                                    <td class="p-3">No internet connection.</td>
+                                    <td class="p-3">Changes queued, will sync when online.</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3"><span class="inline-flex items-center gap-1"><i class="fas fa-users text-purple-600"></i> Active Users</span></td>
+                                    <td class="p-3">Shows who else is editing.</td>
+                                    <td class="p-3">Coordinate edits if working on same records.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="p-4 bg-[#f0f7ff] border border-[#cce5ff] rounded-lg flex gap-3 items-start mb-8">
+                        <i class="fas fa-lightbulb text-[#0078d4] mt-1"></i>
+                        <div>
+                            <p class="text-xs text-[#005a9e] font-semibold mb-1">Recommended Browser</p>
+                            <p class="text-xs text-[#005a9e]">Use <strong>Microsoft Edge</strong> or <strong>Google Chrome</strong> for the best experience. These browsers support the File System Access API required for seamless file sync. Firefox and Safari users will need to use manual export/import.</p>
+                        </div>
                     </div>
 
                     <h3 class="font-bold text-[#242424] mb-4 flex items-center gap-2">
@@ -1771,6 +1866,26 @@
                         <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
                             <h5 class="font-bold text-sm text-[#242424] mb-1">Email prompt keeps appearing</h5>
                             <p class="text-xs text-[#616161]">The app prompts for your email each time you open a file. This identifies your changes in the sync system and is expected behavior for multi-user collaboration.</p>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-1">Sync status shows "Offline"</h5>
+                            <p class="text-xs text-[#616161]">The app detected no internet connection. Your changes will be saved locally and queued for sync. When you reconnect, pending changes will sync automatically. You can continue working—no data will be lost.</p>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-1">"External changes detected" alert</h5>
+                            <p class="text-xs text-[#616161]">Another user saved changes while you were working. Click the <strong>Refresh</strong> button to merge their changes with yours. The app will automatically resolve non-conflicting edits and prompt you only when the same field was edited by multiple users.</p>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-1">OneDrive sync seems slow</h5>
+                            <p class="text-xs text-[#616161]">OneDrive can take 2–30 seconds to sync changes between computers. Ensure the database folder is set to <strong>"Always keep on this device"</strong> (right-click folder in File Explorer). If issues persist, manually pause and resume OneDrive sync, or check that all users have a stable internet connection.</p>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-1">Firefox or Safari: No file sync available</h5>
+                            <p class="text-xs text-[#616161]">The File System Access API is only supported in Chromium-based browsers (Edge, Chrome). In Firefox or Safari, use the <strong>Manual Export/Import</strong> buttons to save and load your database. For the best multi-user experience, switch to Microsoft Edge or Google Chrome.</p>
+                        </div>
+                        <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
+                            <h5 class="font-bold text-sm text-[#242424] mb-1">"Permission denied" or "Access denied" errors</h5>
+                            <p class="text-xs text-[#616161]">The browser may have lost permission to access the file. Try closing and reopening the file using <strong>Open DB</strong>. If using OneDrive, ensure the file isn't open in another application and that OneDrive is running and signed in.</p>
                         </div>
                     </div>
                 </section>

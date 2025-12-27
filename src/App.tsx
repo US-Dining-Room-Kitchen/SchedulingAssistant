@@ -21,10 +21,10 @@ import CrewHistoryView from "./components/CrewHistoryView";
 import Training from "./components/Training";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, usePersistentFilters } from "./components/filters/PeopleFilters";
 import { isInTrainingPeriod, weeksRemainingInTraining } from "./utils/trainingConstants";
-import ConflictResolutionDialog from "./components/ConflictResolutionDialog";
-import { useSync } from "./sync/useSync";
+import MergeConflictDialog from "./components/MergeConflictDialog";
+import { useFolderSync } from "./sync/useFolderSync";
 import { FileSystemUtils } from "./sync/FileSystemUtils";
-import { Conflict, ConflictResolution } from "./sync/types";
+import type { ConflictResolution as MergeConflictResolution } from "./sync/ThreeWayMerge";
 import { getWeekOfMonth, type WeekStartMode } from "./utils/weekCalculation";
 import AlertDialog from "./components/AlertDialog";
 import ConfirmDialog from "./components/ConfirmDialog";
@@ -32,6 +32,7 @@ import EmailInputDialog from "./components/EmailInputDialog";
 import { ToastContainer, useToast } from "./components/Toast";
 import { logger } from "./utils/logger";
 import { MOBILE_NAV_HEIGHT, BREAKPOINTS } from "./styles/breakpoints";
+import DatabaseFallback from "./components/DatabaseFallback";
 
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
@@ -546,6 +547,7 @@ export default function App() {
     (window as any).sqlDb = sqlDb;
   }, [sqlDb]);
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
+  const fileOpenedAtRef = useRef<number | null>(null); // Timestamp when file was opened (for conflict detection)
   const [userEmail, setUserEmail] = useState<string>("");
   const [status, setStatus] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>(() => fmtDateMDY(new Date()));
@@ -601,7 +603,14 @@ export default function App() {
   const [confirmDialog, setConfirmDialog] = useState<{
     title?: string;
     message: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
     onConfirm: () => void;
+    onCancel?: () => void;
+    extraAction?: {
+      label: string;
+      onClick: () => void;
+    };
   } | null>(null);
 
   // Email input dialog (replaces prompt)
@@ -616,17 +625,8 @@ export default function App() {
   // Person delete confirmation
   const [personToDelete, setPersonToDelete] = useState<number | null>(null);
 
-  // Sync system
-  const changesFolderHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
-  const [syncConflicts, setSyncConflicts] = useState<{
-    conflicts: Conflict[];
-    autoMergedCount: number;
-  } | null>(null);
-  const sync = useSync({
-    db: sqlDb,
-    enabled: !!sqlDb,
-    backgroundSyncInterval: 30,
-  });
+  // Folder-based sync system (3-way merge)
+  const [folderSyncState, folderSyncActions] = useFolderSync();
 
   useEffect(() => {
     if (segments.length && !segments.find(s => s.name === activeRunSegment)) {
@@ -642,6 +642,22 @@ export default function App() {
     }
   }, []);
 
+  // Auto-save for folder sync mode (every 30 seconds)
+  useEffect(() => {
+    if (!folderSyncState.isActive || !sqlDb) return;
+    
+    const interval = setInterval(async () => {
+      const result = await folderSyncActions.saveToWorking(sqlDb);
+      if (result.success) {
+        logger.info('[FolderSync] Auto-saved to working file');
+      } else {
+        logger.warn('[FolderSync] Auto-save failed:', result.error);
+      }
+    }, 30000); // 30 seconds
+    
+    return () => clearInterval(interval);
+  }, [folderSyncState.isActive, sqlDb, folderSyncActions]);
+
   useEffect(() => {
     if (sqlDb) loadMonthlyDefaults(selectedMonth);
     const [y, m] = selectedMonth.split('-').map(n => parseInt(n, 10));
@@ -654,21 +670,23 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        // Load sql.js via CDN script tag (npm import is broken by Vite bundling)
-        const cdnUrl = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.min.js';
+        // Load sql.js from local files (CDN is blocked by tracking prevention in Edge)
+        // Use relative path for GitHub Pages compatibility (served from subdirectory)
+        const baseUrl = import.meta.env.BASE_URL || './';
+        const localUrl = `${baseUrl}sql-wasm/sql-wasm.js`;
         
         // Check if already loaded
         if (!(window as any).initSqlJs) {
           await new Promise<void>((resolve, reject) => {
             const script = document.createElement('script');
-            script.src = cdnUrl;
+            script.src = localUrl;
             script.onload = () => {
-              logger.info("sql.js script loaded from CDN");
+              logger.info("sql.js script loaded from local files");
               resolve();
             };
             script.onerror = (e) => {
               logger.error("Failed to load sql.js script:", e);
-              reject(new Error('Failed to load sql.js from CDN'));
+              reject(new Error('Failed to load sql.js'));
             };
             document.head.appendChild(script);
           });
@@ -679,9 +697,9 @@ export default function App() {
           throw new Error('initSqlJs not found on window after script load');
         }
         
-        // Configure to load WASM files from CDN
+        // Configure to load WASM files from local public folder (relative path)
         SQL = await initSqlJs({ 
-          locateFile: (file: string) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
+          locateFile: (file: string) => `${baseUrl}sql-wasm/${file}`
         });
         setReady(true);
         logger.info("sql.js initialized successfully");
@@ -729,7 +747,7 @@ export default function App() {
       return;
     }
     try {
-      // Ask user for SQLite DB
+      // Ask user for SQLite DB - request directory access for sync
       const [handle] = await (window as any).showOpenFilePicker({
         types: [{ description: "SQLite DB", accept: { "application/octet-stream": [".db", ".sqlite"] } }],
         multiple: false,
@@ -741,10 +759,11 @@ export default function App() {
 
       setSqlDb(db);
       fileHandleRef.current = handle;
+      fileOpenedAtRef.current = file.lastModified; // Track when we opened the file for conflict detection
       setStatus(`Opened ${file.name}`);
       refreshCaches(db);
 
-      // Prompt for user email (needed for sync system and personalization)
+      // Prompt for user email (for identification in future sync features)
       setEmailDialog({
         onSubmit: (email: string) => {
           setUserEmail(email);
@@ -753,7 +772,7 @@ export default function App() {
         },
         onCancel: () => {
           setEmailDialog(null);
-          toast.showInfo("Database opened (email not provided)");
+          toast.showSuccess("Database opened successfully");
         }
       });
     } catch (e:any) {
@@ -761,6 +780,93 @@ export default function App() {
       const errorMsg = e?.message || "Open failed";
       setAlertDialog({ title: "Error Opening Database", message: errorMsg });
       toast.showError(errorMsg);
+    }
+  }
+
+  // Folder-based sync: Opens a folder containing schedule.base and working files
+  async function openFolderForSync() {
+    if (!SQL) {
+      setStatus("Database engine not initialized. Please wait and try again.");
+      setAlertDialog({ title: "Error", message: "Database engine not ready. Please wait a moment and try again." });
+      return;
+    }
+
+    try {
+      const result = await folderSyncActions.openFolder(SQL, applyMigrations);
+      
+      if (!result.success) {
+        toast.showError(folderSyncState.error || "Failed to open folder");
+        return;
+      }
+
+      if (result.needsEmail) {
+        // Show email dialog, then continue with setUserEmail
+        setEmailDialog({
+          onSubmit: async (email: string) => {
+            setEmailDialog(null);
+            
+            // Validate email format
+            if (!email.includes('@')) {
+              setAlertDialog({ title: "Invalid Email", message: "Please enter a valid email address." });
+              return;
+            }
+
+            const emailResult = await folderSyncActions.setUserEmail(email, SQL, applyMigrations);
+            
+            if (!emailResult.success) {
+              toast.showError(folderSyncState.error || "Failed to initialize with email");
+              return;
+            }
+
+            if (emailResult.db) {
+              setSqlDb(emailResult.db);
+              setUserEmail(email);
+              refreshCaches(emailResult.db);
+              
+              // Check if merge resulted in auto-merged changes
+              if (folderSyncState.lastScanResult?.needsMerge && !folderSyncState.pendingMerge) {
+                toast.showSuccess("Changes from other users merged automatically");
+              } else {
+                toast.showSuccess("Database opened successfully");
+              }
+              
+              setStatus(`Opened folder (${email})`);
+            } else if (folderSyncState.pendingMerge) {
+              // Conflicts need resolution - the dialog will show automatically
+              setStatus("Merge conflicts detected - please resolve");
+            }
+          },
+          onCancel: () => {
+            setEmailDialog(null);
+            folderSyncActions.reset();
+            toast.showInfo("Folder open cancelled");
+          }
+        });
+      } else if (result.db) {
+        setSqlDb(result.db);
+        refreshCaches(result.db);
+        toast.showSuccess("Database opened successfully");
+      }
+    } catch (e: any) {
+      logger.error("Failed to open folder:", e);
+      setAlertDialog({ title: "Error Opening Folder", message: e?.message || "Open failed" });
+      toast.showError(e?.message || "Open failed");
+    }
+  }
+
+  // Handle merge conflict resolution from folder sync
+  async function handleFolderMergeResolve(resolutions: MergeConflictResolution[]) {
+    if (!SQL) return;
+    
+    const result = await folderSyncActions.resolveMergeConflicts(resolutions, applyMigrations);
+    
+    if (result.success && result.db) {
+      setSqlDb(result.db);
+      refreshCaches(result.db);
+      toast.showSuccess("Conflicts resolved successfully");
+      setStatus("Merge completed");
+    } else {
+      toast.showError(folderSyncState.error || "Failed to resolve conflicts");
     }
   }
 
@@ -774,35 +880,106 @@ export default function App() {
     fileHandleRef.current = handle;
   }
 
+  // Fallback handlers for browsers without File System Access API
+  function handleFallbackImport(arrayBuffer: ArrayBuffer) {
+    if (!SQL) {
+      toast.showError("Database engine not ready. Please wait and try again.");
+      return;
+    }
+    try {
+      const db = new SQL.Database(new Uint8Array(arrayBuffer));
+      applyMigrations(db);
+      setSqlDb(db);
+      fileHandleRef.current = null; // No file handle in fallback mode
+      setStatus("Database loaded (manual import mode)");
+      refreshCaches(db);
+      toast.showSuccess("Database imported successfully");
+      
+      // Prompt for user email
+      setEmailDialog({
+        onSubmit: (email: string) => {
+          setUserEmail(email);
+          setEmailDialog(null);
+        },
+        onCancel: () => {
+          setEmailDialog(null);
+        }
+      });
+    } catch (e: any) {
+      logger.error("Failed to import database:", e);
+      toast.showError(e?.message || "Failed to import database");
+    }
+  }
+
+  function getFallbackExportData(): Uint8Array | null {
+    if (!sqlDb) return null;
+    return sqlDb.export();
+  }
+
   async function saveDb() {
     if (!sqlDb) return;
+    
+    // If folder sync is active, save to working file
+    if (folderSyncState.isActive) {
+      const result = await folderSyncActions.saveToWorking(sqlDb);
+      if (result.success) {
+        setStatus("Saved to working file.");
+        toast.showSuccess("Database saved");
+      } else {
+        toast.showError(result.error || "Save failed");
+      }
+      return;
+    }
+    
+    // Legacy single-file mode
     if (!fileHandleRef.current) return saveDbAs();
     
-    // If sync is enabled, push changes first
-    if (sync.isInitialized && sync.syncEngine) {
-      const pushResult = await sync.pushChanges();
-      if (!pushResult.success) {
-        const errorMsg = `Sync error: ${pushResult.error}`;
-        setStatus(errorMsg);
-        toast.showError(errorMsg);
-        return;
-      }
+    // Check if file has been modified externally (even without full sync)
+    try {
+      const currentFile = await fileHandleRef.current.getFile();
+      const currentModified = currentFile.lastModified;
       
-      // Pull and merge changes from others
-      const pullResult = await sync.pullChanges();
-      if (!pullResult.success && pullResult.conflicts) {
-        // Show conflict resolution dialog
-        setSyncConflicts({
-          conflicts: pullResult.conflicts,
-          autoMergedCount: pullResult.autoMergedCount || 0,
+      // Compare with when we opened the file
+      if (fileOpenedAtRef.current && currentModified > fileOpenedAtRef.current) {
+        // File was modified by someone else!
+        setConfirmDialog({
+          title: "File Modified Externally",
+          message: "This file was modified by another user or process since you opened it. Saving now will overwrite their changes.\n\nWould you like to:\n• Click 'Save Anyway' to overwrite with your version\n• Click 'Reload' to discard your changes and load the latest version\n• Click 'Cancel' to go back without saving",
+          confirmLabel: "Save Anyway",
+          cancelLabel: "Cancel",
+          onConfirm: async () => {
+            setConfirmDialog(null);
+            await writeDbToHandle(fileHandleRef.current!);
+          },
+          onCancel: () => {
+            setConfirmDialog(null);
+          },
+          extraAction: {
+            label: "Reload",
+            onClick: async () => {
+              setConfirmDialog(null);
+              // Reload the file
+              try {
+                const file = await fileHandleRef.current!.getFile();
+                const buf = await file.arrayBuffer();
+                const db = new SQL.Database(new Uint8Array(buf));
+                applyMigrations(db);
+                setSqlDb(db);
+                fileOpenedAtRef.current = file.lastModified;
+                setStatus(`Reloaded ${file.name}`);
+                refreshCaches(db);
+                toast.showInfo("Database reloaded with latest changes");
+              } catch (reloadErr: any) {
+                toast.showError("Failed to reload: " + (reloadErr?.message || "Unknown error"));
+              }
+            }
+          }
         });
         return;
-      } else if (pullResult.autoMergedCount && pullResult.autoMergedCount > 0) {
-        const msg = `Auto-merged ${pullResult.autoMergedCount} changes from other users`;
-        setStatus(msg);
-        toast.showInfo(msg);
-        refreshCaches(); // Refresh UI to show merged changes
       }
+    } catch (checkErr) {
+      // If we can't check the file, proceed with save
+      logger.warn("Could not check file modification time:", checkErr);
     }
     
     await writeDbToHandle(fileHandleRef.current);
@@ -813,33 +990,17 @@ export default function App() {
     const writable = await (handle as any).createWritable();
     await writable.write(data);
     await writable.close();
+    
+    // Update our baseline timestamp after successful save
+    try {
+      const file = await handle.getFile();
+      fileOpenedAtRef.current = file.lastModified;
+    } catch (e) {
+      // Ignore - best effort
+    }
+    
     setStatus("Saved.");
     toast.showSuccess("Database saved successfully");
-    
-    // Try to initialize sync if we have a handle and user email
-    // Note: Sync system is incomplete - this is a placeholder
-    if (!sync.isInitialized && userEmail && !changesFolderHandleRef.current) {
-      await tryInitializeSync(handle);
-    }
-  }
-
-  async function tryInitializeSync(dbHandle: FileSystemFileHandle) {
-    // INCOMPLETE: Multi-user sync system is not yet production-ready
-    // See SYNC_SYSTEM.md for details on the architecture
-    // This is a placeholder for future sync initialization
-    if (!userEmail) return;
-    
-    try {
-      // Try to get the parent directory
-      // Note: This is a limitation - File System Access API doesn't provide direct parent access
-      // We'll need to ask the user or use a different approach
-      // For now, we'll skip automatic initialization and require manual setup
-      
-      // Alternative: Store the directory handle in IndexedDB for future use
-      // This would be a production enhancement
-    } catch (error) {
-      logger.error('Failed to initialize sync:', error);
-    }
   }
 
   function syncTrainingFromMonthly(db = sqlDb) {
@@ -2418,26 +2579,19 @@ function PeopleEditor(){
         canSave={canSave}
         createNewDb={createNewDb}
         openDbFromFile={openDbFromFile}
+        openFolderForSync={openFolderForSync}
         saveDb={saveDb}
         saveDbAs={saveDbAs}
         status={status}
-        syncStatus={sync.isInitialized ? sync.syncStatus : undefined}
+        folderSyncActive={folderSyncState.isActive}
       />
       {showBrowserWarning && (
-        <MessageBar intent="warning" style={{ margin: tokens.spacingVerticalM }}>
-          <MessageBarBody>
-            <strong>Browser Compatibility Warning:</strong> This application requires the File System Access API, 
-            which is not supported in your current browser (likely Firefox). Some features may not work correctly. 
-            For the best experience, please use Chrome, Edge, or Safari 15.2+.
-            <Button 
-              size="small" 
-              appearance="transparent" 
-              icon={<DismissRegular />}
-              onClick={() => setShowBrowserWarning(false)}
-              style={{ marginLeft: tokens.spacingHorizontalS }}
-            />
-          </MessageBarBody>
-        </MessageBar>
+        <DatabaseFallback
+          onImport={handleFallbackImport}
+          getExportData={getFallbackExportData}
+          hasDatabase={!!sqlDb}
+          onDismiss={() => setShowBrowserWarning(false)}
+        />
       )}
       <div className={sh.contentRow}>
         <SideRail
@@ -2613,23 +2767,19 @@ function PeopleEditor(){
           </DialogSurface>
         </Dialog>
       )}
-      {syncConflicts && (
-        <ConflictResolutionDialog
-          conflicts={syncConflicts.conflicts}
-          autoMergedCount={syncConflicts.autoMergedCount}
-          onResolve={async (resolutions) => {
-            const result = await sync.resolveConflicts(syncConflicts.conflicts, resolutions);
-            if (result.success) {
-              setSyncConflicts(null);
-              refreshCaches();
-              setStatus('Conflicts resolved successfully');
-            } else {
-              setStatus(`Error resolving conflicts: ${result.error}`);
-            }
-          }}
+      
+      {/* Folder sync merge conflicts */}
+      {folderSyncState.pendingMerge && (
+        <MergeConflictDialog
+          open={true}
+          conflicts={folderSyncState.pendingMerge.conflicts}
+          userALabel={folderSyncState.pendingMerge.workingFiles[0]?.email || "User A"}
+          userBLabel={folderSyncState.pendingMerge.workingFiles[1]?.email || "User B"}
+          onResolve={handleFolderMergeResolve}
           onCancel={() => {
-            setSyncConflicts(null);
-            setStatus('Sync cancelled - conflicts not resolved');
+            folderSyncActions.reset();
+            setStatus('Merge cancelled');
+            toast.showInfo('Folder sync cancelled');
           }}
         />
       )}
@@ -2653,8 +2803,11 @@ function PeopleEditor(){
           open={true}
           title={confirmDialog.title}
           message={confirmDialog.message}
+          confirmText={confirmDialog.confirmLabel}
+          cancelText={confirmDialog.cancelLabel}
           onConfirm={confirmDialog.onConfirm}
-          onCancel={() => setConfirmDialog(null)}
+          onCancel={confirmDialog.onCancel || (() => setConfirmDialog(null))}
+          extraAction={confirmDialog.extraAction}
         />
       )}
       

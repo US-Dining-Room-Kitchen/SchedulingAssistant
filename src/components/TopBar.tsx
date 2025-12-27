@@ -1,11 +1,9 @@
 import * as React from "react";
-import { makeStyles, tokens, Text, Tooltip, Toolbar as FluentToolbar, ToolbarButton, ToolbarDivider, Spinner } from "@fluentui/react-components";
-import { Add20Regular, FolderOpen20Regular, Save20Regular, SaveCopy20Regular, QuestionCircle20Regular } from "@fluentui/react-icons";
+import { makeStyles, tokens, Text, Tooltip, Toolbar as FluentToolbar, ToolbarButton, ToolbarDivider, Spinner, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem, MenuDivider } from "@fluentui/react-components";
+import { Add20Regular, FolderOpen20Regular, Save20Regular, SaveCopy20Regular, QuestionCircle20Regular, ChevronDown20Regular, People20Regular } from "@fluentui/react-icons";
 import { isEdgeBrowser } from "../utils/edgeBrowser";
 import CopilotHelper from "./CopilotHelper";
 import CopilotPromptMenu from "./CopilotPromptMenu";
-import SyncStatusIndicator from "./SyncStatusIndicator";
-import { SyncStatus } from "../sync/types";
 
 interface TopBarProps {
   appName?: string;
@@ -14,10 +12,11 @@ interface TopBarProps {
   canSave: boolean;
   createNewDb: () => void;
   openDbFromFile: () => void;
+  openFolderForSync?: () => void;
   saveDb: () => void;
   saveDbAs: () => void;
   status: string;
-  syncStatus?: SyncStatus;
+  folderSyncActive?: boolean;
 }
 
 const useStyles = makeStyles({
@@ -97,7 +96,7 @@ const useStyles = makeStyles({
   },
 });
 
-export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, createNewDb, openDbFromFile, saveDb, saveDbAs, status, syncStatus }: TopBarProps){
+export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, createNewDb, openDbFromFile, openFolderForSync, saveDb, saveDbAs, status, folderSyncActive }: TopBarProps){
   const s = useStyles();
   const isEdge = isEdgeBrowser();
   
@@ -114,11 +113,37 @@ export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, c
           <Tooltip content="New DB" relationship="label">
             <ToolbarButton appearance="primary" icon={<Add20Regular />} onClick={createNewDb}>New</ToolbarButton>
           </Tooltip>
-          <Tooltip content="Open DB" relationship="label">
-            <ToolbarButton icon={<FolderOpen20Regular />} onClick={openDbFromFile}>Open</ToolbarButton>
-          </Tooltip>
+          
+          {/* Open dropdown with file and folder options */}
+          <Menu>
+            <MenuTrigger disableButtonEnhancement>
+              <Tooltip content="Open database" relationship="label">
+                <ToolbarButton icon={<FolderOpen20Regular />}>
+                  Open
+                  <ChevronDown20Regular />
+                </ToolbarButton>
+              </Tooltip>
+            </MenuTrigger>
+            <MenuPopover>
+              <MenuList>
+                <MenuItem icon={<FolderOpen20Regular />} onClick={openDbFromFile}>
+                  Open File...
+                </MenuItem>
+                {openFolderForSync && (
+                  <>
+                    <MenuDivider />
+                    <MenuItem icon={<People20Regular />} onClick={openFolderForSync}>
+                      Open Shared Folder...
+                      <Text size={100} style={{ marginLeft: '8px', opacity: 0.7 }}>(Multi-user)</Text>
+                    </MenuItem>
+                  </>
+                )}
+              </MenuList>
+            </MenuPopover>
+          </Menu>
+          
           <ToolbarDivider />
-          <Tooltip content="Save" relationship="label">
+          <Tooltip content={folderSyncActive ? "Save to working file" : "Save"} relationship="label">
             <ToolbarButton icon={<Save20Regular />} onClick={saveDb} disabled={!canSave}>Save</ToolbarButton>
           </Tooltip>
           <Tooltip content="Save As" relationship="label">
@@ -127,7 +152,6 @@ export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, c
         </FluentToolbar>
       </div>
       <div className={s.right}>
-        {syncStatus && <SyncStatusIndicator status={syncStatus} />}
         {isEdge && <CopilotHelper />}
         {isEdge && <CopilotPromptMenu />}
         <FluentToolbar aria-label="Help actions" size="small">
