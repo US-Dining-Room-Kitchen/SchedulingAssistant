@@ -18,7 +18,6 @@ interface TopBarProps {
   status: string;
   isReadOnly?: boolean;
   lockedBy?: string | null;
-  onConnectLock?: () => void;
 }
 
 const useStyles = makeStyles({
@@ -98,7 +97,7 @@ const useStyles = makeStyles({
   },
 });
 
-export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, createNewDb, openDbFromFile, saveDb, saveDbAs, status, isReadOnly, lockedBy, onConnectLock }: TopBarProps){
+export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, createNewDb, openDbFromFile, saveDb, saveDbAs, status, isReadOnly, lockedBy }: TopBarProps){
   const s = useStyles();
   const isEdge = isEdgeBrowser();
   
@@ -115,7 +114,7 @@ export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, c
           <Tooltip content="New DB" relationship="label">
             <ToolbarButton appearance="primary" icon={<Add20Regular />} onClick={createNewDb}>New</ToolbarButton>
           </Tooltip>
-          <Tooltip content="Open DB" relationship="label">
+          <Tooltip content="Open Project Folder" relationship="label">
             <ToolbarButton icon={<FolderOpen20Regular />} onClick={openDbFromFile}>Open</ToolbarButton>
           </Tooltip>
           <ToolbarDivider />
@@ -128,25 +127,24 @@ export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, c
               Save
             </ToolbarButton>
           </Tooltip>
-          <Tooltip content="Save As" relationship="label">
-            <ToolbarButton icon={<SaveCopy20Regular />} onClick={saveDbAs} disabled={!sqlDb}>Save As</ToolbarButton>
+          <Tooltip content="Save Copy" relationship="label">
+            <ToolbarButton icon={<SaveCopy20Regular />} onClick={saveDbAs} disabled={!sqlDb}>Save Copy</ToolbarButton>
           </Tooltip>
           
           {sqlDb && (
             <>
               <ToolbarDivider />
-              {isReadOnly !== undefined ? (
+              {isReadOnly !== undefined && (
                 <Tooltip content={isReadOnly ? `Locked by ${lockedBy}` : "You have the lock"} relationship="label">
-                   <ToolbarButton 
-                     icon={isReadOnly ? <LockClosed20Regular style={{color: tokens.colorPaletteRedForeground1}} /> : <LockOpen20Regular style={{color: tokens.colorPaletteGreenForeground1}} />}
-                     onClick={onConnectLock} // Allow reconnecting/checking
-                   >
-                     {isReadOnly ? "Locked" : "Editing"}
-                   </ToolbarButton>
-                </Tooltip>
-              ) : (
-                <Tooltip content="Enable Locking (Select Folder)" relationship="label">
-                  <ToolbarButton icon={<LockClosed20Regular />} onClick={onConnectLock}>Locking</ToolbarButton>
+                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 8px' }}>
+                     {isReadOnly ? 
+                       <LockClosed20Regular style={{color: tokens.colorPaletteRedForeground1}} /> : 
+                       <LockOpen20Regular style={{color: tokens.colorPaletteGreenForeground1}} />
+                     }
+                     <Text size={200} style={{ color: isReadOnly ? tokens.colorPaletteRedForeground1 : tokens.colorPaletteGreenForeground1 }}>
+                       {isReadOnly ? "Locked" : "Editing"}
+                     </Text>
+                   </div>
                 </Tooltip>
               )}
             </>

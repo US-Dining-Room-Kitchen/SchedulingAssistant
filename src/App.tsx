@@ -718,61 +718,70 @@ export default function App() {
   async function openDbFromFile() {
     if (!SQL) {
       setStatus("Database engine not initialized. Please wait and try again.");
-      setAlertDialog({ title: "Error Opening Database", message: "Database engine not ready. Please wait a moment and try again." });
       return;
     }
     try {
-      // Ask user for SQLite DB
-      const [handle] = await (window as any).showOpenFilePicker({
-        types: [{ description: "SQLite DB", accept: { "application/octet-stream": [".db", ".sqlite"] } }],
-        multiple: false,
+      // Step 1: Open Folder (to ensure we can write the lock file)
+      const dirHandle = await (window as any).showDirectoryPicker({
+        id: 'project-folder',
+        mode: 'readwrite',
+        startIn: 'documents'
       });
-      const file = await handle.getFile();
+
+      // Step 2: Find DB file
+      let fileHandle: FileSystemFileHandle | null = null;
+      for await (const entry of (dirHandle as any).values()) {
+        if (entry.kind === 'file' && (entry.name.endsWith('.db') || entry.name.endsWith('.sqlite'))) {
+          fileHandle = entry;
+          break; // Just take the first one for now
+        }
+      }
+
+      if (!fileHandle) {
+        throw new Error("No .db or .sqlite file found in this folder.");
+      }
+
+      // Step 3: Load DB
+      const file = await fileHandle.getFile();
       const buf = await file.arrayBuffer();
       const db = new SQL.Database(new Uint8Array(buf));
       applyMigrations(db);
 
       setSqlDb(db);
-      fileHandleRef.current = handle;
+      fileHandleRef.current = fileHandle;
       setStatus(`Opened ${file.name}`);
       refreshCaches(db);
 
-      // Prompt for user email
+      // Step 4: Prompt for Email & Auto-Lock
+      // We pass the dirHandle to the submit callback so it can lock immediately
       setEmailDialog({
         onSubmit: async (email: string) => {
           setUserEmail(email);
           setEmailDialog(null);
-          toast.showSuccess("Database opened successfully");
           
-          // Try to get parent folder and acquire lock
-          // Note: File System Access API doesn't give parent access directly from file handle
-          // In a real app, we'd need to ask user to select the FOLDER, not the file
-          // For this MVP, we will try to use a convention or ask for folder access if needed
-          // But for now, we'll just show a toast that locking requires folder selection
-          
-          // Ideally, we change "Open" to "Open Project Folder"
-          // But to keep it simple, we'll try to implement the lock check if we can get the folder
-          // Current limitation: showOpenFilePicker returns a file handle, we can't get parent
-          
-          // Workaround: We'll assume for now that users will coordinate via Teams
-          // until we switch the "Open" flow to "Select Folder"
-          
-          // If we had the directory handle:
-          // const parent = await handle.getParent(); // Not available in standard API yet
-          // await checkLock(parent, email);
-          
-          // For now, we will add a separate "Connect Lock" button in TopBar or rely on social coordination
+          // Automatic Locking
+          try {
+            const success = await checkLock(dirHandle, email);
+            if (success) {
+              toast.showSuccess("Database opened & locked for editing.");
+            } else {
+              toast.showError("Database opened in Read-Only mode.");
+            }
+          } catch (lockErr: any) {
+            logger.error("Auto-lock failed", lockErr);
+          }
         },
         onCancel: () => {
           setEmailDialog(null);
-          toast.showInfo("Database opened (email not provided)");
+          toast.showInfo("Opened without locking (Email required)");
         }
       });
+
     } catch (e:any) {
-      logger.error("Failed to open database:", e);
-      const errorMsg = e?.message || "Open failed";
-      setAlertDialog({ title: "Error Opening Database", message: errorMsg });
-      toast.showError(errorMsg);
+      if (e.name !== 'AbortError') {
+        logger.error("Failed to open database:", e);
+        setAlertDialog({ title: "Error Opening Project", message: e.message || "Open failed" });
+      }
     }
   }
 
@@ -878,46 +887,6 @@ export default function App() {
       console.error('Failed to load time_off_block_threshold:', e);
     }
   }
-
-  const handleConnectLock = async () => {
-    if (!userEmail) {
-      setEmailDialog({
-        onSubmit: async (email) => {
-          setUserEmail(email);
-          setEmailDialog(null);
-          await connectLock(email);
-        },
-        onCancel: () => setEmailDialog(null)
-      });
-      return;
-    }
-    await connectLock(userEmail);
-  };
-
-  const connectLock = async (email: string) => {
-    try {
-      // Ask user to select the parent folder for locking
-      const handle = await (window as any).showDirectoryPicker({
-        id: 'lock-folder',
-        mode: 'readwrite',
-        startIn: 'documents'
-      });
-      
-      const success = await checkLock(handle, email);
-      if (success) {
-        toast.showSuccess("Lock acquired! You are editing.");
-        setStatus("Editing (Locked)");
-      } else {
-        toast.showError("File is locked by another user.");
-        setStatus(`Read Only (Locked by ${lockedBy})`);
-      }
-    } catch (e: any) {
-      if (e.name !== 'AbortError') {
-        logger.error("Lock setup failed", e);
-        toast.showError(`Lock setup failed: ${e.message}`);
-      }
-    }
-  };
 
   // People CRUD minimal
   function addPerson(rec: any) {
@@ -2428,7 +2397,6 @@ function PeopleEditor(){
         status={status}
         isReadOnly={isReadOnly}
         lockedBy={lockedBy}
-        onConnectLock={handleConnectLock}
       />
       {showBrowserWarning && (
         <MessageBar intent="warning" style={{ margin: tokens.spacingVerticalM }}>
