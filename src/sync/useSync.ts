@@ -10,6 +10,7 @@ export interface UseSyncResult {
   lockedBy: string | null;
   checkLock: (folderHandle: FileSystemDirectoryHandle, email: string) => Promise<boolean>;
   releaseLock: () => Promise<void>;
+  forceUnlock: () => Promise<void>;
 }
 
 export function useSync(): UseSyncResult {
@@ -47,10 +48,21 @@ export function useSync(): UseSyncResult {
     setLockedBy(null);
   };
 
+  const forceUnlock = async () => {
+    await lockManager.current.forceUnlock();
+    // After forcing, try to acquire it ourselves
+    const result = await lockManager.current.acquireLock();
+    if (result.success) {
+      setIsReadOnly(false);
+      setLockedBy(null);
+    }
+  };
+
   return {
     isReadOnly,
     lockedBy,
     checkLock,
-    releaseLock
+    releaseLock,
+    forceUnlock
   };
 }

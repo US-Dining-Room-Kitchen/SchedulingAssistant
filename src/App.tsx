@@ -619,7 +619,26 @@ export default function App() {
   const [personToDelete, setPersonToDelete] = useState<number | null>(null);
 
   // Sync system
-  const { isReadOnly, lockedBy, checkLock, releaseLock } = useSync();
+  const { isReadOnly, lockedBy, checkLock, releaseLock, forceUnlock } = useSync();
+
+  const handleForceUnlock = () => {
+    if (!lockedBy) return;
+    
+    setConfirmDialog({
+      title: "Force Unlock?",
+      message: `WARNING: This file is currently locked by ${lockedBy}.\n\nIf they are still editing, their changes will be overwritten or lost.\n\nPlease confirm with them that they are finished before proceeding.\n\nAre you sure you want to break their lock?`,
+      onConfirm: async () => {
+        try {
+          await forceUnlock();
+          toast.showSuccess("Lock broken. You are now editing.");
+          setStatus("Editing (Force Unlocked)");
+          setConfirmDialog(null);
+        } catch (e: any) {
+          toast.showError(`Failed to force unlock: ${e.message}`);
+        }
+      }
+    });
+  };
 
   useEffect(() => {
     if (segments.length && !segments.find(s => s.name === activeRunSegment)) {
@@ -2397,6 +2416,7 @@ function PeopleEditor(){
         status={status}
         isReadOnly={isReadOnly}
         lockedBy={lockedBy}
+        onForceUnlock={handleForceUnlock}
       />
       {showBrowserWarning && (
         <MessageBar intent="warning" style={{ margin: tokens.spacingVerticalM }}>

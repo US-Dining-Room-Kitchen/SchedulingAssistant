@@ -1,6 +1,6 @@
 import * as React from "react";
 import { makeStyles, tokens, Text, Tooltip, Toolbar as FluentToolbar, ToolbarButton, ToolbarDivider, Spinner } from "@fluentui/react-components";
-import { Add20Regular, FolderOpen20Regular, Save20Regular, SaveCopy20Regular, QuestionCircle20Regular, LockClosed20Regular, LockOpen20Regular } from "@fluentui/react-icons";
+import { Add20Regular, FolderOpen20Regular, Save20Regular, SaveCopy20Regular, QuestionCircle20Regular, LockClosed20Regular, LockOpen20Regular, KeyReset20Regular } from "@fluentui/react-icons";
 import { isEdgeBrowser } from "../utils/edgeBrowser";
 import CopilotHelper from "./CopilotHelper";
 import CopilotPromptMenu from "./CopilotPromptMenu";
@@ -18,6 +18,7 @@ interface TopBarProps {
   status: string;
   isReadOnly?: boolean;
   lockedBy?: string | null;
+  onForceUnlock?: () => void;
 }
 
 const useStyles = makeStyles({
@@ -97,7 +98,7 @@ const useStyles = makeStyles({
   },
 });
 
-export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, createNewDb, openDbFromFile, saveDb, saveDbAs, status, isReadOnly, lockedBy }: TopBarProps){
+export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, createNewDb, openDbFromFile, saveDb, saveDbAs, status, isReadOnly, lockedBy, onForceUnlock }: TopBarProps){
   const s = useStyles();
   const isEdge = isEdgeBrowser();
   
@@ -135,24 +136,37 @@ export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, c
             <>
               <ToolbarDivider />
               {isReadOnly !== undefined && (
-                <Tooltip content={isReadOnly ? `Locked by ${lockedBy}` : "You have the lock"} relationship="label">
-                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 8px' }}>
-                     {isReadOnly ? 
-                       <LockClosed20Regular style={{color: tokens.colorPaletteRedForeground1}} /> : 
-                       <LockOpen20Regular style={{color: tokens.colorPaletteGreenForeground1}} />
-                     }
-                     <Text size={200} style={{ color: isReadOnly ? tokens.colorPaletteRedForeground1 : tokens.colorPaletteGreenForeground1 }}>
-                       {isReadOnly ? "Locked" : "Editing"}
-                     </Text>
-                   </div>
-                </Tooltip>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Tooltip content={isReadOnly ? `Locked by ${lockedBy}` : "You have the lock"} relationship="label">
+                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 8px' }}>
+                       {isReadOnly ? 
+                         <LockClosed20Regular style={{color: tokens.colorPaletteRedForeground1}} /> : 
+                         <LockOpen20Regular style={{color: tokens.colorPaletteGreenForeground1}} />
+                       }
+                       <Text size={200} style={{ color: isReadOnly ? tokens.colorPaletteRedForeground1 : tokens.colorPaletteGreenForeground1 }}>
+                         {isReadOnly ? "Locked" : "Editing"}
+                       </Text>
+                     </div>
+                  </Tooltip>
+                  
+                  {isReadOnly && onForceUnlock && (
+                    <Tooltip content="Force Unlock (Use with caution)" relationship="label">
+                      <ToolbarButton 
+                        icon={<KeyReset20Regular />} 
+                        onClick={onForceUnlock}
+                        style={{ color: tokens.colorPaletteRedForeground1 }}
+                      >
+                        Force Unlock
+                      </ToolbarButton>
+                    </Tooltip>
+                  )}
+                </div>
               )}
             </>
           )}
 
         </FluentToolbar>
-      </div>
-      <div className={s.right}>
+      </div>      <div className={s.right}>
         {isReadOnly && <Text style={{color: tokens.colorPaletteRedForeground1, fontWeight: 'bold'}}>READ ONLY MODE</Text>}
         {isEdge && <CopilotHelper />}
         {isEdge && <CopilotPromptMenu />}

@@ -25,7 +25,7 @@ export class LockManager {
   
   // Settings
   private readonly LOCK_FILE_NAME = 'lock.json';
-  private readonly STALE_THRESHOLD_MS = 1000 * 20; // 20 seconds (Lock expires quickly if app crashes)
+  private readonly STALE_THRESHOLD_MS = 1000 * 120; // 120 seconds (2 minutes) to tolerate slow sync
   private readonly HEARTBEAT_MS = 1000 * 5; // 5 seconds
 
   constructor() {
@@ -106,6 +106,19 @@ export class LockManager {
       }
     } catch (e) {
       console.warn('[LockManager] Failed to release lock:', e);
+    }
+  }
+
+  /**
+   * Force unlock (break another user's lock)
+   */
+  async forceUnlock(): Promise<void> {
+    if (!this.dbFolderHandle) return;
+    try {
+      await this.dbFolderHandle.removeEntry(this.LOCK_FILE_NAME);
+    } catch (e) {
+      console.warn('[LockManager] Failed to force unlock:', e);
+      throw e;
     }
   }
 
