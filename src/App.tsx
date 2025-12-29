@@ -2034,6 +2034,11 @@ function PeopleEditor(){
   const [bulkPeople,setBulkPeople] = useState<Set<number>>(new Set());
   const [bulkRoles,setBulkRoles] = useState<Set<number>>(new Set());
   const [filters, setFilters] = usePersistentFilters('peopleEditorFilters');
+  
+  // Flex Time state
+  const [flexEntries, setFlexEntries] = useState<Array<{id: number; weekday: number; start_time: string; end_time: string; reason: string; active: number}>>([]);
+  const [newFlexEntry, setNewFlexEntry] = useState({ weekday: 0, start_time: '09:00', end_time: '17:00', reason: '', active: 1 });
+  const FLEX_WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
   // Query all people, including inactive entries, so they can be edited
   const people = all(`SELECT * FROM person ORDER BY last_name, first_name`);
@@ -2043,10 +2048,35 @@ function PeopleEditor(){
     if(editing){
       const rows = all(`SELECT role_id FROM training WHERE person_id=? AND status='Qualified'`, [editing.id]);
       setQualifications(new Set(rows.map((r:any)=>r.role_id)));
+      // Load flex time entries
+      const flexRows = all(`SELECT id, weekday, start_time, end_time, reason, active FROM recurring_timeoff WHERE person_id=? ORDER BY weekday, start_time`, [editing.id]);
+      setFlexEntries(flexRows);
     } else {
       setQualifications(new Set());
+      setFlexEntries([]);
     }
   },[editing]);
+  
+  function addFlexEntry() {
+    if (!editing) return;
+    run(
+      `INSERT INTO recurring_timeoff (person_id, weekday, start_time, end_time, reason, active) VALUES (?, ?, ?, ?, ?, ?)`,
+      [editing.id, newFlexEntry.weekday, newFlexEntry.start_time, newFlexEntry.end_time, newFlexEntry.reason, newFlexEntry.active]
+    );
+    const flexRows = all(`SELECT id, weekday, start_time, end_time, reason, active FROM recurring_timeoff WHERE person_id=? ORDER BY weekday, start_time`, [editing.id]);
+    setFlexEntries(flexRows);
+    setNewFlexEntry({ weekday: 0, start_time: '09:00', end_time: '17:00', reason: '', active: 1 });
+  }
+  
+  function deleteFlexEntry(id: number) {
+    run(`DELETE FROM recurring_timeoff WHERE id=?`, [id]);
+    setFlexEntries(flexEntries.filter(e => e.id !== id));
+  }
+  
+  function toggleFlexActive(id: number, active: boolean) {
+    run(`UPDATE recurring_timeoff SET active=? WHERE id=?`, [active ? 1 : 0, id]);
+    setFlexEntries(flexEntries.map(e => e.id === id ? {...e, active: active ? 1 : 0} : e));
+  }
 
   function openModal(p?:any){
     if(p){
@@ -2396,6 +2426,89 @@ function PeopleEditor(){
                 }
                 return null;
               })()}
+              
+              {/* Flex Time Section - only show when editing */}
+              {editing && (
+                <div className={s.section}>
+                  <div className={s.sectionTitle}>Flex Time (Recurring Time Away)</div>
+                  {flexEntries.length === 0 && (
+                    <div style={{ fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalS }}>
+                      No recurring time away configured.
+                    </div>
+                  )}
+                  {flexEntries.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXS, marginBottom: tokens.spacingVerticalM }}>
+                      {flexEntries.map((entry) => (
+                        <div 
+                          key={entry.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: tokens.spacingHorizontalS,
+                            padding: tokens.spacingHorizontalS,
+                            backgroundColor: entry.active ? tokens.colorNeutralBackground3 : tokens.colorNeutralBackground2,
+                            borderRadius: tokens.borderRadiusMedium,
+                            opacity: entry.active ? 1 : 0.6,
+                          }}
+                        >
+                          <span style={{ minWidth: '80px', fontWeight: tokens.fontWeightSemibold }}>{FLEX_WEEKDAYS[entry.weekday]}</span>
+                          <span>{entry.start_time} - {entry.end_time}</span>
+                          {entry.reason && <span style={{ color: tokens.colorNeutralForeground3, fontSize: tokens.fontSizeBase200 }}>({entry.reason})</span>}
+                          <div style={{ marginLeft: 'auto', display: 'flex', gap: tokens.spacingHorizontalXS }}>
+                            <Checkbox 
+                              checked={!!entry.active} 
+                              onChange={(_, data) => toggleFlexActive(entry.id, !!data.checked)}
+                              label="Active"
+                            />
+                            <Button size="small" appearance="subtle" onClick={() => deleteFlexEntry(entry.id)}>✕</Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    <div style={{ minWidth: '100px' }}>
+                      <div className={s.smallLabel}>Day</div>
+                      <Dropdown
+                        value={FLEX_WEEKDAYS[newFlexEntry.weekday]}
+                        selectedOptions={[String(newFlexEntry.weekday)]}
+                        onOptionSelect={(_, d) => setNewFlexEntry({...newFlexEntry, weekday: Number(d.optionValue)})}
+                      >
+                        {FLEX_WEEKDAYS.map((day, idx) => (
+                          <Option key={idx} value={String(idx)} text={day}>{day}</Option>
+                        ))}
+                      </Dropdown>
+                    </div>
+                    <div style={{ minWidth: '100px' }}>
+                      <div className={s.smallLabel}>Start</div>
+                      <Input 
+                        type="time" 
+                        value={newFlexEntry.start_time} 
+                        onChange={(_, d) => setNewFlexEntry({...newFlexEntry, start_time: d.value})}
+                        style={{ minWidth: '100px' }}
+                      />
+                    </div>
+                    <div style={{ minWidth: '100px' }}>
+                      <div className={s.smallLabel}>End</div>
+                      <Input 
+                        type="time" 
+                        value={newFlexEntry.end_time} 
+                        onChange={(_, d) => setNewFlexEntry({...newFlexEntry, end_time: d.value})}
+                        style={{ minWidth: '100px' }}
+                      />
+                    </div>
+                    <div style={{ flex: 1, minWidth: '120px' }}>
+                      <div className={s.smallLabel}>Reason (optional)</div>
+                      <Input 
+                        value={newFlexEntry.reason} 
+                        onChange={(_, d) => setNewFlexEntry({...newFlexEntry, reason: d.value})}
+                        placeholder="e.g., Doctor appointment"
+                      />
+                    </div>
+                    <Button appearance="primary" onClick={addFlexEntry}>Add</Button>
+                  </div>
+                </div>
+              )}
             </DialogContent>
             <DialogActions>
               <Button onClick={closeModal}>Cancel</Button>
@@ -2634,7 +2747,6 @@ function PeopleEditor(){
           personId={profilePersonId}
           onClose={() => setProfilePersonId(null)}
           all={all}
-          run={run}
         />
       )}
       {conflictPrompt && (

@@ -11,7 +11,7 @@ import PersonName from "./PersonName";
 import { getAutoFillPriority } from "./AutoFillSettings";
 import { exportDailyScheduleXlsx } from "../excel/export-one-sheet";
 import { getEffectiveMonth, getWeekOfMonth, type WeekStartMode } from "../utils/weekCalculation";
-import { sendToTeamsWebhook, getWebhookUrl, type ScheduleEntry, type WebhookPayload } from "../services/teamsWebhook";
+import { formatTime12h as formatTime12hWebhook } from "../services/teamsWebhook";
 import {
   Button,
   Dropdown,
@@ -45,6 +45,7 @@ import {
   TableBody,
   TableCell,
   Text,
+  Textarea,
 } from "@fluentui/react-components";
 import { Navigation20Regular, CalendarMonth20Regular } from "@fluentui/react-icons";
 import AlertDialog from "./AlertDialog";
@@ -423,6 +424,8 @@ export default function DailyRunBoard({
   >([]);
   const [showMovesModal, setShowMovesModal] = useState(false);
   const [showUnassigned, setShowUnassigned] = useState(false);
+  const [showTeamsDraft, setShowTeamsDraft] = useState(false);
+  const [teamsDraftText, setTeamsDraftText] = useState('');
 
   const moveSelectedLabel = useMemo(() => {
     if (!moveContext || moveTargetId == null) return "";
@@ -552,6 +555,28 @@ export default function DailyRunBoard({
     );
     const overrideMap = new Map(overrides.map((o: any) => [o.person_id, o.avail]));
     
+    // Get time-off info for the day
+    const dayStart = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate(), 0, 0, 0, 0);
+    const dayEnd = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + 1, 0, 0, 0, 0);
+    const timeOffRows = all(
+      `SELECT person_id FROM timeoff WHERE NOT (? >= end_ts OR ? <= start_ts)`,
+      [dayStart.toISOString(), dayEnd.toISOString()]
+    );
+    const timeOffPersonIds = new Set(timeOffRows.map((r: any) => r.person_id));
+    
+    // Get recurring time-off (Flex Time) for this weekday
+    const jsWeekday = selectedDateObj.getDay();
+    const weekday = jsWeekday >= 1 && jsWeekday <= 5 ? jsWeekday - 1 : -1;
+    if (weekday >= 0) {
+      const recurringRows = all(
+        `SELECT person_id FROM recurring_timeoff WHERE weekday=? AND active=1`,
+        [weekday]
+      );
+      for (const r of recurringRows) {
+        timeOffPersonIds.add(r.person_id);
+      }
+    }
+    
     // Filter to available but unassigned
     return allPeople.filter((p: any) => {
       if (assignedPeople.has(p.id)) return false;
@@ -569,7 +594,10 @@ export default function DailyRunBoard({
         return avail !== 'U';
       }
       return avail !== 'U';
-    });
+    }).map((p: any) => ({
+      ...p,
+      hasTimeOff: timeOffPersonIds.has(p.id),
+    }));
   }, [all, selectedDateObj, seg, ymd, weekdayName]);
 
   const groupMap = useMemo(() => new Map(groups.map((g: any) => [g.id, g])), [groups]);
@@ -977,16 +1005,7 @@ export default function DailyRunBoard({
     }
   }
 
-  async function handleSendToTeams() {
-    const webhookUrl = getWebhookUrl(all);
-    if (!webhookUrl) {
-      dialogs.showAlert(
-        "Teams webhook URL is not configured. Please go to Admin → Settings → Teams Webhook Settings to configure it.",
-        "Webhook Not Configured"
-      );
-      return;
-    }
-    
+  function handleSendToTeams() {
     // Get assignments for current segment only
     const dateStr = ymd(selectedDateObj);
     const assigns = all(
@@ -1005,30 +1024,61 @@ export default function DailyRunBoard({
       return;
     }
     
-    // Build schedule entries with times
+    // Get segment start time
     const segTimes = segTimesTop[seg];
-    const startTime = segTimes ? `${segTimes.start.getHours().toString().padStart(2, '0')}:${segTimes.start.getMinutes().toString().padStart(2, '0')}` : '00:00';
-    const endTime = segTimes ? `${segTimes.end.getHours().toString().padStart(2, '0')}:${segTimes.end.getMinutes().toString().padStart(2, '0')}` : '00:00';
+    const startTime = segTimes ? formatTime12hWebhook(`${segTimes.start.getHours().toString().padStart(2, '0')}:${segTimes.start.getMinutes().toString().padStart(2, '0')}`) : '';
     
-    const entries: ScheduleEntry[] = assigns.map((a: any) => ({
-      personName: `${a.first_name} ${a.last_name}`,
-      roleName: a.role_name,
-      groupName: a.group_name,
-      startTime,
-      endTime,
-    }));
+    // Format date for display
+    const dateObj = new Date(dateStr + 'T00:00:00');
+    const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+    const monthName = dateObj.toLocaleDateString('en-US', { month: 'long' });
+    const dayNum = dateObj.getDate();
     
-    const payload: WebhookPayload = {
-      date: dateStr,
-      segment: seg,
-      entries,
-    };
+    // Group assignments by group and role, sorted by role
+    const byGroupRole = new Map<string, Map<string, string[]>>();
+    for (const a of assigns) {
+      let groupMap = byGroupRole.get(a.group_name);
+      if (!groupMap) {
+        groupMap = new Map<string, string[]>();
+        byGroupRole.set(a.group_name, groupMap);
+      }
+      let roleList = groupMap.get(a.role_name);
+      if (!roleList) {
+        roleList = [];
+        groupMap.set(a.role_name, roleList);
+      }
+      // Format name with @ for Teams tagging
+      roleList.push(`@${a.first_name} ${a.last_name}`);
+    }
     
-    const result = await sendToTeamsWebhook(webhookUrl, payload);
-    if (result.success) {
-      dialogs.showAlert(`Successfully sent ${entries.length} assignments to Teams.`, "Sent to Teams");
-    } else {
-      dialogs.showAlert(`Failed to send to Teams: ${result.error}`, "Error");
+    // Build the draft text, sorted by role within each group
+    let draft = `📅 **${dayName}, ${monthName} ${dayNum}** — ${seg} (${startTime})\n\n`;
+    
+    for (const [groupName, roleMap] of byGroupRole) {
+      draft += `**${groupName}**\n`;
+      // Sort roles alphabetically within group
+      const sortedRoles = Array.from(roleMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+      for (const [roleName, people] of sortedRoles) {
+        // Simplify role label
+        const roleLabel = roleName === groupName ? '' : (roleName.startsWith(groupName + ' ') ? roleName.slice(groupName.length + 1) : roleName);
+        const rolePrefix = roleLabel ? `${roleLabel}: ` : '';
+        draft += `• ${rolePrefix}${people.join(', ')}\n`;
+      }
+      draft += '\n';
+    }
+    
+    draft += `_Total: ${assigns.length} assignments_`;
+    
+    setTeamsDraftText(draft);
+    setShowTeamsDraft(true);
+  }
+  
+  async function handleCopyTeamsDraft() {
+    try {
+      await navigator.clipboard.writeText(teamsDraftText);
+      dialogs.showAlert('Copied to clipboard!', 'Success');
+    } catch (err) {
+      dialogs.showAlert('Failed to copy. Please select and copy manually.', 'Error');
     }
   }
 
@@ -1161,12 +1211,36 @@ export default function DailyRunBoard({
       [dayStart.toISOString(), dayEnd.toISOString()]
     ) as any[];
     
-    // Group time-off entries by person
-    const timeOffByPerson = new Map<number, { start_ts: string; end_ts: string }[]>();
+    // Also fetch recurring_timeoff (Flex Time) entries for this day
+    // Convert Date's getDay() (0=Sun..6=Sat) to our weekday (0=Mon..4=Fri)
+    const jsWeekday = selectedDateObj.getDay();
+    const weekday = jsWeekday >= 1 && jsWeekday <= 5 ? jsWeekday - 1 : -1;
+    
+    // Group time-off entries by person (using Date objects for easier calculation)
+    const timeOffByPerson = new Map<number, { start: Date; end: Date }[]>();
+    
     for (const t of timeOff) {
       const entries = timeOffByPerson.get(t.person_id) || [];
-      entries.push(t);
+      entries.push({ start: new Date(t.start_ts), end: new Date(t.end_ts) });
       timeOffByPerson.set(t.person_id, entries);
+    }
+    
+    // Add recurring_timeoff entries for weekdays (Mon-Fri)
+    if (weekday >= 0) {
+      const recurringRows = all(
+        `SELECT person_id, start_time, end_time FROM recurring_timeoff WHERE weekday=? AND active=1`,
+        [weekday]
+      ) as any[];
+      for (const r of recurringRows) {
+        const [startH, startM] = (r.start_time as string).split(':').map(Number);
+        const [endH, endM] = (r.end_time as string).split(':').map(Number);
+        const entries = timeOffByPerson.get(r.person_id) || [];
+        entries.push({
+          start: new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate(), startH, startM, 0, 0),
+          end: new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate(), endH, endM, 0, 0),
+        });
+        timeOffByPerson.set(r.person_id, entries);
+      }
     }
     
     const assigns = all(`SELECT person_id, role_id FROM assignment WHERE date=? AND segment=?`, [ymd(selectedDateObj), seg]) as any[];
@@ -1187,8 +1261,8 @@ export default function DailyRunBoard({
       const personTimeOff = timeOffByPerson.get(a.person_id) || [];
       let ovl = 0;
       for (const t of personTimeOff) {
-        const s = new Date(t.start_ts).getTime();
-        const e = new Date(t.end_ts).getTime();
+        const s = t.start.getTime();
+        const e = t.end.getTime();
         ovl += Math.max(0, Math.min(e, segEnd) - Math.max(s, segStart));
       }
       
@@ -1455,8 +1529,42 @@ export default function DailyRunBoard({
         [dayStart.toISOString(), dayEnd.toISOString()]
       );
       
+      // Also fetch recurring_timeoff (Flex Time) entries for this day
+      // Convert Date's getDay() (0=Sun..6=Sat) to our weekday (0=Mon..4=Fri)
+      const jsWeekday = selectedDateObj.getDay();
+      const weekday = jsWeekday >= 1 && jsWeekday <= 5 ? jsWeekday - 1 : -1;
+      
+      // Combine regular timeoff and recurring timeoff into one array
+      interface TimeOffEntry { person_id: number; start: Date; end: Date; }
+      const allTimeOff: TimeOffEntry[] = [];
+      
       for (const r of rows as any[]) {
-        const pid = r.person_id as number;
+        allTimeOff.push({
+          person_id: r.person_id,
+          start: new Date(r.start_ts),
+          end: new Date(r.end_ts),
+        });
+      }
+      
+      // Add recurring_timeoff entries for weekdays (Mon-Fri)
+      if (weekday >= 0) {
+        const recurringRows = all(
+          `SELECT person_id, start_time, end_time FROM recurring_timeoff WHERE weekday=? AND active=1`,
+          [weekday]
+        );
+        for (const r of recurringRows as any[]) {
+          const [startH, startM] = (r.start_time as string).split(':').map(Number);
+          const [endH, endM] = (r.end_time as string).split(':').map(Number);
+          allTimeOff.push({
+            person_id: r.person_id,
+            start: new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate(), startH, startM, 0, 0),
+            end: new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate(), endH, endM, 0, 0),
+          });
+        }
+      }
+      
+      for (const r of allTimeOff) {
+        const pid = r.person_id;
         
         // Get this person's adjusted segment times
         const personSegTimes = getSegTimesForPerson(pid);
@@ -1467,8 +1575,8 @@ export default function DailyRunBoard({
         const segEnd = en.getTime();
         const segMinutes = Math.max(0, Math.round((segEnd - segStart) / 60000));
         
-        const s = new Date(r.start_ts).getTime();
-        const e = new Date(r.end_ts).getTime();
+        const s = r.start.getTime();
+        const e = r.end.getTime();
         const ovl = Math.max(0, Math.min(e, segEnd) - Math.max(s, segStart));
         if (ovl <= 0) continue;
         const prev = map.get(pid)?.minutes || 0;
@@ -1766,17 +1874,25 @@ export default function DailyRunBoard({
     const confirmed = await dialogs.showConfirm(message, "Confirm Move");
     if (!confirmed) return;
     
-    // Log the move to change_log table
+    // Capture values before clearing state to avoid race conditions
+    const assignmentId = moveContext.assignment.id;
+    const personId = moveContext.assignment.person_id;
+    const fromRoleId = moveContext.assignment.role_id;
+    const toRoleId = chosen.role.id;
     const dateStr = ymd(selectedDateObj);
-    run(
-      `INSERT INTO change_log (date, person_id, segment, from_role_id, to_role_id, action) VALUES (?,?,?,?,?,?)`,
-      [dateStr, moveContext.assignment.person_id, seg, moveContext.assignment.role_id, chosen.role.id, 'move']
-    );
     
-    deleteAssignment(moveContext.assignment.id);
-    addAssignment(selectedDate, moveContext.assignment.person_id, chosen.role.id, seg);
+    // Clear state BEFORE DB operations to prevent dialog re-opening
     setMoveContext(null);
     setMoveTargetId(null);
+    
+    // Log the move to change_log table
+    run(
+      `INSERT INTO change_log (date, person_id, segment, from_role_id, to_role_id, action) VALUES (?,?,?,?,?,?)`,
+      [dateStr, personId, seg, fromRoleId, toRoleId, 'move']
+    );
+    
+    deleteAssignment(assignmentId);
+    addAssignment(selectedDate, personId, toRoleId, seg);
   }
 
   function cancelMove() {
@@ -1913,9 +2029,19 @@ export default function DailyRunBoard({
               gap: tokens.spacingHorizontalXS,
             }}>
               {unassignedAvailable.map((p: any) => (
-                <Badge key={p.id} appearance="outline" size="small">
-                  {p.first_name} {p.last_name}
-                </Badge>
+                <Tooltip 
+                  key={p.id} 
+                  content={p.hasTimeOff ? "Has time off during this day" : "Available"} 
+                  relationship="label"
+                >
+                  <Badge 
+                    appearance={p.hasTimeOff ? "tint" : "outline"} 
+                    color={p.hasTimeOff ? "warning" : "brand"}
+                    size="small"
+                  >
+                    {p.hasTimeOff && "⏰ "}{p.first_name} {p.last_name}
+                  </Badge>
+                </Tooltip>
               ))}
             </div>
           )}
@@ -2064,6 +2190,32 @@ export default function DailyRunBoard({
               </DialogContent>
               <DialogActions>
                 <Button onClick={() => setShowMovesModal(false)}>Close</Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
+      )}
+      
+      {/* Teams Draft Modal */}
+      {showTeamsDraft && (
+        <Dialog open={showTeamsDraft} onOpenChange={(_, d) => { if (!d.open) setShowTeamsDraft(false); }}>
+          <DialogSurface style={{ maxWidth: '600px' }}>
+            <DialogBody>
+              <DialogTitle>Teams Message Draft</DialogTitle>
+              <DialogContent>
+                <Text size={200} style={{ marginBottom: tokens.spacingVerticalS, display: 'block' }}>
+                  Copy this message and paste it into your Teams channel:
+                </Text>
+                <Textarea
+                  value={teamsDraftText}
+                  readOnly
+                  style={{ width: '100%', minHeight: '300px', fontFamily: 'monospace' }}
+                  resize="vertical"
+                />
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setShowTeamsDraft(false)}>Close</Button>
+                <Button appearance="primary" onClick={handleCopyTeamsDraft}>Copy to Clipboard</Button>
               </DialogActions>
             </DialogBody>
           </DialogSurface>

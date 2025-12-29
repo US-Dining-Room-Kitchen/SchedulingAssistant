@@ -13,6 +13,10 @@ import {
   Text,
   tokens,
   Divider,
+  Accordion,
+  AccordionItem,
+  AccordionHeader,
+  AccordionPanel,
 } from "@fluentui/react-components";
 import { ArrowUp20Regular, ArrowDown20Regular } from "@fluentui/react-icons";
 
@@ -81,6 +85,13 @@ export interface AutoFillGroupPriority {
   priority: number;
 }
 
+// Per-target-group source priority matrix
+export interface GroupSourcePriority {
+  targetGroupId: number;
+  targetGroupName: string;
+  sources: Array<{ groupId: number; groupName: string; priority: number }>;
+}
+
 // Default rules
 const DEFAULT_RULES: AutoFillRule[] = [
   { key: 'prefer_trained', label: 'Prefer trained over untrained', enabled: true, priority: 1 },
@@ -109,7 +120,7 @@ export function loadAutoFillRules(all: (sql: string, params?: any[]) => any[]): 
   }
 }
 
-// Load group priorities from database
+// Load group priorities from database (legacy - kept for compatibility)
 export function loadGroupPriorities(all: (sql: string, params?: any[]) => any[], groups: any[]): AutoFillGroupPriority[] {
   try {
     const rows = all(`SELECT group_id, priority FROM autofill_group_priority ORDER BY priority`);
@@ -129,6 +140,51 @@ export function loadGroupPriorities(all: (sql: string, params?: any[]) => any[],
   }
 }
 
+// Load per-target-group source priorities from database
+export function loadGroupSourcePriorities(all: (sql: string, params?: any[]) => any[], groups: any[]): GroupSourcePriority[] {
+  try {
+    const rows = all(`SELECT target_group_id, source_group_id, priority FROM autofill_group_source_priority ORDER BY target_group_id, priority`);
+    
+    // Build a map: targetGroupId -> Map<sourceGroupId, priority>
+    const priorityMap = new Map<number, Map<number, number>>();
+    for (const r of rows) {
+      let sourceMap = priorityMap.get(r.target_group_id);
+      if (!sourceMap) {
+        sourceMap = new Map();
+        priorityMap.set(r.target_group_id, sourceMap);
+      }
+      sourceMap.set(r.source_group_id, r.priority);
+    }
+    
+    // For each group, create a source priority list
+    return groups.map((targetGroup: any) => {
+      const sourceMap = priorityMap.get(targetGroup.id);
+      const sources = groups.map((sourceGroup: any, idx: number) => ({
+        groupId: sourceGroup.id,
+        groupName: sourceGroup.name,
+        priority: sourceMap?.get(sourceGroup.id) ?? (sourceGroup.id === targetGroup.id ? 1 : idx + 2),
+      })).sort((a, b) => a.priority - b.priority);
+      
+      return {
+        targetGroupId: targetGroup.id,
+        targetGroupName: targetGroup.name,
+        sources,
+      };
+    });
+  } catch {
+    // Default: each group prioritizes itself first, then others in order
+    return groups.map((targetGroup: any) => ({
+      targetGroupId: targetGroup.id,
+      targetGroupName: targetGroup.name,
+      sources: groups.map((sourceGroup: any, idx: number) => ({
+        groupId: sourceGroup.id,
+        groupName: sourceGroup.name,
+        priority: sourceGroup.id === targetGroup.id ? 1 : idx + 2,
+      })).sort((a, b) => a.priority - b.priority),
+    }));
+  }
+}
+
 interface AutoFillPrioritySettingsProps {
   open: boolean;
   onClose: () => void;
@@ -139,12 +195,12 @@ interface AutoFillPrioritySettingsProps {
 
 export function AutoFillPrioritySettings({ open, onClose, all, run, groups }: AutoFillPrioritySettingsProps) {
   const [rules, setRules] = useState<AutoFillRule[]>([]);
-  const [groupPriorities, setGroupPriorities] = useState<AutoFillGroupPriority[]>([]);
+  const [groupSourcePriorities, setGroupSourcePriorities] = useState<GroupSourcePriority[]>([]);
 
   useEffect(() => {
     if (open) {
       setRules(loadAutoFillRules(all));
-      setGroupPriorities(loadGroupPriorities(all, groups));
+      setGroupSourcePriorities(loadGroupSourcePriorities(all, groups));
     }
   }, [open, all, groups]);
 
@@ -164,14 +220,16 @@ export function AutoFillPrioritySettings({ open, onClose, all, run, groups }: Au
     setRules(newRules);
   };
 
-  const moveGroup = (index: number, direction: 'up' | 'down') => {
-    const newGroups = [...groupPriorities];
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
-    if (newIndex < 0 || newIndex >= newGroups.length) return;
-    [newGroups[index], newGroups[newIndex]] = [newGroups[newIndex], newGroups[index]];
+  const moveSource = (targetIndex: number, sourceIndex: number, direction: 'up' | 'down') => {
+    const newPriorities = [...groupSourcePriorities];
+    const sources = [...newPriorities[targetIndex].sources];
+    const newSourceIndex = direction === 'up' ? sourceIndex - 1 : sourceIndex + 1;
+    if (newSourceIndex < 0 || newSourceIndex >= sources.length) return;
+    [sources[sourceIndex], sources[newSourceIndex]] = [sources[newSourceIndex], sources[sourceIndex]];
     // Update priorities
-    newGroups.forEach((g, i) => g.priority = i + 1);
-    setGroupPriorities(newGroups);
+    sources.forEach((s, i) => s.priority = i + 1);
+    newPriorities[targetIndex] = { ...newPriorities[targetIndex], sources };
+    setGroupSourcePriorities(newPriorities);
   };
 
   const handleSave = () => {
@@ -184,13 +242,15 @@ export function AutoFillPrioritySettings({ open, onClose, all, run, groups }: Au
       );
     }
     
-    // Save group priorities
-    for (const gp of groupPriorities) {
-      run(
-        `INSERT INTO autofill_group_priority (group_id, priority) VALUES (?, ?)
-         ON CONFLICT(group_id) DO UPDATE SET priority = excluded.priority`,
-        [gp.groupId, gp.priority]
-      );
+    // Save per-target-group source priorities
+    for (const targetPriority of groupSourcePriorities) {
+      for (const source of targetPriority.sources) {
+        run(
+          `INSERT INTO autofill_group_source_priority (target_group_id, source_group_id, priority) VALUES (?, ?, ?)
+           ON CONFLICT(target_group_id, source_group_id) DO UPDATE SET priority = excluded.priority`,
+          [targetPriority.targetGroupId, source.groupId, source.priority]
+        );
+      }
     }
     
     onClose();
@@ -198,13 +258,13 @@ export function AutoFillPrioritySettings({ open, onClose, all, run, groups }: Au
 
   return (
     <Dialog open={open} onOpenChange={(_, d) => { if (!d.open) onClose(); }}>
-      <DialogSurface style={{ maxWidth: '500px' }}>
+      <DialogSurface style={{ maxWidth: '550px', maxHeight: '80vh' }}>
         <DialogBody>
           <DialogTitle>Auto-Fill Priority Settings</DialogTitle>
-          <DialogContent>
+          <DialogContent style={{ overflowY: 'auto' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalM }}>
               <Text weight="semibold">Priority Rules</Text>
-              <Text size={200}>Drag or use arrows to reorder. Higher priority rules are applied first.</Text>
+              <Text size={200}>Higher priority rules are applied first.</Text>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalS }}>
                 {rules.map((rule, idx) => (
@@ -246,42 +306,65 @@ export function AutoFillPrioritySettings({ open, onClose, all, run, groups }: Au
               
               <Divider style={{ margin: `${tokens.spacingVerticalM} 0` }} />
               
-              <Text weight="semibold">Group Pull Priority</Text>
-              <Text size={200}>When pulling from overstaffed groups, groups higher in this list are tried first.</Text>
+              <Text weight="semibold">Group Pull Priority (per target group)</Text>
+              <Text size={200}>When filling gaps in a group, people are pulled from source groups in the order shown. The target group's own people are tried first by default.</Text>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXS }}>
-                {groupPriorities.map((gp, idx) => (
-                  <div 
-                    key={gp.groupId} 
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: tokens.spacingHorizontalS,
-                      padding: tokens.spacingHorizontalS,
-                      backgroundColor: tokens.colorNeutralBackground2,
-                      borderRadius: tokens.borderRadiusMedium,
-                    }}
-                  >
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <Button 
-                        size="small" 
-                        appearance="subtle" 
-                        icon={<ArrowUp20Regular />}
-                        disabled={idx === 0}
-                        onClick={() => moveGroup(idx, 'up')}
-                      />
-                      <Button 
-                        size="small" 
-                        appearance="subtle" 
-                        icon={<ArrowDown20Regular />}
-                        disabled={idx === groupPriorities.length - 1}
-                        onClick={() => moveGroup(idx, 'down')}
-                      />
-                    </div>
-                    <Text style={{ flex: 1 }}>{gp.groupName}</Text>
-                  </div>
+              <Accordion multiple collapsible>
+                {groupSourcePriorities.map((targetPriority, targetIdx) => (
+                  <AccordionItem key={targetPriority.targetGroupId} value={String(targetPriority.targetGroupId)}>
+                    <AccordionHeader>
+                      <Text weight="semibold">{targetPriority.targetGroupName}</Text>
+                    </AccordionHeader>
+                    <AccordionPanel>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXS, paddingLeft: tokens.spacingHorizontalS }}>
+                        {targetPriority.sources.map((source, sourceIdx) => (
+                          <div 
+                            key={source.groupId} 
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: tokens.spacingHorizontalS,
+                              padding: tokens.spacingHorizontalXS,
+                              backgroundColor: source.groupId === targetPriority.targetGroupId 
+                                ? tokens.colorBrandBackground2 
+                                : tokens.colorNeutralBackground3,
+                              borderRadius: tokens.borderRadiusSmall,
+                            }}
+                          >
+                            <Text size={200} style={{ width: '20px', color: tokens.colorNeutralForeground3 }}>
+                              {sourceIdx + 1}.
+                            </Text>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <Button 
+                                size="small" 
+                                appearance="subtle" 
+                                icon={<ArrowUp20Regular />}
+                                disabled={sourceIdx === 0}
+                                onClick={() => moveSource(targetIdx, sourceIdx, 'up')}
+                              />
+                              <Button 
+                                size="small" 
+                                appearance="subtle" 
+                                icon={<ArrowDown20Regular />}
+                                disabled={sourceIdx === targetPriority.sources.length - 1}
+                                onClick={() => moveSource(targetIdx, sourceIdx, 'down')}
+                              />
+                            </div>
+                            <Text size={300} style={{ flex: 1 }}>
+                              {source.groupName}
+                              {source.groupId === targetPriority.targetGroupId && (
+                                <Text size={200} style={{ color: tokens.colorNeutralForeground3, marginLeft: tokens.spacingHorizontalXS }}>
+                                  (same group)
+                                </Text>
+                              )}
+                            </Text>
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionPanel>
+                  </AccordionItem>
                 ))}
-              </div>
+              </Accordion>
             </div>
           </DialogContent>
           <DialogActions>

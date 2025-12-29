@@ -398,6 +398,20 @@ export const migrate32AddTeamsWebhook: Migration = (db) => {
   }
 };
 
+// 33. Add per-target-group source priority matrix for auto-fill
+export const migrate33AddAutofillGroupSourcePriority: Migration = (db) => {
+  db.run(`CREATE TABLE IF NOT EXISTS autofill_group_source_priority (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_group_id INTEGER NOT NULL,
+    source_group_id INTEGER NOT NULL,
+    priority INTEGER NOT NULL,
+    UNIQUE(target_group_id, source_group_id),
+    FOREIGN KEY (target_group_id) REFERENCES grp(id),
+    FOREIGN KEY (source_group_id) REFERENCES grp(id)
+  );`);
+  console.log('Migration 33 complete - added autofill_group_source_priority table');
+};
+
 export const migrate6AddExportGroup: Migration = (db) => {
   db.run(`CREATE TABLE IF NOT EXISTS export_group (
       group_id INTEGER PRIMARY KEY,
@@ -919,6 +933,7 @@ const migrations: Record<number, Migration> = {
   30: migrate30AddRecurringTimeoff,
   31: migrate31AddAutofillPriority,
   32: migrate32AddTeamsWebhook,
+  33: migrate33AddAutofillGroupSourcePriority,
 };
 
 export function addMigration(version: number, fn: Migration) {
