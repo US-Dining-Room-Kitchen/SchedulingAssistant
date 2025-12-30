@@ -826,11 +826,8 @@ export default function App() {
     await writable.write(data);
     await writable.close();
     
-    // Release lock after save
-    await releaseLock();
-    
     setStatus("Saved.");
-    toast.showSuccess("Database saved and lock released");
+    toast.showSuccess("Database saved");
   }
 
   function syncTrainingFromMonthly(db = sqlDb) {
