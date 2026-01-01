@@ -13,7 +13,7 @@ const ExportPreview = React.lazy(() => import("./components/ExportPreview"));
 import PersonName from "./components/PersonName";
 import PersonProfileModal from "./components/PersonProfileModal";
 import { ProfileContext } from "./components/ProfileContext";
-import { Button, Checkbox, Dropdown, Input, Option, Table, TableHeader, TableHeaderCell, TableRow, TableBody, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, makeStyles, tokens, MessageBar, MessageBarBody } from "@fluentui/react-components";
+import { Button, Checkbox, Dropdown, Input, Option, Table, TableHeader, TableHeaderCell, TableRow, TableBody, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, makeStyles, tokens, MessageBar, MessageBarBody, Text } from "@fluentui/react-components";
 import { FluentProvider, webDarkTheme, webLightTheme } from "@fluentui/react-components";
 import { DismissRegular, ChevronDown20Regular } from "@fluentui/react-icons";
 import MonthlyDefaults from "./components/MonthlyDefaults";
