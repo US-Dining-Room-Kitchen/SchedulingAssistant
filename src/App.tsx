@@ -1042,12 +1042,6 @@ export default function App() {
               removedCount++;
               console.log(`[Merge] Deleted row with id ${rowData.id}`);
             } else {
-            
-            // Use the id column if available (most reliable), otherwise match by content
-            if (rowData.id !== undefined) {
-              sqlDb.run(`DELETE FROM ${table} WHERE id = ?`, [rowData.id]);
-              removedCount++;
-            } else {
               // Fallback: Build WHERE clause to match this row by its content
               const conditions: string[] = [];
               const values: any[] = [];
