@@ -2500,6 +2500,15 @@ function PeopleEditor(){
   const [bulkRoles,setBulkRoles] = useState<Set<number>>(new Set());
   const [filters, setFilters] = usePersistentFilters('peopleEditorFilters');
   
+  // Bulk Flex Time state
+  const [showBulkFlex, setShowBulkFlex] = useState(false);
+  const [bulkFlexPeople, setBulkFlexPeople] = useState<Set<number>>(new Set());
+  const [bulkFlexAction, setBulkFlexAction] = useState<'add' | 'remove'>('add');
+  const [bulkFlexWeekdays, setBulkFlexWeekdays] = useState<Set<number>>(new Set());
+  const [bulkFlexStart, setBulkFlexStart] = useState('09:00');
+  const [bulkFlexEnd, setBulkFlexEnd] = useState('17:00');
+  const [bulkFlexReason, setBulkFlexReason] = useState('');
+  
   // Flex Time state
   const [flexEntries, setFlexEntries] = useState<Array<{id: number; weekday: number; start_time: string; end_time: string; reason: string; active: number}>>([]);
   const [newFlexEntry, setNewFlexEntry] = useState({ weekday: 0, start_time: '09:00', end_time: '17:00', reason: '', active: 1 });
@@ -2632,6 +2641,47 @@ function PeopleEditor(){
     closeBulk();
   }
 
+  function closeBulkFlex() {
+    setShowBulkFlex(false);
+    setBulkFlexPeople(new Set());
+    setBulkFlexWeekdays(new Set());
+    setBulkFlexAction('add');
+    setBulkFlexStart('09:00');
+    setBulkFlexEnd('17:00');
+    setBulkFlexReason('');
+  }
+
+  function applyBulkFlex() {
+    if (bulkFlexPeople.size === 0 || bulkFlexWeekdays.size === 0) {
+      setAlertDialog({ title: 'Validation Error', message: 'Please select at least one person and one weekday.' });
+      return;
+    }
+    
+    for (const pid of bulkFlexPeople) {
+      for (const weekday of bulkFlexWeekdays) {
+        if (bulkFlexAction === 'add') {
+          // Check if entry already exists
+          const existing = all(
+            `SELECT id FROM recurring_timeoff WHERE person_id=? AND weekday=? AND start_time=? AND end_time=?`,
+            [pid, weekday, bulkFlexStart, bulkFlexEnd]
+          );
+          if (existing.length === 0) {
+            run(
+              `INSERT INTO recurring_timeoff (person_id, weekday, start_time, end_time, reason, active) VALUES (?, ?, ?, ?, ?, 1)`,
+              [pid, weekday, bulkFlexStart, bulkFlexEnd, bulkFlexReason || 'Flex Time']
+            );
+          }
+        } else {
+          // Remove all flex entries for this person on this weekday
+          run(`DELETE FROM recurring_timeoff WHERE person_id=? AND weekday=?`, [pid, weekday]);
+        }
+      }
+    }
+    refreshCaches();
+    toast.showSuccess(`Flex time ${bulkFlexAction === 'add' ? 'added' : 'removed'} for ${bulkFlexPeople.size} people`);
+    closeBulkFlex();
+  }
+
   const s = usePeopleEditorStyles();
 
   return (
@@ -2641,6 +2691,7 @@ function PeopleEditor(){
           <div className={s.title}>People</div>
           <div className={s.actions}>
             <Button appearance="secondary" onClick={()=>setShowBulk(true)}>Bulk Edit Qualifications</Button>
+            <Button appearance="secondary" onClick={()=>setShowBulkFlex(true)}>Bulk Edit Flex Time</Button>
             <Button appearance="primary" onClick={()=>openModal()}>Add Person</Button>
           </div>
         </div>
@@ -2749,6 +2800,102 @@ function PeopleEditor(){
             <DialogActions>
               <Button onClick={closeBulk}>Cancel</Button>
               <Button appearance="primary" onClick={applyBulk}>Apply</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
+      <Dialog open={showBulkFlex} onOpenChange={(_, d) => setShowBulkFlex(d.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Bulk Edit Flex Time</DialogTitle>
+            <DialogContent>
+              <div className={s.formGrid}>
+                <div className={s.col6}>
+                  <div className={s.smallLabel}>People</div>
+                  <Dropdown
+                    multiselect
+                    placeholder="Select people..."
+                    selectedOptions={[...bulkFlexPeople].map(String)}
+                    value={bulkFlexPeople.size > 0 ? `${bulkFlexPeople.size} selected` : ''}
+                    onOptionSelect={(_, data) =>
+                      setBulkFlexPeople(new Set((data.selectedOptions as string[]).map(Number)))
+                    }
+                  >
+                    {people.filter((p: any) => p.active).map((p: any) => {
+                      const label = `${p.last_name}, ${p.first_name}`;
+                      return (
+                        <Option key={p.id} value={String(p.id)} text={label}>
+                          {label}
+                        </Option>
+                      );
+                    })}
+                  </Dropdown>
+                </div>
+                <div className={s.col6}>
+                  <div className={s.smallLabel}>Action</div>
+                  <Dropdown
+                    selectedOptions={[bulkFlexAction]}
+                    value={bulkFlexAction === 'add' ? 'Add Flex Time' : 'Remove Flex Time'}
+                    onOptionSelect={(_, data) =>
+                      setBulkFlexAction((data.optionValue ?? data.optionText) as 'add' | 'remove')
+                    }
+                  >
+                    <Option value="add" text="Add Flex Time">Add Flex Time</Option>
+                    <Option value="remove" text="Remove Flex Time">Remove Flex Time</Option>
+                  </Dropdown>
+                </div>
+              </div>
+              <div style={{ marginTop: tokens.spacingVerticalM }}>
+                <div className={s.smallLabel}>Weekdays</div>
+                <div style={{ display: 'flex', gap: tokens.spacingHorizontalM, flexWrap: 'wrap' }}>
+                  {FLEX_WEEKDAYS.map((day, idx) => (
+                    <Checkbox
+                      key={idx}
+                      label={day}
+                      checked={bulkFlexWeekdays.has(idx)}
+                      onChange={(_, data) => {
+                        const next = new Set(bulkFlexWeekdays);
+                        if (data.checked) next.add(idx); else next.delete(idx);
+                        setBulkFlexWeekdays(next);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+              {bulkFlexAction === 'add' && (
+                <>
+                  <div className={s.formGrid} style={{ marginTop: tokens.spacingVerticalM }}>
+                    <div className={s.col4}>
+                      <div className={s.smallLabel}>Start Time</div>
+                      <Input
+                        type="time"
+                        value={bulkFlexStart}
+                        onChange={(_, d) => setBulkFlexStart(d.value)}
+                      />
+                    </div>
+                    <div className={s.col4}>
+                      <div className={s.smallLabel}>End Time</div>
+                      <Input
+                        type="time"
+                        value={bulkFlexEnd}
+                        onChange={(_, d) => setBulkFlexEnd(d.value)}
+                      />
+                    </div>
+                    <div className={s.col4}>
+                      <div className={s.smallLabel}>Reason</div>
+                      <Input
+                        placeholder="Flex Time"
+                        value={bulkFlexReason}
+                        onChange={(_, d) => setBulkFlexReason(d.value)}
+                      />
+                    </div>
+                  </div>
+                </>              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={closeBulkFlex}>Cancel</Button>
+              <Button appearance="primary" onClick={applyBulkFlex}>Apply</Button>
             </DialogActions>
           </DialogBody>
         </DialogSurface>
