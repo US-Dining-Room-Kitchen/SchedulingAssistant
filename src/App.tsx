@@ -1006,6 +1006,7 @@ export default function App() {
       // Process each table's merge choices
       for (const { table, rowsToAdd, rowsToRemove } of choices) {
         // Add rows from theirs that user selected
+        // Note: columns already exclude 'id' to avoid UNIQUE constraint issues
         for (const { data, columns } of rowsToAdd) {
           try {
             const values = columns.map(col => data[col]);
@@ -1022,22 +1023,27 @@ export default function App() {
         }
         
         // Remove rows from mine that user deselected
-        // We need to find and delete rows by matching their content
-        for (const rowHash of rowsToRemove) {
+        // rowsToRemove contains JSON-stringified row objects
+        for (const rowJson of rowsToRemove) {
           try {
-            // Parse the row data from the hash
-            const rowData = JSON.parse(rowHash);
-            // Get the current table's columns and find matching row
-            const result = sqlDb.exec(`SELECT * FROM ${table} LIMIT 1`);
-            if (result[0]?.columns) {
-              const columns = result[0].columns;
-              // Build WHERE clause to match this exact row
-              const conditions = columns.map((col: string, i: number) => {
-                const val = rowData[i];
-                if (val === null) return `${col} IS NULL`;
-                return `${col} = ?`;
-              });
-              const values = rowData.filter((v: any) => v !== null);
+            // Parse the row data object
+            const rowData = JSON.parse(rowJson) as Record<string, any>;
+            
+            // Build WHERE clause to match this row by its content (excluding id for matching)
+            const conditions: string[] = [];
+            const values: any[] = [];
+            
+            for (const [col, val] of Object.entries(rowData)) {
+              if (col.toLowerCase() === 'id') continue; // Skip id for matching
+              if (val === null) {
+                conditions.push(`${col} IS NULL`);
+              } else {
+                conditions.push(`${col} = ?`);
+                values.push(val);
+              }
+            }
+            
+            if (conditions.length > 0) {
               sqlDb.run(
                 `DELETE FROM ${table} WHERE ${conditions.join(' AND ')} LIMIT 1`,
                 values

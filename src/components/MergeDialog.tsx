@@ -381,14 +381,35 @@ export default function MergeDialog({
     }
   }, [open, myDb, theirDb]);
 
-  function hashRow(row: any[]): string {
-    return JSON.stringify(row);
+  // Hash a row excluding the 'id' column for comparison purposes
+  // This way, rows with different auto-increment IDs but same data are considered equal
+  function hashRowWithoutId(columns: string[], row: any[]): string {
+    const filtered: any[] = [];
+    for (let i = 0; i < columns.length; i++) {
+      if (columns[i].toLowerCase() !== 'id') {
+        filtered.push(row[i]);
+      }
+    }
+    return JSON.stringify(filtered);
   }
 
   function rowToObject(columns: string[], values: any[]): any {
     const obj: any = {};
     columns.forEach((col, i) => obj[col] = values[i]);
     return obj;
+  }
+  
+  // Get columns and values excluding 'id' column for insertion
+  function getColumnsWithoutId(columns: string[], row: any[]): { columns: string[]; values: any[] } {
+    const filteredColumns: string[] = [];
+    const filteredValues: any[] = [];
+    for (let i = 0; i < columns.length; i++) {
+      if (columns[i].toLowerCase() !== 'id') {
+        filteredColumns.push(columns[i]);
+        filteredValues.push(row[i]);
+      }
+    }
+    return { columns: filteredColumns, values: filteredValues };
   }
 
   function analyzeDbDifferences() {
@@ -399,14 +420,29 @@ export default function MergeDialog({
     const initialExpanded = new Set<string>();
 
     const tableNames = Object.keys(TABLE_CONFIG);
+    let tablesScanned = 0;
 
     for (const tableName of tableNames) {
       const config = TABLE_CONFIG[tableName] || DEFAULT_TABLE_CONFIG;
       const tableChanges: RowChange[] = [];
       
       try {
-        const myRows = myDb.exec(`SELECT * FROM ${tableName}`);
-        const theirRows = theirDb.exec(`SELECT * FROM ${tableName}`);
+        // Check if table exists in both databases
+        let myRows, theirRows;
+        try {
+          myRows = myDb.exec(`SELECT * FROM ${tableName}`);
+        } catch {
+          // Table doesn't exist in my database
+          continue;
+        }
+        try {
+          theirRows = theirDb.exec(`SELECT * FROM ${tableName}`);
+        } catch {
+          // Table doesn't exist in their database
+          continue;
+        }
+        
+        tablesScanned++;
         
         const myColumns = myRows[0]?.columns || [];
         const theirColumns = theirRows[0]?.columns || [];
@@ -414,15 +450,17 @@ export default function MergeDialog({
         const myData = myRows[0]?.values || [];
         const theirData = theirRows[0]?.values || [];
         
-        // Create hash maps
+        // Create hash maps using hash WITHOUT id column
         const myHashes = new Map<string, { row: any[]; columns: string[] }>();
         const theirHashes = new Map<string, { row: any[]; columns: string[] }>();
         
         for (const row of myData) {
-          myHashes.set(hashRow(row), { row, columns: myColumns });
+          const hash = hashRowWithoutId(myColumns, row);
+          myHashes.set(hash, { row, columns: myColumns });
         }
         for (const row of theirData) {
-          theirHashes.set(hashRow(row), { row, columns: theirColumns });
+          const hash = hashRowWithoutId(theirColumns, row);
+          theirHashes.set(hash, { row, columns: theirColumns });
         }
         
         // Find rows only in theirs (they added)
@@ -494,7 +532,7 @@ export default function MergeDialog({
       }
     }
 
-    setTotalTablesScanned(tableNames.length);
+    setTotalTablesScanned(tablesScanned);
     setTableGroups(groups);
     setAllChanges(changes);
     setSelectedChanges(initialSelected);
@@ -576,10 +614,20 @@ export default function MergeDialog({
       
       if (change.source === "theirs" && isSelected) {
         // User wants to add this row from theirs
-        choice.rowsToAdd.push({ data: change.rowData, columns: change.columns });
+        // Filter out the 'id' column to avoid UNIQUE constraint issues
+        const filteredColumns: string[] = [];
+        const filteredData: Record<string, any> = {};
+        for (const col of change.columns) {
+          if (col.toLowerCase() !== 'id') {
+            filteredColumns.push(col);
+            filteredData[col] = change.rowData[col];
+          }
+        }
+        choice.rowsToAdd.push({ data: filteredData, columns: filteredColumns });
       } else if (change.source === "mine" && !isSelected) {
         // User wants to remove this row from mine (deselected = don't keep)
-        choice.rowsToRemove.push(change.rowHash);
+        // Pass the rowData so we can match by content (not by id)
+        choice.rowsToRemove.push(JSON.stringify(change.rowData));
       }
       // If mine is selected, we keep it (do nothing)
       // If theirs is not selected, we don't add it (do nothing)
