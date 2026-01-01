@@ -21,7 +21,6 @@ import CrewHistoryView from "./components/CrewHistoryView";
 import Training from "./components/Training";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, usePersistentFilters } from "./components/filters/PeopleFilters";
 import { isInTrainingPeriod, weeksRemainingInTraining } from "./utils/trainingConstants";
-import { useSync } from "./sync/useSync";
 import { FileSystemUtils } from "./sync/FileSystemUtils";
 import { getWeekOfMonth, type WeekStartMode } from "./utils/weekCalculation";
 import AlertDialog from "./components/AlertDialog";
@@ -36,7 +35,7 @@ import { MOBILE_NAV_HEIGHT, BREAKPOINTS } from "./styles/breakpoints";
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
 - Data stays local via File System Access API + sql.js (WASM) SQLite
-- Single-editor model (soft lock stored in DB). No multi-user concurrency.
+- Multi-user support via timestamped saves - never overwrites, conflict detection & merge
 - Views: Daily Run Board, Needs vs Coverage, Export Preview
 - Features: Create/Open/Save DB, People editor, Needs baseline + date overrides,
             Assignments with rules, Export to Shifts XLSX
@@ -646,59 +645,6 @@ export default function App() {
   // Person delete confirmation
   const [personToDelete, setPersonToDelete] = useState<number | null>(null);
 
-  // Sync system
-  const { isReadOnly, lockedBy, hasLock, lockLost, checkLock, releaseLock, forceUnlock, verifyLock, clearLockLost } = useSync();
-
-  // Handle lock lost - prompt user to reload
-  useEffect(() => {
-    if (lockLost) {
-      setAlertDialog({
-        title: "Edit Lock Lost",
-        message: "Your edit lock has been lost. Another user may have taken over editing, or the lock file was deleted.\n\nTo avoid losing your changes or creating conflicts, please reload the application.\n\nAny unsaved changes will be lost.",
-        onClose: () => {
-          // Force reload
-          window.location.reload();
-        }
-      });
-    }
-  }, [lockLost]);
-
-  const handleForceUnlock = () => {
-    if (!lockedBy) return;
-    
-    setConfirmDialog({
-      title: "Force Unlock?",
-      message: `WARNING: This file is currently locked by ${lockedBy}.\n\nIf they are still editing, their changes will be overwritten or lost.\n\nPlease confirm with them that they are finished before proceeding.\n\nAre you sure you want to break their lock?`,
-      onConfirm: async () => {
-        try {
-          await forceUnlock();
-          toast.showSuccess("Lock broken. You are now editing.");
-          setStatus("Editing (Force Unlocked)");
-          setConfirmDialog(null);
-        } catch (e: any) {
-          toast.showError(`Failed to force unlock: ${e.message}`);
-        }
-      }
-    });
-  };
-
-  const handleReleaseLock = () => {
-    setConfirmDialog({
-      title: "Release Edit Lock?",
-      message: "Are you sure you want to release your edit lock?\n\nThis will allow others to edit the database, but you will be in READ ONLY mode.\n\nTo edit again, you will need to reload the page and acquire the lock.",
-      onConfirm: async () => {
-        try {
-          await releaseLock();
-          toast.showSuccess("Lock released. You are now in read-only mode.");
-          setStatus("Read Only (Lock Released)");
-          setConfirmDialog(null);
-        } catch (e: any) {
-          toast.showError(`Failed to release lock: ${e.message}`);
-        }
-      }
-    });
-  };
-
   useEffect(() => {
     if (segments.length && !segments.find(s => s.name === activeRunSegment)) {
       const first = segments[0];
@@ -1041,7 +987,6 @@ export default function App() {
     if (!SQL) return;
     const db = new SQL.Database();
     applyMigrations(db);
-    db.run(`INSERT OR REPLACE INTO meta (key,value) VALUES ('lock','{}')`);
     setSqlDb(db);
     setStatus("New DB created (unsaved). Use Save As to write a .db file.");
     refreshCaches(db);
@@ -1160,28 +1105,18 @@ export default function App() {
         }
       }
 
-      // Step 4: Prompt for Email & Auto-Lock
-      // We pass the dirHandle to the submit callback so it can lock immediately
+      // Step 4: Prompt for Email (used for save metadata)
       setEmailDialog({
         onSubmit: async (email: string) => {
           setUserEmail(email);
           setEmailDialog(null);
-          
-          // Automatic Locking
-          try {
-            const success = await checkLock(dirHandle, email);
-            if (success) {
-              toast.showSuccess("Database opened & locked for editing.");
-            } else {
-              toast.showError("Database opened in Read-Only mode.");
-            }
-          } catch (lockErr: any) {
-            logger.error("Auto-lock failed", lockErr);
-          }
+          toast.showSuccess("Database opened. Ready to edit!");
         },
         onCancel: () => {
           setEmailDialog(null);
-          toast.showInfo("Opened without locking (Email required)");
+          // Use a default if they cancel
+          setUserEmail('Unknown');
+          toast.showInfo("Opened without email (saves will be marked as 'Unknown')");
         }
       });
 
@@ -1223,19 +1158,6 @@ export default function App() {
   async function saveDb() {
     if (!sqlDb) return;
     if (!dirHandleRef.current) return saveDbAs();
-    
-    // Verify we still have the lock before saving
-    if (hasLock) {
-      const stillHaveLock = await verifyLock();
-      if (!stillHaveLock) {
-        setAlertDialog({
-          title: "Cannot Save",
-          message: "Your edit lock has been lost. Another user may have taken over editing.\n\nSave aborted to prevent overwriting their changes.\n\nPlease reload the application.",
-          onClose: () => window.location.reload()
-        });
-        return;
-      }
-    }
     
     // Check for conflicting saves (files saved since our session started)
     if (sessionStartedAt) {
@@ -3042,16 +2964,11 @@ function PeopleEditor(){
         ready={ready}
         sqlDb={sqlDb}
         canSave={!!sqlDb}
-        hasLock={hasLock}
-        onReleaseLock={handleReleaseLock}
         createNewDb={createNewDb}
         openDbFromFile={openDbFromFile}
         saveDb={saveDb}
         saveDbAs={saveDbAs}
         status={status}
-        isReadOnly={isReadOnly}
-        lockedBy={lockedBy}
-        onForceUnlock={handleForceUnlock}
       />
       {showBrowserWarning && (
         <MessageBar intent="warning" style={{ margin: tokens.spacingVerticalM }}>

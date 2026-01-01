@@ -230,7 +230,7 @@
                                 </thead>
                                 <tbody class="text-[#424242]">
                                     <tr class="border-b"><td class="p-3 font-semibold">Local Data Storage</td><td class="p-3">All data saved to a local .db file on your machine.</td></tr>
-                                    <tr class="border-b"><td class="p-3 font-semibold">Multi-User Access</td><td class="p-3">Exclusive file locking ensures one editor at a time. Others can open in read-only mode.</td></tr>
+                                    <tr class="border-b"><td class="p-3 font-semibold">Multi-User Access</td><td class="p-3">Multiple users can edit simultaneously. Timestamped saves and conflict detection prevent data loss.</td></tr>
                                     <tr class="border-b"><td class="p-3 font-semibold">Availability Tracking</td><td class="p-3">Track AM, PM, or Full-Day availability per person.</td></tr>
                                     <tr class="border-b"><td class="p-3 font-semibold">Time-Off Integration</td><td class="p-3">Import vacation/sick leave from Teams CSV exports.</td></tr>
                                     <tr class="border-b"><td class="p-3 font-semibold">Trainee Tracking</td><td class="p-3">6-month rotation management with progress tracking across training areas.</td></tr>
@@ -422,33 +422,23 @@
                     </div>
 
                     <h3 class="font-bold text-[#242424] mb-4 flex items-center gap-2">
-                        <i class="fas fa-lock text-[#0078d4]"></i>
-                        Multi-User File Locking
+                        <i class="fas fa-users text-[#0078d4]"></i>
+                        Multi-User Collaboration
                     </h3>
-                    <p class="text-sm text-[#616161] mb-4">When storing the database on a shared network drive, the app uses exclusive file locking to prevent conflicts. Only one user can edit at a time—others open in read-only mode until the lock is released.</p>
+                    <p class="text-sm text-[#616161] mb-4">Multiple users can work on the schedule simultaneously. The app uses timestamped saves and conflict detection to prevent data loss.</p>
                     
-                    <div class="p-4 bg-[#f0f7ff] border border-[#cce5ff] rounded-lg flex gap-3 items-start mb-6">
-                        <i class="fas fa-lock text-[#0078d4] mt-1"></i>
-                        <div>
-                            <p class="text-xs text-[#005a9e] font-semibold mb-1">Exclusive Editing Mode</p>
-                            <p class="text-xs text-[#005a9e]">When opening a database, you'll be prompted to enter your Work Email. If the file is already being edited, you'll open in read-only mode until the current editor saves and releases the lock.</p>
-                        </div>
-                    </div>
-
                     <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-8">
-                        <h5 class="font-bold text-sm text-[#242424] mb-3">How File Locking Works</h5>
+                        <h5 class="font-bold text-sm text-[#242424] mb-3">How Multi-User Collaboration Works</h5>
                         <ol class="text-xs text-[#616161] space-y-2">
-                            <li><strong>1. User Identification:</strong> When you open a file, enter your email to identify yourself as the editor.</li>
-                            <li><strong>2. Lock Acquisition:</strong> The app creates a timestamped lock file in the database folder. This design works reliably with OneDrive/SharePoint sync.</li>
-                            <li><strong>3. Conflict Detection:</strong> After creating a lock, the app waits for cloud sync and rescans. If another lock file appeared that was created earlier, the older lock wins and yours is rescinded.</li>
-                            <li><strong>4. Extended Checking:</strong> Even after acquiring the lock, the app continues checking for 30 seconds in case lock files sync late. If a conflict is found later, your lock is revoked.</li>
-                            <li><strong>5. Read-Only Mode:</strong> If another user has the lock, you'll open in read-only mode with their email displayed.</li>
-                            <li><strong>6. Heartbeat:</strong> The lock is refreshed automatically every 30 seconds. Stale locks (&gt;5 minutes) are automatically cleaned up.</li>
-                            <li><strong>7. Timestamped Saves:</strong> Each save creates a new uniquely-named file, preventing overwrite conflicts. Old files are automatically cleaned up.</li>
-                            <li><strong>8. Session Tracking:</strong> When opening a file, the app checks if other files were saved after that file's editing session began—indicating concurrent edits. When saving, it checks for new files since you opened. Either way, you're prompted to merge or proceed.</li>
-                            <li><strong>9. Release Lock:</strong> Click the "Release Lock" button to voluntarily give up your edit lock so others can edit. You'll enter read-only mode.</li>
-                            <li><strong>10. Close Warning:</strong> If you try to close the browser while holding a lock, you'll be prompted to confirm—the lock is released when you leave.</li>
-                            <li><strong>11. Lock Monitoring:</strong> The app periodically verifies you still own the lock. If lost, you'll be prompted to reload.</li>
+                            <li><strong>1. User Identification:</strong> When you open a database, enter your email to identify your saves.</li>
+                            <li><strong>2. Timestamped Saves:</strong> Each save creates a new uniquely-named file (e.g., <code>schedule-2026-01-01T10-30-00-john.db</code>). Files are never overwritten.</li>
+                            <li><strong>3. Session Tracking:</strong> The app tracks when you opened the file and when others have saved.</li>
+                            <li><strong>4. Conflict Detection on Open:</strong> When opening, the app checks if other files were saved concurrently. If so, you're prompted to review and merge.</li>
+                            <li><strong>5. Conflict Detection on Save:</strong> Before saving, the app checks for new files since you opened. If conflicts exist, you can merge or save anyway (creating a branch).</li>
+                            <li><strong>6. Thorough Comparison:</strong> The merge dialog scans all tables and compares actual row content, not just row counts.</li>
+                            <li><strong>7. Table-by-Table Merge:</strong> For each table with differences, choose to keep your version or use theirs.</li>
+                            <li><strong>8. Merged File Naming:</strong> Merged saves are marked with "-merged" in the filename.</li>
+                            <li><strong>9. Automatic Cleanup:</strong> Old files are automatically removed (keeps the 10 most recent OR files from the last 24 hours, whichever is more generous).</li>
                         </ol>
                     </div>
 
