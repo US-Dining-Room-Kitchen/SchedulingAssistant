@@ -4,8 +4,6 @@ import { Add20Regular, FolderOpen20Regular, Save20Regular, SaveCopy20Regular, Qu
 import { isEdgeBrowser } from "../utils/edgeBrowser";
 import CopilotHelper from "./CopilotHelper";
 import CopilotPromptMenu from "./CopilotPromptMenu";
-import SyncStatusIndicator from "./SyncStatusIndicator";
-import { SyncStatus } from "../sync/types";
 
 interface TopBarProps {
   appName?: string;
@@ -17,7 +15,6 @@ interface TopBarProps {
   saveDb: () => void;
   saveDbAs: () => void;
   status: string;
-  syncStatus?: SyncStatus;
 }
 
 const useStyles = makeStyles({
@@ -97,7 +94,7 @@ const useStyles = makeStyles({
   },
 });
 
-export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, createNewDb, openDbFromFile, saveDb, saveDbAs, status, syncStatus }: TopBarProps){
+export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, createNewDb, openDbFromFile, saveDb, saveDbAs, status }: TopBarProps){
   const s = useStyles();
   const isEdge = isEdgeBrowser();
   
@@ -114,20 +111,25 @@ export default function TopBar({ appName = 'Scheduler', ready, sqlDb, canSave, c
           <Tooltip content="New DB" relationship="label">
             <ToolbarButton appearance="primary" icon={<Add20Regular />} onClick={createNewDb}>New</ToolbarButton>
           </Tooltip>
-          <Tooltip content="Open DB" relationship="label">
+          <Tooltip content="Open Project Folder" relationship="label">
             <ToolbarButton icon={<FolderOpen20Regular />} onClick={openDbFromFile}>Open</ToolbarButton>
           </Tooltip>
           <ToolbarDivider />
           <Tooltip content="Save" relationship="label">
-            <ToolbarButton icon={<Save20Regular />} onClick={saveDb} disabled={!canSave}>Save</ToolbarButton>
+            <ToolbarButton 
+              icon={<Save20Regular />} 
+              onClick={saveDb} 
+              disabled={!canSave}
+            >
+              Save
+            </ToolbarButton>
           </Tooltip>
-          <Tooltip content="Save As" relationship="label">
-            <ToolbarButton icon={<SaveCopy20Regular />} onClick={saveDbAs} disabled={!sqlDb}>Save As</ToolbarButton>
+          <Tooltip content="Save Copy" relationship="label">
+            <ToolbarButton icon={<SaveCopy20Regular />} onClick={saveDbAs} disabled={!sqlDb}>Save Copy</ToolbarButton>
           </Tooltip>
         </FluentToolbar>
       </div>
       <div className={s.right}>
-        {syncStatus && <SyncStatusIndicator status={syncStatus} />}
         {isEdge && <CopilotHelper />}
         {isEdge && <CopilotPromptMenu />}
         <FluentToolbar aria-label="Help actions" size="small">

@@ -230,7 +230,7 @@
                                 </thead>
                                 <tbody class="text-[#424242]">
                                     <tr class="border-b"><td class="p-3 font-semibold">Local Data Storage</td><td class="p-3">All data saved to a local .db file on your machine.</td></tr>
-                                    <tr class="border-b"><td class="p-3 font-semibold">Multi-User Sync</td><td class="p-3">Multiple users can edit simultaneously with automatic conflict resolution.</td></tr>
+                                    <tr class="border-b"><td class="p-3 font-semibold">Multi-User Access</td><td class="p-3">Multiple users can edit simultaneously. Timestamped saves and conflict detection prevent data loss.</td></tr>
                                     <tr class="border-b"><td class="p-3 font-semibold">Availability Tracking</td><td class="p-3">Track AM, PM, or Full-Day availability per person.</td></tr>
                                     <tr class="border-b"><td class="p-3 font-semibold">Time-Off Integration</td><td class="p-3">Import vacation/sick leave from Teams CSV exports.</td></tr>
                                     <tr class="border-b"><td class="p-3 font-semibold">Trainee Tracking</td><td class="p-3">6-month rotation management with progress tracking across training areas.</td></tr>
@@ -259,7 +259,7 @@
                             <div class="step-number w-8 h-8 rounded flex items-center justify-center font-bold flex-shrink-0">2</div>
                             <div>
                                 <h4 class="font-bold text-[#242424] mb-1">Select File Location</h4>
-                                <p class="text-sm text-[#616161] mb-3">Click <strong>Save As</strong> to write the file to your disk. Multiple users can edit simultaneously with automatic sync.</p>
+                                <p class="text-sm text-[#616161] mb-3">Click <strong>Save As</strong> to write the file to your disk. Store the file on a shared network drive so team members can access it. Only one user can edit at a time.</p>
                             </div>
                         </div>
                         <div class="flex gap-6">
@@ -387,7 +387,7 @@
                                 </tr>
                                 <tr>
                                     <td class="p-3 font-semibold">Open DB</td>
-                                    <td class="p-3">Loads an existing <code>.db</code> file for editing.</td>
+                                    <td class="p-3">Loads the newest <code>.db</code> file from a folder. Checks for conflicts with other files saved concurrently.</td>
                                     <td class="p-3">Regular daily use to modify schedules.</td>
                                 </tr>
                             </tbody>
@@ -398,51 +398,47 @@
                         <i class="fas fa-save text-[#0078d4]"></i>
                         Saving Data
                     </h3>
-                    <p class="text-sm text-[#616161] mb-4">Changes are held in memory until you explicitly save them.</p>
+                    <p class="text-sm text-[#616161] mb-4">Each save creates a new timestamped file to prevent conflicts and enable version history.</p>
                     
                     <div class="grid md:grid-cols-2 gap-6 mb-8">
                         <div class="p-6 bg-[#fdfdfd] border border-[#e0e0e0] rounded-lg shadow-sm">
                             <h4 class="font-bold text-[#242424] mb-2 text-sm">Save (Ctrl+S)</h4>
-                            <p class="text-xs text-[#616161] mb-3">Writes all changes back to the currently opened file and syncs with others.</p>
+                            <p class="text-xs text-[#616161] mb-3">Creates a new timestamped file (e.g., <code>schedule-2026-01-01T10-30-00-username.db</code>).</p>
                             <ul class="text-xs text-[#616161] space-y-1">
-                                <li>• Requires write permission on the file</li>
-                                <li>• Syncs changes to the shared changes folder</li>
-                                <li>• Use frequently to avoid data loss</li>
+                                <li>• Never overwrites existing files—always creates new</li>
+                                <li>• Detects if others saved since you opened</li>
+                                <li>• Auto-cleans old files (keeps 10 or 24h worth)</li>
                             </ul>
                         </div>
                         <div class="p-6 bg-[#f0f7ff] border border-[#0078d4] rounded-lg shadow-sm">
-                            <h4 class="font-bold text-[#0078d4] mb-2 text-sm">Save As</h4>
-                            <p class="text-xs text-[#005a9e] mb-3">Creates a new copy of the database at a different location.</p>
+                            <h4 class="font-bold text-[#0078d4] mb-2 text-sm">Conflict Detection</h4>
+                            <p class="text-xs text-[#005a9e] mb-3">If another user saved while you were editing, you'll be prompted.</p>
                             <ul class="text-xs text-[#005a9e] space-y-1">
-                                <li>• Use to create backups</li>
-                                <li>• Prompts for new file location</li>
-                                <li>• Creates a separate sync environment</li>
+                                <li>• See what tables have differences</li>
+                                <li>• Choose to merge or save anyway</li>
+                                <li>• Merged files marked with "-merged"</li>
                             </ul>
                         </div>
                     </div>
 
                     <h3 class="font-bold text-[#242424] mb-4 flex items-center gap-2">
-                        <i class="fas fa-sync text-[#0078d4]"></i>
-                        Multi-User Sync System
+                        <i class="fas fa-users text-[#0078d4]"></i>
+                        Multi-User Collaboration
                     </h3>
-                    <p class="text-sm text-[#616161] mb-4">Multiple users can edit the database simultaneously. The app uses an operational log system with automatic conflict resolution to merge changes seamlessly.</p>
+                    <p class="text-sm text-[#616161] mb-4">Multiple users can work on the schedule simultaneously. The app uses timestamped saves and conflict detection to prevent data loss.</p>
                     
-                    <div class="p-4 bg-[#f0f7ff] border border-[#cce5ff] rounded-lg flex gap-3 items-start mb-6">
-                        <i class="fas fa-users text-[#0078d4] mt-1"></i>
-                        <div>
-                            <p class="text-xs text-[#005a9e] font-semibold mb-1">Collaborative Editing</p>
-                            <p class="text-xs text-[#005a9e]">When opening a database, you'll be prompted to enter your Work Email to identify your changes. All users can edit simultaneously—no more waiting for locks!</p>
-                        </div>
-                    </div>
-
                     <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd] mb-8">
-                        <h5 class="font-bold text-sm text-[#242424] mb-3">How the Sync System Works</h5>
+                        <h5 class="font-bold text-sm text-[#242424] mb-3">How Multi-User Collaboration Works</h5>
                         <ol class="text-xs text-[#616161] space-y-2">
-                            <li><strong>1. User Identification:</strong> When you open a file, enter your email to identify your changes.</li>
-                            <li><strong>2. Change Tracking:</strong> All database operations are tracked with timestamps and user info.</li>
-                            <li><strong>3. Auto-Merge:</strong> Non-conflicting changes from other users are merged automatically in the background (every 30 seconds).</li>
-                            <li><strong>4. Conflict Resolution:</strong> If conflicts are detected (same field edited by multiple users), a dialog helps you resolve them.</li>
-                            <li><strong>5. Sync Status:</strong> The sync indicator in the top bar shows current sync state and active users.</li>
+                            <li><strong>1. User Identification:</strong> When you open a database, enter your email to identify your saves.</li>
+                            <li><strong>2. Timestamped Saves:</strong> Each save creates a new uniquely-named file (e.g., <code>schedule-2026-01-01T10-30-00-john.db</code>). Files are never overwritten.</li>
+                            <li><strong>3. Session Tracking:</strong> The app tracks when you opened the file and when others have saved.</li>
+                            <li><strong>4. Conflict Detection on Open:</strong> When opening, the app checks if other files were saved concurrently. If so, you're prompted to review and merge.</li>
+                            <li><strong>5. Conflict Detection on Save:</strong> Before saving, the app checks for new files since you opened. If conflicts exist, you can merge or save anyway (creating a branch).</li>
+                            <li><strong>6. Thorough Comparison:</strong> The merge dialog scans all tables and compares actual row content, not just row counts.</li>
+                            <li><strong>7. Table-by-Table Merge:</strong> For each table with differences, choose to keep your version or use theirs.</li>
+                            <li><strong>8. Merged File Naming:</strong> Merged saves are marked with "-merged" in the filename.</li>
+                            <li><strong>9. Automatic Cleanup:</strong> Old files are automatically removed (keeps the 10 most recent OR files from the last 24 hours, whichever is more generous).</li>
                         </ol>
                     </div>
 
@@ -1323,6 +1319,17 @@
                                     <td class="p-3">Configure the Microsoft Teams webhook URL for the "Send to Teams" feature on the Daily Run Board. Paste the Incoming Webhook URL from your Teams channel connector configuration.</td>
                                     <td class="p-3">Webhook URL (stored in database)</td>
                                 </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Version History</td>
+                                    <td class="p-3">View, restore, and merge previous database versions. Each save creates a new timestamped file (e.g., <code>schedule-2026-01-01T10-30-00-username.db</code>) so saves never overwrite each other. Files are retained for 24 hours or the last 10 versions, whichever keeps more. Features include:
+                                        <ul class="mt-2 ml-4 list-disc text-xs">
+                                            <li><strong>Restore:</strong> Load a previous version, discarding current unsaved changes</li>
+                                            <li><strong>Merge:</strong> Combine your changes with another version, choosing which data to keep for each table</li>
+                                            <li><strong>Conflict Detection:</strong> When saving, the system automatically detects if another user saved changes since you opened the file and prompts you to merge or save anyway</li>
+                                        </ul>
+                                    </td>
+                                    <td class="p-3">View files, restore, merge with conflict resolution</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -1788,8 +1795,8 @@
                         </div>
 
                         <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
-                            <h5 class="font-bold text-sm text-[#242424] mb-2">Status Bar & Sync Indicator</h5>
-                            <p class="text-xs text-[#616161]">The status message at the top right shows current database state, save status, and sync information. The sync indicator shows when changes from other users are being merged.</p>
+                            <h5 class="font-bold text-sm text-[#242424] mb-2">Status Bar & Lock Indicator</h5>
+                            <p class="text-xs text-[#616161]">The status message at the top right shows current database state, save status, and lock status. When another user has the lock, their email is displayed.</p>
                         </div>
                         
                         <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
@@ -1827,8 +1834,8 @@
                             <p class="text-xs text-[#616161]">Verify write permissions for your <code>.db</code> file and the changes folder. Ensure the file location is accessible.</p>
                         </div>
                         <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
-                            <h5 class="font-bold text-sm text-[#242424] mb-1">Sync conflicts appearing</h5>
-                            <p class="text-xs text-[#616161]">When multiple users edit the same field, a conflict dialog will appear. Choose "Keep Yours" to keep your changes, "Keep Theirs" to accept the other user's changes, or "Keep Both" where applicable.</p>
+                            <h5 class="font-bold text-sm text-[#242424] mb-1">File locked by another user</h5>
+                            <p class="text-xs text-[#616161]">If someone else is editing the file, you'll open in read-only mode. Wait for them to finish (they can click "Release Lock" to let you in), or use the "Force Unlock" button if their lock is stale (hasn't been updated in 5+ minutes—they may have closed their browser without releasing it).</p>
                         </div>
                         <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
                             <h5 class="font-bold text-sm text-[#242424] mb-1">Trainee not appearing in training dashboard</h5>
@@ -1836,7 +1843,7 @@
                         </div>
                         <div class="p-5 border border-[#e0e0e0] rounded-lg bg-[#fdfdfd]">
                             <h5 class="font-bold text-sm text-[#242424] mb-1">Email prompt keeps appearing</h5>
-                            <p class="text-xs text-[#616161]">The app prompts for your email each time you open a file. This identifies your changes in the sync system and is expected behavior for multi-user collaboration.</p>
+                            <p class="text-xs text-[#616161]">The app prompts for your email each time you open a file. This identifies who holds the edit lock and is expected behavior for multi-user access.</p>
                         </div>
                     </div>
                 </section>

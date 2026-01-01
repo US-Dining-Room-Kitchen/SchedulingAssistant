@@ -21,14 +21,13 @@ import CrewHistoryView from "./components/CrewHistoryView";
 import Training from "./components/Training";
 import PeopleFiltersBar, { filterPeopleList, PeopleFiltersState, usePersistentFilters } from "./components/filters/PeopleFilters";
 import { isInTrainingPeriod, weeksRemainingInTraining } from "./utils/trainingConstants";
-import ConflictResolutionDialog from "./components/ConflictResolutionDialog";
-import { useSync } from "./sync/useSync";
 import { FileSystemUtils } from "./sync/FileSystemUtils";
-import { Conflict, ConflictResolution } from "./sync/types";
 import { getWeekOfMonth, type WeekStartMode } from "./utils/weekCalculation";
 import AlertDialog from "./components/AlertDialog";
 import ConfirmDialog from "./components/ConfirmDialog";
 import EmailInputDialog from "./components/EmailInputDialog";
+import ConflictDialog from "./components/ConflictDialog";
+import MergeDialog from "./components/MergeDialog";
 import { ToastContainer, useToast } from "./components/Toast";
 import { logger } from "./utils/logger";
 import { MOBILE_NAV_HEIGHT, BREAKPOINTS } from "./styles/breakpoints";
@@ -36,7 +35,7 @@ import { MOBILE_NAV_HEIGHT, BREAKPOINTS } from "./styles/breakpoints";
 /*
 MVP: Pure-browser scheduler for Microsoft Teams Shifts
 - Data stays local via File System Access API + sql.js (WASM) SQLite
-- Single-editor model (soft lock stored in DB). No multi-user concurrency.
+- Multi-user support via timestamped saves - never overwrites, conflict detection & merge
 - Views: Daily Run Board, Needs vs Coverage, Export Preview
 - Features: Create/Open/Save DB, People editor, Needs baseline + date overrides,
             Assignments with rules, Export to Shifts XLSX
@@ -98,6 +97,28 @@ function weekdayName(d: Date): Weekday | "Weekend" {
     case 5: return "Friday";
     default: return "Weekend";
   }
+}
+
+// Types for file-based version history and conflict detection
+interface FileVersionInfo {
+  filename: string;
+  savedAt: string;
+  savedBy: string;
+  sessionStartedAt: string;
+  sizeBytes: number;
+}
+
+interface ConflictDetail {
+  table: string;
+  description: string;
+  countA: number;
+  countB: number;
+  differences: number;
+}
+
+interface ConflictInfo {
+  conflictingFiles: FileVersionInfo[];
+  conflictDetails: ConflictDetail[];
 }
 
 // SQL.js
@@ -541,6 +562,12 @@ export default function App() {
 
   const [ready, setReady] = useState(false);
   const [sqlDb, setSqlDb] = useState<any | null>(null);
+  const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null); // When user opened the file
+  const [currentFilename, setCurrentFilename] = useState<string>(""); // Current open file name
+  const [pendingConflicts, setPendingConflicts] = useState<ConflictInfo | null>(null); // Detected conflicts before save
+  const [needsEmailPrompt, setNeedsEmailPrompt] = useState(false); // Prompt for email after conflict resolution
+  const [mergeTarget, setMergeTarget] = useState<{ filename: string; db: any } | null>(null); // File being merged
+  const dirHandleRef = useRef<FileSystemDirectoryHandle | null>(null); // For file operations
 
   useEffect(() => {
     (window as any).sqlDb = sqlDb;
@@ -597,7 +624,7 @@ export default function App() {
   const toast = useToast();
 
   // Alert and Confirm dialogs
-  const [alertDialog, setAlertDialog] = useState<{ title?: string; message: string } | null>(null);
+  const [alertDialog, setAlertDialog] = useState<{ title?: string; message: string; onClose?: () => void } | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     title?: string;
     message: string;
@@ -610,23 +637,14 @@ export default function App() {
     onCancel: () => void;
   } | null>(null);
 
+  // Sync setup dialog
+  // const [showSyncSetup, setShowSyncSetup] = useState(false); // Removed
+
   // Browser compatibility warning
   const [showBrowserWarning, setShowBrowserWarning] = useState(false);
 
   // Person delete confirmation
   const [personToDelete, setPersonToDelete] = useState<number | null>(null);
-
-  // Sync system
-  const changesFolderHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
-  const [syncConflicts, setSyncConflicts] = useState<{
-    conflicts: Conflict[];
-    autoMergedCount: number;
-  } | null>(null);
-  const sync = useSync({
-    db: sqlDb,
-    enabled: !!sqlDb,
-    backgroundSyncInterval: 30,
-  });
 
   useEffect(() => {
     if (segments.length && !segments.find(s => s.name === activeRunSegment)) {
@@ -712,11 +730,287 @@ export default function App() {
     return rows;
   }
 
+  // File-based version history helpers
+
+  // Sanitize username for filename
+  function sanitizeForFilename(str: string): string {
+    return str.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 20);
+  }
+
+  // Generate timestamped filename
+  function generateSaveFilename(email: string, isMerge: boolean = false): string {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const user = sanitizeForFilename(email || 'unknown');
+    const suffix = isMerge ? '-merged' : '';
+    return `schedule-${timestamp}-${user}${suffix}.db`;
+  }
+
+  // Set metadata in database before saving
+  function setSessionMetadata(db: any, email: string, sessionStarted: string): void {
+    const savedAt = new Date().toISOString();
+    db.run(`INSERT OR REPLACE INTO meta (key, value) VALUES ('session_started_at', ?)`, [sessionStarted]);
+    db.run(`INSERT OR REPLACE INTO meta (key, value) VALUES ('saved_at', ?)`, [savedAt]);
+    db.run(`INSERT OR REPLACE INTO meta (key, value) VALUES ('saved_by', ?)`, [email]);
+  }
+
+  // Get metadata from a database
+  function getFileMetadata(db: any): { sessionStartedAt: string | null; savedAt: string | null; savedBy: string | null } {
+    const getVal = (key: string): string | null => {
+      try {
+        const rows = db.exec(`SELECT value FROM meta WHERE key='${key}'`);
+        return (rows[0]?.values[0]?.[0] as string) || null;
+      } catch { return null; }
+    };
+    return {
+      sessionStartedAt: getVal('session_started_at'),
+      savedAt: getVal('saved_at'),
+      savedBy: getVal('saved_by')
+    };
+  }
+
+  // Scan folder for all schedule-*.db files with metadata
+  async function scanScheduleFiles(dirHandle: FileSystemDirectoryHandle): Promise<FileVersionInfo[]> {
+    const files: FileVersionInfo[] = [];
+    
+    for await (const entry of (dirHandle as any).values()) {
+      if (entry.kind === 'file' && entry.name.startsWith('schedule-') && entry.name.endsWith('.db')) {
+        try {
+          const file = await entry.getFile();
+          const buf = await file.arrayBuffer();
+          const tempDb = new SQL.Database(new Uint8Array(buf));
+          const meta = getFileMetadata(tempDb);
+          tempDb.close();
+          
+          files.push({
+            filename: entry.name,
+            savedAt: meta.savedAt || '',
+            savedBy: meta.savedBy || 'Unknown',
+            sessionStartedAt: meta.sessionStartedAt || '',
+            sizeBytes: file.size
+          });
+        } catch (e) {
+          console.warn(`[VersionHistory] Failed to read metadata from ${entry.name}:`, e);
+        }
+      }
+    }
+    
+    // Sort by savedAt descending (newest first)
+    files.sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+    return files;
+  }
+
+  // Find files saved between session start and now (conflicts)
+  function findConflictingFiles(files: FileVersionInfo[], sessionStart: string, currentFile: string): FileVersionInfo[] {
+    const sessionStartTime = new Date(sessionStart).getTime();
+    const now = Date.now();
+    
+    return files.filter(f => {
+      if (!f.savedAt || f.filename === currentFile) return false;
+      const savedAtTime = new Date(f.savedAt).getTime();
+      return savedAtTime > sessionStartTime && savedAtTime < now;
+    });
+  }
+
+  // Compare two databases for conflicts in high-conflict tables
+  function detectConflictDetails(myDb: any, theirDb: any): ConflictDetail[] {
+    const highConflictTables = [
+      'assignment',
+      'timeoff',
+      'availability_override',
+      'monthly_default',
+      'monthly_default_day',
+      'monthly_default_week',
+    ];
+    
+    const conflicts: ConflictDetail[] = [];
+    
+    for (const table of highConflictTables) {
+      try {
+        const myRows = myDb.exec(`SELECT COUNT(*) FROM ${table}`);
+        const theirRows = theirDb.exec(`SELECT COUNT(*) FROM ${table}`);
+        
+        const countA = (myRows[0]?.values[0]?.[0] as number) || 0;
+        const countB = (theirRows[0]?.values[0]?.[0] as number) || 0;
+        
+        if (countA !== countB) {
+          conflicts.push({
+            table,
+            description: `Row count differs`,
+            countA,
+            countB,
+            differences: Math.abs(countA - countB)
+          });
+        }
+      } catch (e) {
+        // Table might not exist
+      }
+    }
+    
+    return conflicts;
+  }
+
+  // Cleanup old files (keep last 10 OR last 24 hours, whichever is more generous)
+  async function cleanupOldFiles(dirHandle: FileSystemDirectoryHandle, currentFile: string): Promise<void> {
+    try {
+      const files = await scanScheduleFiles(dirHandle);
+      const now = Date.now();
+      const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
+      
+      // Files to keep
+      const filesToKeep = new Set<string>();
+      
+      // Keep the 10 most recent
+      files.slice(0, 10).forEach(f => filesToKeep.add(f.filename));
+      
+      // Also keep anything from last 24 hours
+      files.forEach(f => {
+        if (f.savedAt && new Date(f.savedAt).getTime() > twentyFourHoursAgo) {
+          filesToKeep.add(f.filename);
+        }
+      });
+      
+      // Always keep current file
+      filesToKeep.add(currentFile);
+      
+      // Delete the rest
+      for (const file of files) {
+        if (!filesToKeep.has(file.filename)) {
+          try {
+            await dirHandle.removeEntry(file.filename);
+            console.log(`[Cleanup] Deleted old file: ${file.filename}`);
+          } catch (e) {
+            console.warn(`[Cleanup] Failed to delete ${file.filename}:`, e);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[Cleanup] Failed to cleanup old files:', e);
+    }
+  }
+
+  // Restore a version from file
+  async function handleRestoreVersion(filename: string): Promise<void> {
+    if (!SQL || !dirHandleRef.current) {
+      setStatus('Cannot restore - no folder open');
+      return;
+    }
+    
+    try {
+      const fileHandle = await dirHandleRef.current.getFileHandle(filename);
+      const file = await fileHandle.getFile();
+      const buf = await file.arrayBuffer();
+      const newDb = new SQL.Database(new Uint8Array(buf));
+      
+      applyMigrations(newDb);
+      
+      setSqlDb(newDb);
+      setCurrentFilename(filename);
+      setSessionStartedAt(new Date().toISOString());
+      fileHandleRef.current = fileHandle;
+      refreshCaches(newDb);
+      
+      setStatus(`Restored ${filename}`);
+      toast.showSuccess('Version restored');
+    } catch (e) {
+      console.error('[Restore] Failed:', e);
+      setStatus('Failed to restore: ' + (e instanceof Error ? e.message : String(e)));
+    }
+  }
+
+  // Open merge dialog for a specific file
+  async function handleStartMerge(filename: string): Promise<void> {
+    if (!SQL || !dirHandleRef.current) {
+      setStatus('Cannot merge - no folder open');
+      return;
+    }
+    
+    try {
+      const fileHandle = await dirHandleRef.current.getFileHandle(filename);
+      const file = await fileHandle.getFile();
+      const buf = await file.arrayBuffer();
+      const theirDb = new SQL.Database(new Uint8Array(buf));
+      
+      setMergeTarget({ filename, db: theirDb });
+    } catch (e) {
+      console.error('[Merge] Failed to load file:', e);
+      setStatus('Failed to load file for merge: ' + (e instanceof Error ? e.message : String(e)));
+    }
+  }
+
+  // Execute merge with user's choices
+  async function executeMerge(choices: Array<{ table: string; choice: 'mine' | 'theirs' }>): Promise<void> {
+    if (!sqlDb || !mergeTarget || !dirHandleRef.current) {
+      setStatus('Cannot complete merge');
+      return;
+    }
+    
+    try {
+      const theirDb = mergeTarget.db;
+      
+      // For each table where user chose 'theirs', replace our data
+      for (const { table, choice } of choices) {
+        if (choice === 'theirs') {
+          // Delete our rows and copy theirs
+          sqlDb.run(`DELETE FROM ${table}`);
+          
+          // Get their data and insert it
+          const stmt = theirDb.prepare(`SELECT * FROM ${table}`);
+          while (stmt.step()) {
+            const row = stmt.getAsObject();
+            const columns = Object.keys(row);
+            const values = Object.values(row);
+            const placeholders = columns.map(() => '?').join(', ');
+            sqlDb.run(
+              `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`,
+              values
+            );
+          }
+          stmt.free();
+        }
+      }
+      
+      theirDb.close();
+      setMergeTarget(null);
+      setPendingConflicts(null);
+      
+      // Save as merged file
+      await performSave(true);
+      refreshCaches(sqlDb);
+      
+      toast.showSuccess('Merge completed');
+      
+      // If we were in the opening flow and needed email prompt, do it now
+      if (needsEmailPrompt) {
+        setNeedsEmailPrompt(false);
+        promptForEmail();
+      }
+    } catch (e) {
+      console.error('[Merge] Failed:', e);
+      setStatus('Merge failed: ' + (e instanceof Error ? e.message : String(e)));
+    }
+  }
+
+  // Helper to prompt for email (used after opening or after conflict resolution)
+  function promptForEmail() {
+    setEmailDialog({
+      onSubmit: async (email: string) => {
+        setUserEmail(email);
+        setEmailDialog(null);
+        toast.showSuccess("Ready to edit!");
+      },
+      onCancel: () => {
+        setEmailDialog(null);
+        // Use a default if they cancel
+        setUserEmail('Unknown');
+        toast.showInfo("Opened without email (saves will be marked as 'Unknown')");
+      }
+    });
+  }
+
   async function createNewDb() {
     if (!SQL) return;
     const db = new SQL.Database();
     applyMigrations(db);
-    db.run(`INSERT OR REPLACE INTO meta (key,value) VALUES ('lock','{}')`);
     setSqlDb(db);
     setStatus("New DB created (unsaved). Use Save As to write a .db file.");
     refreshCaches(db);
@@ -725,121 +1019,237 @@ export default function App() {
   async function openDbFromFile() {
     if (!SQL) {
       setStatus("Database engine not initialized. Please wait and try again.");
-      setAlertDialog({ title: "Error Opening Database", message: "Database engine not ready. Please wait a moment and try again." });
       return;
     }
     try {
-      // Ask user for SQLite DB
-      const [handle] = await (window as any).showOpenFilePicker({
-        types: [{ description: "SQLite DB", accept: { "application/octet-stream": [".db", ".sqlite"] } }],
-        multiple: false,
+      // Step 1: Open Folder (to ensure we can write the lock file)
+      const dirHandle = await (window as any).showDirectoryPicker({
+        id: 'project-folder',
+        mode: 'readwrite',
+        startIn: 'documents'
       });
-      const file = await handle.getFile();
+
+      // Step 2: Find the LATEST schedule-*.db file by metadata
+      let latestFile: { handle: FileSystemFileHandle; savedAt: string; filename: string } | null = null;
+      let fallbackHandle: FileSystemFileHandle | null = null;
+
+      for await (const entry of (dirHandle as any).values()) {
+        if (entry.kind === 'file' && entry.name.endsWith('.db')) {
+          // Check for schedule-*.db pattern (new format)
+          if (entry.name.startsWith('schedule-')) {
+            try {
+              const file = await entry.getFile();
+              const buf = await file.arrayBuffer();
+              const tempDb = new SQL.Database(new Uint8Array(buf));
+              const meta = getFileMetadata(tempDb);
+              tempDb.close();
+              
+              const savedAt = meta.savedAt || '';
+              if (!latestFile || savedAt > latestFile.savedAt) {
+                latestFile = { handle: entry, savedAt, filename: entry.name };
+              }
+            } catch (e) {
+              console.warn(`Failed to read ${entry.name}, skipping`);
+            }
+          } else if (!fallbackHandle) {
+            // Fallback: any .db file for migration from old format
+            fallbackHandle = entry;
+          }
+        }
+      }
+
+      // Use latest schedule file, or fallback to old format
+      const fileHandle = latestFile?.handle || fallbackHandle;
+      const filename = latestFile?.filename || (fallbackHandle ? (fallbackHandle as any).name : '');
+
+      if (!fileHandle) {
+        throw new Error("No .db file found in this folder.");
+      }
+
+      // Step 3: Load DB
+      const file = await fileHandle.getFile();
       const buf = await file.arrayBuffer();
       const db = new SQL.Database(new Uint8Array(buf));
       applyMigrations(db);
 
+      // Get the file's session_started_at to check for conflicts
+      const fileMetadata = getFileMetadata(db);
+      const fileSessionStart = fileMetadata.sessionStartedAt || fileMetadata.savedAt || '';
+
+      // Track NEW session start time for this editing session
+      const sessionStart = new Date().toISOString();
+      setSessionStartedAt(sessionStart);
+      setCurrentFilename(filename);
+      dirHandleRef.current = dirHandle;
+
       setSqlDb(db);
-      fileHandleRef.current = handle;
-      setStatus(`Opened ${file.name}`);
+      fileHandleRef.current = fileHandle;
+      setStatus(`Opened ${filename}`);
       refreshCaches(db);
 
-      // Prompt for user email (needed for sync system and personalization)
-      setEmailDialog({
-        onSubmit: (email: string) => {
-          setUserEmail(email);
-          setEmailDialog(null);
-          toast.showSuccess("Database opened successfully");
-        },
-        onCancel: () => {
-          setEmailDialog(null);
-          toast.showInfo("Database opened (email not provided)");
+      // Step 3.5: Check for conflicts on open
+      // If the chosen file's session_started_at is earlier than other files' saved_at,
+      // those files represent concurrent work that might need to be merged
+      if (fileSessionStart) {
+        const allFiles = await scanScheduleFiles(dirHandle);
+        const conflictingOnOpen = allFiles.filter(f => {
+          if (!f.savedAt || f.filename === filename) return false;
+          // Files saved after the chosen file's session started are conflicts
+          return f.savedAt > fileSessionStart;
+        });
+
+        if (conflictingOnOpen.length > 0) {
+          // Show conflict dialog - there are newer files that may contain changes
+          const conflictDetails = await (async () => {
+            // Compare with the most recent conflicting file
+            const mostRecent = conflictingOnOpen[0]; // Already sorted by savedAt desc
+            try {
+              for await (const entry of (dirHandle as any).values()) {
+                if (entry.kind === 'file' && entry.name === mostRecent.filename) {
+                  const conflictFile = await entry.getFile();
+                  const conflictBuf = await conflictFile.arrayBuffer();
+                  const conflictDb = new SQL.Database(new Uint8Array(conflictBuf));
+                  const details = detectConflictDetails(db, conflictDb);
+                  conflictDb.close();
+                  return details;
+                }
+              }
+            } catch (e) {
+              console.warn('Failed to detect conflict details:', e);
+            }
+            return [];
+          })();
+
+          setPendingConflicts({
+            conflictingFiles: conflictingOnOpen,
+            conflictDetails
+          });
+          setNeedsEmailPrompt(true); // Prompt for email after conflict resolution
+
+          toast.showInfo(`Found ${conflictingOnOpen.length} file(s) with potential conflicts. Review before editing.`);
+          
+          // Don't show email dialog yet - show it after conflict resolution
+          return;
         }
-      });
+      }
+
+      // Step 4: Prompt for Email (used for save metadata) - only if no conflicts
+      promptForEmail();
+
     } catch (e:any) {
-      logger.error("Failed to open database:", e);
-      const errorMsg = e?.message || "Open failed";
-      setAlertDialog({ title: "Error Opening Database", message: errorMsg });
-      toast.showError(errorMsg);
+      if (e.name !== 'AbortError') {
+        logger.error("Failed to open database:", e);
+        setAlertDialog({ title: "Error Opening Project", message: e.message || "Open failed" });
+      }
     }
   }
 
   async function saveDbAs() {
-    if (!sqlDb) return;
-    const handle = await (window as any).showSaveFilePicker({
-      suggestedName: `teams-shifts-${Date.now()}.db`,
-      types: [{ description: "SQLite DB", accept: { "application/octet-stream": [".db"] } }],
-    });
-    await writeDbToHandle(handle);
-    fileHandleRef.current = handle;
+    if (!sqlDb || !dirHandleRef.current) {
+      // No folder open yet, use traditional save picker
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: `schedule-${new Date().toISOString().replace(/[:.]/g, '-')}.db`,
+        types: [{ description: "SQLite DB", accept: { "application/octet-stream": [".db"] } }],
+      });
+      
+      // Get the directory from the saved file
+      // Note: This won't work perfectly but provides a fallback
+      const data = sqlDb.export();
+      const writable = await (handle as any).createWritable();
+      await writable.write(data);
+      await writable.close();
+      
+      fileHandleRef.current = handle;
+      setCurrentFilename(handle.name);
+      setSessionStartedAt(new Date().toISOString());
+      setStatus("Saved.");
+      toast.showSuccess("Database saved");
+      return;
+    }
+    
+    // With folder open, use the new timestamped save
+    await performSave(false);
   }
 
   async function saveDb() {
     if (!sqlDb) return;
-    if (!fileHandleRef.current) return saveDbAs();
+    if (!dirHandleRef.current) return saveDbAs();
     
-    // If sync is enabled, push changes first
-    if (sync.isInitialized && sync.syncEngine) {
-      const pushResult = await sync.pushChanges();
-      if (!pushResult.success) {
-        const errorMsg = `Sync error: ${pushResult.error}`;
-        setStatus(errorMsg);
-        toast.showError(errorMsg);
-        return;
-      }
+    // Check for conflicting saves (files saved since our session started)
+    if (sessionStartedAt) {
+      const files = await scanScheduleFiles(dirHandleRef.current);
+      const conflicting = findConflictingFiles(files, sessionStartedAt, currentFilename);
       
-      // Pull and merge changes from others
-      const pullResult = await sync.pullChanges();
-      if (!pullResult.success && pullResult.conflicts) {
-        // Show conflict resolution dialog
-        setSyncConflicts({
-          conflicts: pullResult.conflicts,
-          autoMergedCount: pullResult.autoMergedCount || 0,
-        });
-        return;
-      } else if (pullResult.autoMergedCount && pullResult.autoMergedCount > 0) {
-        const msg = `Auto-merged ${pullResult.autoMergedCount} changes from other users`;
-        setStatus(msg);
-        toast.showInfo(msg);
-        refreshCaches(); // Refresh UI to show merged changes
+      if (conflicting.length > 0) {
+        // Load the most recent conflicting file to show differences
+        try {
+          const latestConflict = conflicting[0];
+          const conflictHandle = await dirHandleRef.current.getFileHandle(latestConflict.filename);
+          const conflictFile = await conflictHandle.getFile();
+          const conflictBuf = await conflictFile.arrayBuffer();
+          const conflictDb = new SQL.Database(new Uint8Array(conflictBuf));
+          
+          const conflictDetails = detectConflictDetails(sqlDb, conflictDb);
+          conflictDb.close();
+          
+          // Show conflict dialog
+          setPendingConflicts({
+            conflictingFiles: conflicting,
+            conflictDetails
+          });
+          return; // Wait for user to decide
+        } catch (e) {
+          console.error('[Conflict] Failed to analyze conflicts:', e);
+          // Proceed with save anyway if analysis fails
+        }
       }
     }
     
-    await writeDbToHandle(fileHandleRef.current);
+    // No conflicts - proceed with save
+    await performSave(false);
   }
 
-  async function writeDbToHandle(handle: FileSystemFileHandle) {
-    const data = sqlDb.export();
-    const writable = await (handle as any).createWritable();
-    await writable.write(data);
-    await writable.close();
-    setStatus("Saved.");
-    toast.showSuccess("Database saved successfully");
-    
-    // Try to initialize sync if we have a handle and user email
-    // Note: Sync system is incomplete - this is a placeholder
-    if (!sync.isInitialized && userEmail && !changesFolderHandleRef.current) {
-      await tryInitializeSync(handle);
-    }
-  }
-
-  async function tryInitializeSync(dbHandle: FileSystemFileHandle) {
-    // INCOMPLETE: Multi-user sync system is not yet production-ready
-    // See SYNC_SYSTEM.md for details on the architecture
-    // This is a placeholder for future sync initialization
-    if (!userEmail) return;
+  async function performSave(isMerge: boolean = false): Promise<void> {
+    if (!sqlDb || !dirHandleRef.current) return;
     
     try {
-      // Try to get the parent directory
-      // Note: This is a limitation - File System Access API doesn't provide direct parent access
-      // We'll need to ask the user or use a different approach
-      // For now, we'll skip automatic initialization and require manual setup
+      // Set metadata in the database
+      setSessionMetadata(sqlDb, userEmail || 'Unknown', sessionStartedAt || new Date().toISOString());
       
-      // Alternative: Store the directory handle in IndexedDB for future use
-      // This would be a production enhancement
-    } catch (error) {
-      logger.error('Failed to initialize sync:', error);
+      // Generate new filename
+      const filename = generateSaveFilename(userEmail, isMerge);
+      
+      // Create new file in the folder
+      const newHandle = await dirHandleRef.current.getFileHandle(filename, { create: true });
+      const data = sqlDb.export();
+      const writable = await (newHandle as any).createWritable();
+      await writable.write(data);
+      await writable.close();
+      
+      // Update our references
+      fileHandleRef.current = newHandle;
+      setCurrentFilename(filename);
+      
+      // Update session start to now (we're now based on this save)
+      const newSessionStart = new Date().toISOString();
+      setSessionStartedAt(newSessionStart);
+      
+      // Cleanup old files
+      await cleanupOldFiles(dirHandleRef.current, filename);
+      
+      setStatus(`Saved as ${filename}`);
+      toast.showSuccess("Database saved");
+    } catch (e) {
+      console.error('[Save] Failed:', e);
+      setStatus('Save failed: ' + (e instanceof Error ? e.message : String(e)));
+      toast.showError('Save failed');
     }
+  }
+
+  // Handle user choosing to save anyway (creating a branch)
+  async function handleSaveAnyway(): Promise<void> {
+    setPendingConflicts(null);
+    await performSave(false);
   }
 
   function syncTrainingFromMonthly(db = sqlDb) {
@@ -2565,16 +2975,16 @@ function PeopleEditor(){
   <FluentProvider theme={themeName === "dark" ? webDarkTheme : webLightTheme}>
   <ProfileContext.Provider value={{ showProfile: (id: number) => setProfilePersonId(id) }}>
   <div className={sh.shell}>
-      <TopBar
+      <TopBar 
+        appName="Scheduling Assistant"
         ready={ready}
         sqlDb={sqlDb}
-        canSave={canSave}
+        canSave={!!sqlDb}
         createNewDb={createNewDb}
         openDbFromFile={openDbFromFile}
         saveDb={saveDb}
         saveDbAs={saveDbAs}
         status={status}
-        syncStatus={sync.isInitialized ? sync.syncStatus : undefined}
       />
       {showBrowserWarning && (
         <MessageBar intent="warning" style={{ margin: tokens.spacingVerticalM }}>
@@ -2708,7 +3118,7 @@ function PeopleEditor(){
               setWeekNumberOverride={setWeekNumberOverride}
               setMonthlyNote={setMonthlyNote}
               copyMonthlyDefaults={copyMonthlyDefaults}
-              applyMonthlyDefaults={applyMonthlyDefaults}
+
               exportMonthlyDefaults={exportMonthlyDefaults}
               roleListForSegment={roleListForSegment}
               groups={groups}
@@ -2735,7 +3145,20 @@ function PeopleEditor(){
           )}
           {activeTab === 'ADMIN' && (
             <Suspense fallback={<div className="p-4 text-slate-600">Loading Admin…</div>}>
-              <AdminView sqlDb={sqlDb} all={all} run={run} refresh={refreshCaches} segments={segments} groups={groups} onTimeOffThresholdChange={setTimeOffThreshold} />
+              <AdminView 
+                sqlDb={sqlDb} 
+                all={all} 
+                run={run} 
+                refresh={refreshCaches} 
+                segments={segments} 
+                groups={groups} 
+                onTimeOffThresholdChange={setTimeOffThreshold} 
+                dirHandle={dirHandleRef.current}
+                currentFilename={currentFilename}
+                onRestoreVersion={handleRestoreVersion}
+                onMergeVersion={handleStartMerge}
+                SQL={SQL}
+              />
             </Suspense>
           )}
         </>
@@ -2749,6 +3172,7 @@ function PeopleEditor(){
           all={all}
         />
       )}
+
       {conflictPrompt && (
         <Dialog open>
           <DialogSurface>
@@ -2767,26 +3191,6 @@ function PeopleEditor(){
           </DialogSurface>
         </Dialog>
       )}
-      {syncConflicts && (
-        <ConflictResolutionDialog
-          conflicts={syncConflicts.conflicts}
-          autoMergedCount={syncConflicts.autoMergedCount}
-          onResolve={async (resolutions) => {
-            const result = await sync.resolveConflicts(syncConflicts.conflicts, resolutions);
-            if (result.success) {
-              setSyncConflicts(null);
-              refreshCaches();
-              setStatus('Conflicts resolved successfully');
-            } else {
-              setStatus(`Error resolving conflicts: ${result.error}`);
-            }
-          }}
-          onCancel={() => {
-            setSyncConflicts(null);
-            setStatus('Sync cancelled - conflicts not resolved');
-          }}
-        />
-      )}
       
       {/* Toast notifications */}
       <ToastContainer messages={toast.messages} onDismiss={toast.dismissToast} />
@@ -2797,7 +3201,12 @@ function PeopleEditor(){
           open={true}
           title={alertDialog.title}
           message={alertDialog.message}
-          onClose={() => setAlertDialog(null)}
+          onClose={() => {
+            if (alertDialog.onClose) {
+              alertDialog.onClose();
+            }
+            setAlertDialog(null);
+          }}
         />
       )}
       
@@ -2838,6 +3247,48 @@ function PeopleEditor(){
             toast.showSuccess("Person deleted successfully");
           }}
           onCancel={() => setPersonToDelete(null)}
+        />
+      )}
+      
+      {/* Conflict detection dialog */}
+      {pendingConflicts && (
+        <ConflictDialog
+          open={true}
+          onClose={() => {
+            setPendingConflicts(null);
+            // If we need to prompt for email (opening flow), do it now
+            if (needsEmailPrompt) {
+              setNeedsEmailPrompt(false);
+              promptForEmail();
+            }
+          }}
+          conflicts={pendingConflicts}
+          onSaveAnyway={handleSaveAnyway}
+          onMerge={(filename) => {
+            setPendingConflicts(null);
+            // Don't prompt for email during merge - will do after merge completes
+            handleStartMerge(filename);
+          }}
+        />
+      )}
+      
+      {/* Merge dialog */}
+      {mergeTarget && sqlDb && (
+        <MergeDialog
+          open={true}
+          onClose={() => {
+            mergeTarget.db.close();
+            setMergeTarget(null);
+            // If we need to prompt for email (opening flow), do it now
+            if (needsEmailPrompt) {
+              setNeedsEmailPrompt(false);
+              promptForEmail();
+            }
+          }}
+          myDb={sqlDb}
+          theirFilename={mergeTarget.filename}
+          theirDb={mergeTarget.db}
+          onMerge={executeMerge}
         />
       )}
         </div>
