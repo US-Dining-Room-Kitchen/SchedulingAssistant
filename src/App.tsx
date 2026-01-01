@@ -27,7 +27,7 @@ import AlertDialog from "./components/AlertDialog";
 import ConfirmDialog from "./components/ConfirmDialog";
 import EmailInputDialog from "./components/EmailInputDialog";
 import ConflictDialog from "./components/ConflictDialog";
-import MergeDialog from "./components/MergeDialog";
+import MergeDialog, { MergeChoice } from "./components/MergeDialog";
 import { ToastContainer, useToast } from "./components/Toast";
 import { logger } from "./utils/logger";
 import { MOBILE_NAV_HEIGHT, BREAKPOINTS } from "./styles/breakpoints";
@@ -992,39 +992,65 @@ export default function App() {
     }
   }
 
-  // Execute merge with user's choices
-  async function executeMerge(choices: Array<{ table: string; choice: 'mine' | 'theirs' }>): Promise<void> {
+  // Execute merge with user's choices (row-level merging)
+  async function executeMerge(choices: MergeChoice[]): Promise<void> {
     if (!sqlDb || !mergeTarget || !dirHandleRef.current) {
       setStatus('Cannot complete merge');
       return;
     }
     
     try {
-      const theirDb = mergeTarget.db;
+      let addedCount = 0;
+      let removedCount = 0;
       
-      // For each table where user chose 'theirs', replace our data
-      for (const { table, choice } of choices) {
-        if (choice === 'theirs') {
-          // Delete our rows and copy theirs
-          sqlDb.run(`DELETE FROM ${table}`);
-          
-          // Get their data and insert it
-          const stmt = theirDb.prepare(`SELECT * FROM ${table}`);
-          while (stmt.step()) {
-            const row = stmt.getAsObject();
-            const columns = Object.keys(row);
-            const values = Object.values(row);
+      // Process each table's merge choices
+      for (const { table, rowsToAdd, rowsToRemove } of choices) {
+        // Add rows from theirs that user selected
+        for (const { data, columns } of rowsToAdd) {
+          try {
+            const values = columns.map(col => data[col]);
             const placeholders = columns.map(() => '?').join(', ');
             sqlDb.run(
               `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`,
               values
             );
+            addedCount++;
+          } catch (e) {
+            // Row might already exist or have constraint issues - log but continue
+            console.warn(`[Merge] Could not add row to ${table}:`, e);
           }
-          stmt.free();
+        }
+        
+        // Remove rows from mine that user deselected
+        // We need to find and delete rows by matching their content
+        for (const rowHash of rowsToRemove) {
+          try {
+            // Parse the row data from the hash
+            const rowData = JSON.parse(rowHash);
+            // Get the current table's columns and find matching row
+            const result = sqlDb.exec(`SELECT * FROM ${table} LIMIT 1`);
+            if (result[0]?.columns) {
+              const columns = result[0].columns;
+              // Build WHERE clause to match this exact row
+              const conditions = columns.map((col: string, i: number) => {
+                const val = rowData[i];
+                if (val === null) return `${col} IS NULL`;
+                return `${col} = ?`;
+              });
+              const values = rowData.filter((v: any) => v !== null);
+              sqlDb.run(
+                `DELETE FROM ${table} WHERE ${conditions.join(' AND ')} LIMIT 1`,
+                values
+              );
+              removedCount++;
+            }
+          } catch (e) {
+            console.warn(`[Merge] Could not remove row from ${table}:`, e);
+          }
         }
       }
       
-      theirDb.close();
+      mergeTarget.db.close();
       setMergeTarget(null);
       setPendingConflicts(null);
       
@@ -1032,7 +1058,7 @@ export default function App() {
       await performSave(true);
       refreshCaches(sqlDb);
       
-      toast.showSuccess('Merge completed');
+      toast.showSuccess(`Merge completed: ${addedCount} added, ${removedCount} removed`);
       
       // If we were in the opening flow and needed email prompt, do it now
       if (needsEmailPrompt) {
