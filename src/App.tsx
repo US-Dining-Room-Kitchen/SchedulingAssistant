@@ -13,7 +13,7 @@ const ExportPreview = React.lazy(() => import("./components/ExportPreview"));
 import PersonName from "./components/PersonName";
 import PersonProfileModal from "./components/PersonProfileModal";
 import { ProfileContext } from "./components/ProfileContext";
-import { Button, Checkbox, Dropdown, Input, Option, Table, TableHeader, TableHeaderCell, TableRow, TableBody, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, makeStyles, tokens, MessageBar, MessageBarBody } from "@fluentui/react-components";
+import { Button, Checkbox, Dropdown, Input, Option, Table, TableHeader, TableHeaderCell, TableRow, TableBody, TableCell, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions, makeStyles, tokens, MessageBar, MessageBarBody, Text } from "@fluentui/react-components";
 import { FluentProvider, webDarkTheme, webLightTheme } from "@fluentui/react-components";
 import { DismissRegular, ChevronDown20Regular } from "@fluentui/react-icons";
 import MonthlyDefaults from "./components/MonthlyDefaults";
@@ -27,7 +27,7 @@ import AlertDialog from "./components/AlertDialog";
 import ConfirmDialog from "./components/ConfirmDialog";
 import EmailInputDialog from "./components/EmailInputDialog";
 import ConflictDialog from "./components/ConflictDialog";
-import MergeDialog from "./components/MergeDialog";
+import MergeDialog, { MergeChoice } from "./components/MergeDialog";
 import { ToastContainer, useToast } from "./components/Toast";
 import { logger } from "./utils/logger";
 import { MOBILE_NAV_HEIGHT, BREAKPOINTS } from "./styles/breakpoints";
@@ -349,9 +349,10 @@ const usePeopleEditorStyles = makeStyles({
   dialogSurface: {
     width: '700px',
     maxWidth: '95vw',
-    maxHeight: '90vh',
+    maxHeight: '85vh',
     display: 'flex',
     flexDirection: 'column',
+    overflow: 'hidden',
     // Full-screen on mobile for better usability
     [`@media ${BREAKPOINTS.mobile.maxQuery}`]: {
       width: '100vw',
@@ -361,11 +362,19 @@ const usePeopleEditorStyles = makeStyles({
       borderRadius: 0,
     },
   },
+  dialogBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    flex: '1 1 auto',
+    minHeight: 0,
+    overflow: 'hidden',
+  },
   dialogContent: {
     overflowY: 'auto',
     overflowX: 'hidden',
     flex: '1 1 auto',
     minHeight: 0,
+    maxHeight: 'calc(85vh - 140px)',
   },
   section: {
     marginBottom: tokens.spacingVerticalL,
@@ -469,16 +478,42 @@ const useNeedsEditorStyles = makeStyles({
   grid: {
     display: 'grid',
     gridTemplateColumns: '1fr',
-    gap: tokens.spacingHorizontalL,
-    ['@media (min-width: 1024px)']: { gridTemplateColumns: 'repeat(2, 1fr)' },
-    ['@media (min-width: 1440px)']: { gridTemplateColumns: 'repeat(3, 1fr)' },
+    gap: tokens.spacingHorizontalM,
   },
   card: {
     border: `1px solid ${tokens.colorNeutralStroke2}`,
     borderRadius: tokens.borderRadiusLarge,
-    padding: tokens.spacingHorizontalL,
     backgroundColor: tokens.colorNeutralBackground1,
     boxShadow: tokens.shadow2,
+    overflow: 'hidden',
+  },
+  cardHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: tokens.spacingHorizontalM,
+    cursor: 'pointer',
+    backgroundColor: tokens.colorNeutralBackground2,
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    transition: `background-color ${tokens.durationFast} ${tokens.curveEasyEase}`,
+    ':hover': {
+      backgroundColor: tokens.colorNeutralBackground2Hover,
+    },
+  },
+  cardHeaderLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalM,
+  },
+  statBadge: {
+    fontSize: tokens.fontSizeBase200,
+    padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
+    borderRadius: tokens.borderRadiusMedium,
+    backgroundColor: tokens.colorNeutralBackground3,
+    color: tokens.colorNeutralForeground2,
+  },
+  cardContent: {
+    padding: tokens.spacingHorizontalL,
   },
   roleCard: {
     border: `1px solid ${tokens.colorNeutralStroke2}`,
@@ -504,8 +539,27 @@ const useNeedsEditorStyles = makeStyles({
     marginBottom: tokens.spacingVerticalXS,
     fontWeight: tokens.fontWeightSemibold,
   },
-  content: { overflowY: 'auto', overflowX: 'hidden' },
-  surface: { width: '90vw', maxWidth: '1400px', maxHeight: '85vh' },
+  content: { overflowY: 'auto', overflowX: 'hidden', flex: '1 1 auto', minHeight: 0 },
+  surface: { width: '90vw', maxWidth: '1400px', maxHeight: '85vh', display: 'flex', flexDirection: 'column' as const },
+  dialogBody: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    flex: '1 1 auto',
+    minHeight: 0,
+    overflow: 'hidden',
+  },
+  chevron: {
+    transition: `transform ${tokens.durationNormal} ${tokens.curveEasyEase}`,
+  },
+  chevronExpanded: {
+    transform: 'rotate(180deg)',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: tokens.spacingVerticalM,
+  },
 });
 
 const useAppShellStyles = makeStyles({
@@ -618,6 +672,7 @@ export default function App() {
 
   // UI: simple dialogs
   const [showNeedsEditor, setShowNeedsEditor] = useState(false);
+  const [expandedNeedsGroups, setExpandedNeedsGroups] = useState<Set<number>>(new Set());
   const [profilePersonId, setProfilePersonId] = useState<number | null>(null);
 
   // Toast notifications
@@ -937,39 +992,85 @@ export default function App() {
     }
   }
 
-  // Execute merge with user's choices
-  async function executeMerge(choices: Array<{ table: string; choice: 'mine' | 'theirs' }>): Promise<void> {
+  // Execute merge with user's choices (row-level merging)
+  async function executeMerge(choices: MergeChoice[]): Promise<void> {
     if (!sqlDb || !mergeTarget || !dirHandleRef.current) {
       setStatus('Cannot complete merge');
       return;
     }
     
     try {
-      const theirDb = mergeTarget.db;
+      let addedCount = 0;
+      let removedCount = 0;
       
-      // For each table where user chose 'theirs', replace our data
-      for (const { table, choice } of choices) {
-        if (choice === 'theirs') {
-          // Delete our rows and copy theirs
-          sqlDb.run(`DELETE FROM ${table}`);
-          
-          // Get their data and insert it
-          const stmt = theirDb.prepare(`SELECT * FROM ${table}`);
-          while (stmt.step()) {
-            const row = stmt.getAsObject();
-            const columns = Object.keys(row);
-            const values = Object.values(row);
+      console.log('[Merge] Processing choices:', JSON.stringify(choices, null, 2));
+      
+      // Process each table's merge choices
+      for (const { table, rowsToAdd, rowsToRemove } of choices) {
+        console.log(`[Merge] Table ${table}: ${rowsToAdd.length} to add, ${rowsToRemove.length} to remove`);
+        
+        // Add rows from theirs that user selected
+        // Note: columns already exclude 'id' to avoid UNIQUE constraint issues
+        for (const { data, columns } of rowsToAdd) {
+          try {
+            const values = columns.map(col => data[col]);
             const placeholders = columns.map(() => '?').join(', ');
             sqlDb.run(
               `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`,
               values
             );
+            addedCount++;
+          } catch (e) {
+            // Row might already exist or have constraint issues - log but continue
+            console.warn(`[Merge] Could not add row to ${table}:`, e);
           }
-          stmt.free();
+        }
+        
+        // Remove rows from mine that user deselected
+        // rowsToRemove contains JSON-stringified row objects
+        for (const rowJson of rowsToRemove) {
+          console.log(`[Merge] Attempting to remove:`, rowJson);
+          try {
+            // Parse the row data object
+            const rowData = JSON.parse(rowJson) as Record<string, any>;
+            console.log(`[Merge] Parsed row data, id=${rowData.id}`);
+            
+            // Use the id column if available (most reliable), otherwise match by content
+            if (rowData.id !== undefined) {
+              console.log(`[Merge] Running: DELETE FROM ${table} WHERE id = ${rowData.id}`);
+              sqlDb.run(`DELETE FROM ${table} WHERE id = ?`, [rowData.id]);
+              removedCount++;
+              console.log(`[Merge] Deleted row with id ${rowData.id}`);
+            } else {
+              // Fallback: Build WHERE clause to match this row by its content
+              const conditions: string[] = [];
+              const values: any[] = [];
+              
+              for (const [col, val] of Object.entries(rowData)) {
+                if (val === null) {
+                  conditions.push(`${col} IS NULL`);
+                } else {
+                  conditions.push(`${col} = ?`);
+                  values.push(val);
+                }
+              }
+              
+              if (conditions.length > 0) {
+                // Note: SQLite doesn't support LIMIT in DELETE, use subquery instead
+                sqlDb.run(
+                  `DELETE FROM ${table} WHERE rowid IN (SELECT rowid FROM ${table} WHERE ${conditions.join(' AND ')} LIMIT 1)`,
+                  values
+                );
+                removedCount++;
+              }
+            }
+          } catch (e) {
+            console.warn(`[Merge] Could not remove row from ${table}:`, e);
+          }
         }
       }
       
-      theirDb.close();
+      mergeTarget.db.close();
       setMergeTarget(null);
       setPendingConflicts(null);
       
@@ -977,7 +1078,7 @@ export default function App() {
       await performSave(true);
       refreshCaches(sqlDb);
       
-      toast.showSuccess('Merge completed');
+      toast.showSuccess(`Merge completed: ${addedCount} added, ${removedCount} removed`);
       
       // If we were in the opening flow and needed email prompt, do it now
       if (needsEmailPrompt) {
@@ -2445,6 +2546,15 @@ function PeopleEditor(){
   const [bulkRoles,setBulkRoles] = useState<Set<number>>(new Set());
   const [filters, setFilters] = usePersistentFilters('peopleEditorFilters');
   
+  // Bulk Flex Time state
+  const [showBulkFlex, setShowBulkFlex] = useState(false);
+  const [bulkFlexPeople, setBulkFlexPeople] = useState<Set<number>>(new Set());
+  const [bulkFlexAction, setBulkFlexAction] = useState<'add' | 'remove'>('add');
+  const [bulkFlexWeekdays, setBulkFlexWeekdays] = useState<Set<number>>(new Set());
+  const [bulkFlexStart, setBulkFlexStart] = useState('09:00');
+  const [bulkFlexEnd, setBulkFlexEnd] = useState('17:00');
+  const [bulkFlexReason, setBulkFlexReason] = useState('');
+  
   // Flex Time state
   const [flexEntries, setFlexEntries] = useState<Array<{id: number; weekday: number; start_time: string; end_time: string; reason: string; active: number}>>([]);
   const [newFlexEntry, setNewFlexEntry] = useState({ weekday: 0, start_time: '09:00', end_time: '17:00', reason: '', active: 1 });
@@ -2577,6 +2687,47 @@ function PeopleEditor(){
     closeBulk();
   }
 
+  function closeBulkFlex() {
+    setShowBulkFlex(false);
+    setBulkFlexPeople(new Set());
+    setBulkFlexWeekdays(new Set());
+    setBulkFlexAction('add');
+    setBulkFlexStart('09:00');
+    setBulkFlexEnd('17:00');
+    setBulkFlexReason('');
+  }
+
+  function applyBulkFlex() {
+    if (bulkFlexPeople.size === 0 || bulkFlexWeekdays.size === 0) {
+      setAlertDialog({ title: 'Validation Error', message: 'Please select at least one person and one weekday.' });
+      return;
+    }
+    
+    for (const pid of bulkFlexPeople) {
+      for (const weekday of bulkFlexWeekdays) {
+        if (bulkFlexAction === 'add') {
+          // Check if entry already exists
+          const existing = all(
+            `SELECT id FROM recurring_timeoff WHERE person_id=? AND weekday=? AND start_time=? AND end_time=?`,
+            [pid, weekday, bulkFlexStart, bulkFlexEnd]
+          );
+          if (existing.length === 0) {
+            run(
+              `INSERT INTO recurring_timeoff (person_id, weekday, start_time, end_time, reason, active) VALUES (?, ?, ?, ?, ?, 1)`,
+              [pid, weekday, bulkFlexStart, bulkFlexEnd, bulkFlexReason || 'Flex Time']
+            );
+          }
+        } else {
+          // Remove all flex entries for this person on this weekday
+          run(`DELETE FROM recurring_timeoff WHERE person_id=? AND weekday=?`, [pid, weekday]);
+        }
+      }
+    }
+    refreshCaches();
+    toast.showSuccess(`Flex time ${bulkFlexAction === 'add' ? 'added' : 'removed'} for ${bulkFlexPeople.size} people`);
+    closeBulkFlex();
+  }
+
   const s = usePeopleEditorStyles();
 
   return (
@@ -2586,6 +2737,7 @@ function PeopleEditor(){
           <div className={s.title}>People</div>
           <div className={s.actions}>
             <Button appearance="secondary" onClick={()=>setShowBulk(true)}>Bulk Edit Qualifications</Button>
+            <Button appearance="secondary" onClick={()=>setShowBulkFlex(true)}>Bulk Edit Flex Time</Button>
             <Button appearance="primary" onClick={()=>openModal()}>Add Person</Button>
           </div>
         </div>
@@ -2699,9 +2851,105 @@ function PeopleEditor(){
         </DialogSurface>
       </Dialog>
 
+      <Dialog open={showBulkFlex} onOpenChange={(_, d) => setShowBulkFlex(d.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Bulk Edit Flex Time</DialogTitle>
+            <DialogContent>
+              <div className={s.formGrid}>
+                <div className={s.col6}>
+                  <div className={s.smallLabel}>People</div>
+                  <Dropdown
+                    multiselect
+                    placeholder="Select people..."
+                    selectedOptions={[...bulkFlexPeople].map(String)}
+                    value={bulkFlexPeople.size > 0 ? `${bulkFlexPeople.size} selected` : ''}
+                    onOptionSelect={(_, data) =>
+                      setBulkFlexPeople(new Set((data.selectedOptions as string[]).map(Number)))
+                    }
+                  >
+                    {people.filter((p: any) => p.active).map((p: any) => {
+                      const label = `${p.last_name}, ${p.first_name}`;
+                      return (
+                        <Option key={p.id} value={String(p.id)} text={label}>
+                          {label}
+                        </Option>
+                      );
+                    })}
+                  </Dropdown>
+                </div>
+                <div className={s.col6}>
+                  <div className={s.smallLabel}>Action</div>
+                  <Dropdown
+                    selectedOptions={[bulkFlexAction]}
+                    value={bulkFlexAction === 'add' ? 'Add Flex Time' : 'Remove Flex Time'}
+                    onOptionSelect={(_, data) =>
+                      setBulkFlexAction((data.optionValue ?? data.optionText) as 'add' | 'remove')
+                    }
+                  >
+                    <Option value="add" text="Add Flex Time">Add Flex Time</Option>
+                    <Option value="remove" text="Remove Flex Time">Remove Flex Time</Option>
+                  </Dropdown>
+                </div>
+              </div>
+              <div style={{ marginTop: tokens.spacingVerticalM }}>
+                <div className={s.smallLabel}>Weekdays</div>
+                <div style={{ display: 'flex', gap: tokens.spacingHorizontalM, flexWrap: 'wrap' }}>
+                  {FLEX_WEEKDAYS.map((day, idx) => (
+                    <Checkbox
+                      key={idx}
+                      label={day}
+                      checked={bulkFlexWeekdays.has(idx)}
+                      onChange={(_, data) => {
+                        const next = new Set(bulkFlexWeekdays);
+                        if (data.checked) next.add(idx); else next.delete(idx);
+                        setBulkFlexWeekdays(next);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+              {bulkFlexAction === 'add' && (
+                <>
+                  <div className={s.formGrid} style={{ marginTop: tokens.spacingVerticalM }}>
+                    <div className={s.col4}>
+                      <div className={s.smallLabel}>Start Time</div>
+                      <Input
+                        type="time"
+                        value={bulkFlexStart}
+                        onChange={(_, d) => setBulkFlexStart(d.value)}
+                      />
+                    </div>
+                    <div className={s.col4}>
+                      <div className={s.smallLabel}>End Time</div>
+                      <Input
+                        type="time"
+                        value={bulkFlexEnd}
+                        onChange={(_, d) => setBulkFlexEnd(d.value)}
+                      />
+                    </div>
+                    <div className={s.col4}>
+                      <div className={s.smallLabel}>Reason</div>
+                      <Input
+                        placeholder="Flex Time"
+                        value={bulkFlexReason}
+                        onChange={(_, d) => setBulkFlexReason(d.value)}
+                      />
+                    </div>
+                  </div>
+                </>              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={closeBulkFlex}>Cancel</Button>
+              <Button appearance="primary" onClick={applyBulkFlex}>Apply</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
       <Dialog open={showModal} onOpenChange={(_, d) => setShowModal(d.open)}>
         <DialogSurface className={s.dialogSurface}>
-          <DialogBody>
+          <DialogBody className={s.dialogBody}>
             <DialogTitle>{editing ? 'Edit Person' : 'Add Person'}</DialogTitle>
             <DialogContent className={s.dialogContent}>
               {/* Basic Information Section */}
@@ -2931,45 +3179,29 @@ function PeopleEditor(){
   );
 }
 
-  function NeedsEditor(){
-    const d = selectedDateObj;
-    const ds = useNeedsEditorStyles();
-    return (
-      <Dialog open={showNeedsEditor} onOpenChange={(_, data)=> setShowNeedsEditor(data.open)}>
-        <DialogSurface className={ds.surface}>
-          <DialogBody>
-            <DialogTitle>Needs for {fmtDateMDY(d)}</DialogTitle>
-            <DialogContent className={ds.content}>
-              <div className={ds.grid}>
-                {groups.map((g:any)=> (
-                  <div key={g.id} className={ds.card}>
-                    <div className={ds.subTitle}>{g.name}</div>
-                    {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
-                      <div key={r.id} className={ds.roleCard}>
-                        <div className={ds.subTitle}>{r.name}</div>
-                        <div className={ds.roleGrid}>
-                          {segments.map((seg) => (
-                            <div key={seg.name}>
-                              <div className={ds.label}>{seg.name} Required</div>
-                              <RequiredCell date={d} group={g} role={r} segment={seg.name as Segment} />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={()=>setShowNeedsEditor(false)}>Close</Button>
-            </DialogActions>
-          </DialogBody>
-        </DialogSurface>
-      </Dialog>
-    );
-  }
+  const toggleNeedsGroup = (groupId: number) => {
+    setExpandedNeedsGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
+  
+  const expandAllNeedsGroups = () => setExpandedNeedsGroups(new Set(groups.map((g: any) => g.id)));
+  const collapseAllNeedsGroups = () => setExpandedNeedsGroups(new Set());
   const sh = useAppShellStyles();
+  const needsStyles = useNeedsEditorStyles();
+  
+  // Initialize expanded groups when needs dialog opens
+  useEffect(() => {
+    if (showNeedsEditor && expandedNeedsGroups.size === 0 && groups.length > 0) {
+      setExpandedNeedsGroups(new Set(groups.map((g: any) => g.id)));
+    }
+  }, [showNeedsEditor, groups.length, expandedNeedsGroups.size]);
 
   return (
   <FluentProvider theme={themeName === "dark" ? webDarkTheme : webLightTheme}>
@@ -3164,7 +3396,62 @@ function PeopleEditor(){
         </>
       )}
 
-      {showNeedsEditor && <NeedsEditor />}
+      {showNeedsEditor && (
+        <Dialog open={showNeedsEditor} onOpenChange={(_, data)=> setShowNeedsEditor(data.open)}>
+          <DialogSurface className={needsStyles.surface}>
+            <DialogBody className={needsStyles.dialogBody}>
+              <DialogTitle>
+                <div className={needsStyles.header}>
+                  <span>Needs for {fmtDateMDY(selectedDateObj)}</span>
+                  <div style={{ display: 'flex', gap: tokens.spacingHorizontalS }}>
+                    <Button size="small" appearance="subtle" onClick={expandAllNeedsGroups}>Expand All</Button>
+                    <Button size="small" appearance="subtle" onClick={collapseAllNeedsGroups}>Collapse All</Button>
+                  </div>
+                </div>
+              </DialogTitle>
+              <DialogContent className={needsStyles.content}>
+                <div className={needsStyles.grid}>
+                  {groups.map((g: any) => {
+                    const groupRoles = roles.filter((r: any) => r.group_id === g.id);
+                    const isExpanded = expandedNeedsGroups.has(g.id);
+                    return (
+                      <div key={g.id} className={needsStyles.card}>
+                        <div className={needsStyles.cardHeader} onClick={() => toggleNeedsGroup(g.id)}>
+                          <div className={needsStyles.cardHeaderLeft}>
+                            <Text weight="semibold">{g.name}</Text>
+                            <span className={needsStyles.statBadge}>{groupRoles.length} roles</span>
+                          </div>
+                          <ChevronDown20Regular className={`${needsStyles.chevron} ${isExpanded ? needsStyles.chevronExpanded : ''}`} />
+                        </div>
+                        {isExpanded && (
+                          <div className={needsStyles.cardContent}>
+                            {groupRoles.map((r: any) => (
+                              <div key={r.id} className={needsStyles.roleCard}>
+                                <div className={needsStyles.subTitle}>{r.name}</div>
+                                <div className={needsStyles.roleGrid}>
+                                  {segments.map((seg) => (
+                                    <div key={seg.name}>
+                                      <div className={needsStyles.label}>{seg.name} Required</div>
+                                      <RequiredCell date={selectedDateObj} group={g} role={r} segment={seg.name as Segment} />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setShowNeedsEditor(false)}>Close</Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
+      )}
       {profilePersonId !== null && (
         <PersonProfileModal
           personId={profilePersonId}

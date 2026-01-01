@@ -7,23 +7,39 @@ import {
   DialogContent,
   DialogActions,
   Button,
-  RadioGroup,
-  Radio,
+  Checkbox,
   Text,
   Spinner,
   makeStyles,
   tokens,
   Badge,
-  Accordion,
-  AccordionItem,
-  AccordionHeader,
-  AccordionPanel,
 } from "@fluentui/react-components";
-import { Merge20Regular, Warning20Regular, Checkmark20Regular, Info20Regular } from "@fluentui/react-icons";
+import { Merge20Regular, Warning20Regular, Checkmark20Regular, ChevronDown20Regular, ChevronRight20Regular, Add20Regular } from "@fluentui/react-icons";
 
-interface MergeChoice {
+interface FileVersionInfo {
+  filename: string;
+  savedAt: string;
+  savedBy: string;
+  sessionStartedAt: string;
+  sizeBytes: number;
+}
+
+// Individual change that user can select
+export interface RowChange {
   table: string;
-  choice: "mine" | "theirs";
+  rowHash: string;  // Unique identifier for this row
+  rowData: any;     // The actual row data
+  columns: string[]; // Column names for reinserting
+  description: string; // Human-readable description
+  source: "mine" | "theirs"; // Where this change came from
+  changeType: "added" | "removed"; // Whether this is an addition or removal from user's perspective
+}
+
+// Export the merge choice type for use in App.tsx
+export interface MergeChoice {
+  table: string;
+  rowsToAdd: { data: any; columns: string[] }[];      // Rows from theirs to add
+  rowsToRemove: string[]; // Row hashes from mine to remove (when accepting theirs over mine)
 }
 
 interface MergeDialogProps {
@@ -39,10 +55,7 @@ interface MergeDialogProps {
 const TABLE_CONFIG: Record<string, {
   label: string;
   description: string;
-  // How to describe a row from this table
   describeRow: (row: any, db: any) => string;
-  // Key columns to identify unique rows
-  keyColumns?: string[];
 }> = {
   person: {
     label: "People",
@@ -78,14 +91,12 @@ const TABLE_CONFIG: Record<string, {
       const role = getRoleName(db, row.role_id);
       return `${row.date}: ${person} → ${row.segment} (${role})`;
     },
-    keyColumns: ["date", "segment", "role_id", "person_id"],
   },
   timeoff: {
     label: "Time Off",
     description: "Vacation and leave entries",
     describeRow: (row, db) => {
       const person = getPersonName(db, row.person_id);
-      // Format timestamps to readable dates
       const startDate = row.start_ts ? new Date(row.start_ts).toLocaleDateString() : 'unknown';
       const endDate = row.end_ts ? new Date(row.end_ts).toLocaleDateString() : 'unknown';
       return `${person}: ${startDate} to ${endDate}`;
@@ -144,8 +155,7 @@ const TABLE_CONFIG: Record<string, {
     description: "Training records",
     describeRow: (row, db) => {
       const person = getPersonName(db, row.person_id);
-      const role = getRoleName(db, row.role_id);
-      return `${person}: ${role} (${row.status || 'unknown'})`;
+      return `${person}: ${row.area} (${row.completed ? 'completed' : 'in progress'})`;
     },
   },
   department_event: {
@@ -172,9 +182,18 @@ const TABLE_CONFIG: Record<string, {
       return `${person}: ${skill}`;
     },
   },
+  recurring_timeoff: {
+    label: "Recurring Time Off (Flex Time)",
+    description: "Weekly recurring time away",
+    describeRow: (row, db) => {
+      const person = getPersonName(db, row.person_id);
+      const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+      const dayName = weekdays[row.weekday] || `Day ${row.weekday}`;
+      return `${person}: ${dayName} ${row.start_time}-${row.end_time}`;
+    },
+  },
 };
 
-// Fallback for tables not in config
 const DEFAULT_TABLE_CONFIG = {
   label: "Data",
   description: "Database records",
@@ -213,52 +232,81 @@ function getSkillName(db: any, skillId: number): string {
   } catch { return `Skill #${skillId}`; }
 }
 
-interface SampleDiff {
-  onlyInMine: string[];
-  onlyInTheirs: string[];
-}
-
-interface TableDiff {
+// Group changes by table
+interface TableChangeGroup {
   table: string;
   label: string;
   description: string;
-  myCount: number;
-  theirCount: number;
-  hasDifferences: boolean;
-  differenceType: "none" | "count" | "content";
-  differenceDetails: string;
-  sampleDiffs: SampleDiff;
+  changes: RowChange[];
 }
 
 const useStyles = makeStyles({
   tableSection: {
-    padding: tokens.spacingVerticalM,
-    marginBottom: tokens.spacingVerticalS,
+    marginBottom: tokens.spacingVerticalM,
     border: `1px solid ${tokens.colorNeutralStroke2}`,
     borderRadius: tokens.borderRadiusMedium,
     backgroundColor: tokens.colorNeutralBackground2,
+    overflow: "hidden",
   },
-  tableSectionDiff: {
-    border: `1px solid ${tokens.colorPaletteYellowBorder2}`,
-    backgroundColor: tokens.colorPaletteYellowBackground1,
+  tableHeader: {
+    padding: tokens.spacingVerticalS,
+    paddingLeft: tokens.spacingHorizontalM,
+    paddingRight: tokens.spacingHorizontalM,
+    backgroundColor: tokens.colorNeutralBackground3,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    "&:hover": {
+      backgroundColor: tokens.colorNeutralBackground3Hover,
+    },
   },
-  tableName: {
-    fontWeight: tokens.fontWeightSemibold,
-    marginBottom: tokens.spacingVerticalXS,
+  tableHeaderLeft: {
     display: "flex",
     alignItems: "center",
     gap: tokens.spacingHorizontalS,
   },
-  counts: {
+  changeList: {
+    padding: tokens.spacingVerticalS,
+    paddingLeft: tokens.spacingHorizontalM,
+    paddingRight: tokens.spacingHorizontalM,
+  },
+  changeItem: {
+    display: "flex",
+    alignItems: "flex-start",
+    padding: tokens.spacingVerticalXS,
+    borderRadius: tokens.borderRadiusSmall,
+    "&:hover": {
+      backgroundColor: tokens.colorNeutralBackground1Hover,
+    },
+  },
+  changeItemAdded: {
+    borderLeft: `3px solid ${tokens.colorPaletteGreenBorder2}`,
+    paddingLeft: tokens.spacingHorizontalS,
+    marginLeft: tokens.spacingHorizontalXS,
+  },
+  changeItemRemoved: {
+    borderLeft: `3px solid ${tokens.colorPaletteRedBorder2}`,
+    paddingLeft: tokens.spacingHorizontalS,
+    marginLeft: tokens.spacingHorizontalXS,
+  },
+  changeIcon: {
+    marginRight: tokens.spacingHorizontalS,
+    marginTop: "2px",
+  },
+  addIcon: {
+    color: tokens.colorPaletteGreenForeground1,
+  },
+  removeIcon: {
+    color: tokens.colorPaletteRedForeground1,
+  },
+  changeDescription: {
+    flex: 1,
+  },
+  sourceLabel: {
     fontSize: tokens.fontSizeBase200,
     color: tokens.colorNeutralForeground3,
-    marginBottom: tokens.spacingVerticalS,
-  },
-  diffDetails: {
-    fontSize: tokens.fontSizeBase200,
-    color: tokens.colorPaletteYellowForeground2,
-    marginBottom: tokens.spacingVerticalS,
-    fontStyle: "italic",
+    marginLeft: tokens.spacingHorizontalS,
   },
   noDifferences: {
     textAlign: "center",
@@ -280,30 +328,34 @@ const useStyles = makeStyles({
     maxHeight: "400px",
     overflowY: "auto",
   },
-  sampleList: {
-    fontSize: tokens.fontSizeBase200,
-    marginTop: tokens.spacingVerticalXS,
+  selectAllRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: tokens.spacingVerticalS,
-    padding: tokens.spacingHorizontalS,
-    backgroundColor: tokens.colorNeutralBackground1,
-    borderRadius: tokens.borderRadiusSmall,
+    padding: tokens.spacingVerticalS,
+    backgroundColor: tokens.colorNeutralBackground3,
+    borderRadius: tokens.borderRadiusMedium,
   },
-  sampleItem: {
-    padding: `${tokens.spacingVerticalXXS} 0`,
+  helpText: {
+    padding: tokens.spacingVerticalM,
+    marginBottom: tokens.spacingVerticalM,
+    backgroundColor: tokens.colorNeutralBackground3,
+    borderRadius: tokens.borderRadiusMedium,
     display: "flex",
     alignItems: "flex-start",
+    gap: tokens.spacingHorizontalS,
+  },
+  legendItem: {
+    display: "flex",
+    alignItems: "center",
     gap: tokens.spacingHorizontalXS,
+    marginRight: tokens.spacingHorizontalM,
   },
-  sampleLabel: {
-    fontWeight: tokens.fontWeightSemibold,
-    marginBottom: tokens.spacingVerticalXXS,
-    display: "block",
-  },
-  mineLabel: {
-    color: tokens.colorPaletteBlueForeground2,
-  },
-  theirsLabel: {
-    color: tokens.colorPaletteGreenForeground1,
+  legend: {
+    display: "flex",
+    flexWrap: "wrap",
+    marginTop: tokens.spacingVerticalXS,
   },
 });
 
@@ -317,9 +369,11 @@ export default function MergeDialog({
 }: MergeDialogProps) {
   const styles = useStyles();
   const [loading, setLoading] = useState(true);
-  const [tableDiffs, setTableDiffs] = useState<TableDiff[]>([]);
+  const [tableGroups, setTableGroups] = useState<TableChangeGroup[]>([]);
   const [totalTablesScanned, setTotalTablesScanned] = useState(0);
-  const [choices, setChoices] = useState<Record<string, "mine" | "theirs">>({});
+  const [selectedChanges, setSelectedChanges] = useState<Set<string>>(new Set());
+  const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
+  const [allChanges, setAllChanges] = useState<RowChange[]>([]);
 
   useEffect(() => {
     if (open && myDb && theirDb) {
@@ -327,8 +381,16 @@ export default function MergeDialog({
     }
   }, [open, myDb, theirDb]);
 
-  function hashRow(row: any[]): string {
-    return JSON.stringify(row);
+  // Hash a row excluding the 'id' column for comparison purposes
+  // This way, rows with different auto-increment IDs but same data are considered equal
+  function hashRowWithoutId(columns: string[], row: any[]): string {
+    const filtered: any[] = [];
+    for (let i = 0; i < columns.length; i++) {
+      if (columns[i].toLowerCase() !== 'id') {
+        filtered.push(row[i]);
+      }
+    }
+    return JSON.stringify(filtered);
   }
 
   function rowToObject(columns: string[], values: any[]): any {
@@ -336,157 +398,275 @@ export default function MergeDialog({
     columns.forEach((col, i) => obj[col] = values[i]);
     return obj;
   }
+  
+  // Get columns and values excluding 'id' column for insertion
+  function getColumnsWithoutId(columns: string[], row: any[]): { columns: string[]; values: any[] } {
+    const filteredColumns: string[] = [];
+    const filteredValues: any[] = [];
+    for (let i = 0; i < columns.length; i++) {
+      if (columns[i].toLowerCase() !== 'id') {
+        filteredColumns.push(columns[i]);
+        filteredValues.push(row[i]);
+      }
+    }
+    return { columns: filteredColumns, values: filteredValues };
+  }
 
   function analyzeDbDifferences() {
     setLoading(true);
-    const diffs: TableDiff[] = [];
-    const initialChoices: Record<string, "mine" | "theirs"> = {};
+    const groups: TableChangeGroup[] = [];
+    const changes: RowChange[] = [];
+    const initialSelected = new Set<string>();
+    const initialExpanded = new Set<string>();
 
     const tableNames = Object.keys(TABLE_CONFIG);
+    let tablesScanned = 0;
 
     for (const tableName of tableNames) {
       const config = TABLE_CONFIG[tableName] || DEFAULT_TABLE_CONFIG;
+      const tableChanges: RowChange[] = [];
       
       try {
-        // Get row counts
-        const myCountResult = myDb.exec(`SELECT COUNT(*) FROM ${tableName}`);
-        const theirCountResult = theirDb.exec(`SELECT COUNT(*) FROM ${tableName}`);
-        const myCount = (myCountResult[0]?.values[0]?.[0] as number) || 0;
-        const theirCount = (theirCountResult[0]?.values[0]?.[0] as number) || 0;
-
-        let hasDifferences = false;
-        let differenceType: "none" | "count" | "content" = "none";
-        let differenceDetails = "";
-        const sampleDiffs: SampleDiff = { onlyInMine: [], onlyInTheirs: [] };
-
-        if (myCount !== theirCount) {
-          hasDifferences = true;
-          differenceType = "count";
-          const diff = theirCount - myCount;
-          differenceDetails = diff > 0 
-            ? `Their version has ${diff} more row(s)` 
-            : `Your version has ${Math.abs(diff)} more row(s)`;
+        // Check if table exists in both databases
+        let myRows, theirRows;
+        try {
+          myRows = myDb.exec(`SELECT * FROM ${tableName}`);
+        } catch {
+          // Table doesn't exist in my database
+          continue;
+        }
+        try {
+          theirRows = theirDb.exec(`SELECT * FROM ${tableName}`);
+        } catch {
+          // Table doesn't exist in their database
+          continue;
         }
         
-        // Always check content if either has rows
-        if (myCount > 0 || theirCount > 0) {
-          try {
-            const myRows = myDb.exec(`SELECT * FROM ${tableName}`);
-            const theirRows = theirDb.exec(`SELECT * FROM ${tableName}`);
-            
-            const myColumns = myRows[0]?.columns || [];
-            const theirColumns = theirRows[0]?.columns || [];
-            
-            const myData = myRows[0]?.values || [];
-            const theirData = theirRows[0]?.values || [];
-            
-            // Create hash maps
-            const myHashes = new Map<string, any[]>();
-            const theirHashes = new Map<string, any[]>();
-            
-            for (const row of myData) {
-              myHashes.set(hashRow(row), row);
-            }
-            for (const row of theirData) {
-              theirHashes.set(hashRow(row), row);
-            }
-            
-            // Find differences and collect samples
-            let onlyInMineCount = 0;
-            let onlyInTheirsCount = 0;
-            
-            for (const [hash, row] of myHashes) {
-              if (!theirHashes.has(hash)) {
-                onlyInMineCount++;
-                // Collect up to 3 samples
-                if (sampleDiffs.onlyInMine.length < 3) {
-                  const rowObj = rowToObject(myColumns, row);
-                  try {
-                    sampleDiffs.onlyInMine.push(config.describeRow(rowObj, myDb));
-                  } catch {
-                    sampleDiffs.onlyInMine.push(JSON.stringify(rowObj).slice(0, 50));
-                  }
-                }
-              }
+        tablesScanned++;
+        
+        const myColumns = myRows[0]?.columns || [];
+        const theirColumns = theirRows[0]?.columns || [];
+        
+        const myData = myRows[0]?.values || [];
+        const theirData = theirRows[0]?.values || [];
+        
+        // Create hash maps using hash WITHOUT id column
+        const myHashes = new Map<string, { row: any[]; columns: string[] }>();
+        const theirHashes = new Map<string, { row: any[]; columns: string[] }>();
+        
+        for (const row of myData) {
+          const hash = hashRowWithoutId(myColumns, row);
+          myHashes.set(hash, { row, columns: myColumns });
+        }
+        for (const row of theirData) {
+          const hash = hashRowWithoutId(theirColumns, row);
+          theirHashes.set(hash, { row, columns: theirColumns });
+        }
+        
+        // Find rows only in theirs (they added)
+        for (const [hash, { row, columns }] of theirHashes) {
+          if (!myHashes.has(hash)) {
+            const rowObj = rowToObject(columns, row);
+            let description: string;
+            try {
+              description = config.describeRow(rowObj, theirDb);
+            } catch {
+              description = JSON.stringify(rowObj).slice(0, 50);
             }
             
-            for (const [hash, row] of theirHashes) {
-              if (!myHashes.has(hash)) {
-                onlyInTheirsCount++;
-                if (sampleDiffs.onlyInTheirs.length < 3) {
-                  const rowObj = rowToObject(theirColumns, row);
-                  try {
-                    sampleDiffs.onlyInTheirs.push(config.describeRow(rowObj, theirDb));
-                  } catch {
-                    sampleDiffs.onlyInTheirs.push(JSON.stringify(rowObj).slice(0, 50));
-                  }
-                }
-              }
-            }
-            
-            if (onlyInMineCount > 0 || onlyInTheirsCount > 0) {
-              hasDifferences = true;
-              if (differenceType === "none") {
-                differenceType = "content";
-              }
-              differenceDetails = `${onlyInMineCount} unique in yours, ${onlyInTheirsCount} unique in theirs`;
-            }
-          } catch (e) {
-            console.warn(`[Merge] Content comparison failed for ${tableName}:`, e);
+            const changeId = `${tableName}:theirs:${hash}`;
+            tableChanges.push({
+              table: tableName,
+              rowHash: hash,
+              rowData: rowObj,
+              columns,
+              description,
+              source: "theirs",
+              changeType: "added",
+            });
+            // By default, select changes from theirs (to incorporate their additions)
+            initialSelected.add(changeId);
           }
         }
-
-        if (hasDifferences) {
-          diffs.push({
+        
+        // Find rows only in mine (I added, they don't have)
+        for (const [hash, { row, columns }] of myHashes) {
+          if (!theirHashes.has(hash)) {
+            const rowObj = rowToObject(columns, row);
+            let description: string;
+            try {
+              description = config.describeRow(rowObj, myDb);
+            } catch {
+              description = JSON.stringify(rowObj).slice(0, 50);
+            }
+            
+            // This represents something I have that they don't
+            // If selected, we KEEP it. If deselected, we remove it.
+            const changeId = `${tableName}:mine:${hash}`;
+            tableChanges.push({
+              table: tableName,
+              rowHash: hash,
+              rowData: rowObj,
+              columns,
+              description,
+              source: "mine",
+              changeType: "added", // From my perspective, I added this
+            });
+            // By default, keep my changes too
+            initialSelected.add(changeId);
+          }
+        }
+        
+        if (tableChanges.length > 0) {
+          groups.push({
             table: tableName,
             label: config.label,
             description: config.description,
-            myCount,
-            theirCount,
-            hasDifferences,
-            differenceType,
-            differenceDetails,
-            sampleDiffs,
+            changes: tableChanges,
           });
-          
-          // Default to keeping mine
-          initialChoices[tableName] = "mine";
+          changes.push(...tableChanges);
+          initialExpanded.add(tableName);
         }
       } catch (e) {
-        // Table might not exist in one of the databases
         console.warn(`[Merge] Could not compare table ${tableName}:`, e);
       }
     }
 
-    setTotalTablesScanned(tableNames.length);
-    setTableDiffs(diffs);
-    setChoices(initialChoices);
+    setTotalTablesScanned(tablesScanned);
+    setTableGroups(groups);
+    setAllChanges(changes);
+    setSelectedChanges(initialSelected);
+    setExpandedTables(initialExpanded);
     setLoading(false);
   }
 
-  function handleChoiceChange(table: string, value: "mine" | "theirs") {
-    setChoices((prev) => ({ ...prev, [table]: value }));
+  function toggleChange(changeId: string) {
+    setSelectedChanges(prev => {
+      const next = new Set(prev);
+      if (next.has(changeId)) {
+        next.delete(changeId);
+      } else {
+        next.add(changeId);
+      }
+      return next;
+    });
+  }
+
+  function toggleTable(tableName: string) {
+    setExpandedTables(prev => {
+      const next = new Set(prev);
+      if (next.has(tableName)) {
+        next.delete(tableName);
+      } else {
+        next.add(tableName);
+      }
+      return next;
+    });
+  }
+
+  function selectAllInTable(tableName: string, selected: boolean) {
+    const group = tableGroups.find(g => g.table === tableName);
+    if (!group) return;
+    
+    setSelectedChanges(prev => {
+      const next = new Set(prev);
+      for (const change of group.changes) {
+        const changeId = `${change.table}:${change.source}:${change.rowHash}`;
+        if (selected) {
+          next.add(changeId);
+        } else {
+          next.delete(changeId);
+        }
+      }
+      return next;
+    });
+  }
+
+  function selectAll(selected: boolean) {
+    if (selected) {
+      const all = new Set<string>();
+      for (const change of allChanges) {
+        all.add(`${change.table}:${change.source}:${change.rowHash}`);
+      }
+      setSelectedChanges(all);
+    } else {
+      setSelectedChanges(new Set());
+    }
   }
 
   function handleMerge() {
-    const mergeChoices = Object.entries(choices).map(([table, choice]) => ({
-      table,
-      choice,
-    }));
-    onMerge(mergeChoices);
+    // Build merge choices based on selected changes
+    const choicesByTable = new Map<string, MergeChoice>();
+    
+    console.log('[MergeDialog] Building merge choices...');
+    console.log('[MergeDialog] Total changes:', allChanges.length);
+    console.log('[MergeDialog] Selected changes:', selectedChanges.size);
+    
+    for (const change of allChanges) {
+      const changeId = `${change.table}:${change.source}:${change.rowHash}`;
+      const isSelected = selectedChanges.has(changeId);
+      
+      console.log(`[MergeDialog] Change: ${change.table} source=${change.source} selected=${isSelected} desc="${change.description}"`);
+      
+      if (!choicesByTable.has(change.table)) {
+        choicesByTable.set(change.table, {
+          table: change.table,
+          rowsToAdd: [],
+          rowsToRemove: [],
+        });
+      }
+      
+      const choice = choicesByTable.get(change.table)!;
+      
+      if (change.source === "theirs" && isSelected) {
+        // User wants to add this row from theirs
+        // Filter out the 'id' column to avoid UNIQUE constraint issues
+        const filteredColumns: string[] = [];
+        const filteredData: Record<string, any> = {};
+        for (const col of change.columns) {
+          if (col.toLowerCase() !== 'id') {
+            filteredColumns.push(col);
+            filteredData[col] = change.rowData[col];
+          }
+        }
+        choice.rowsToAdd.push({ data: filteredData, columns: filteredColumns });
+        console.log(`[MergeDialog] -> Will ADD: ${change.description}`);
+      } else if (change.source === "mine" && !isSelected) {
+        // User wants to remove this row from mine (deselected = don't keep)
+        // Pass the rowData so we can match by content (not by id)
+        choice.rowsToRemove.push(JSON.stringify(change.rowData));
+        console.log(`[MergeDialog] -> Will REMOVE: ${change.description} (id=${change.rowData.id})`);
+      }
+      // If mine is selected, we keep it (do nothing)
+      // If theirs is not selected, we don't add it (do nothing)
+    }
+    
+    const finalChoices = Array.from(choicesByTable.values()).filter(
+      c => c.rowsToAdd.length > 0 || c.rowsToRemove.length > 0
+    );
+    console.log('[MergeDialog] Final choices:', finalChoices.length, 'tables');
+    for (const c of finalChoices) {
+      console.log(`[MergeDialog]   ${c.table}: add=${c.rowsToAdd.length}, remove=${c.rowsToRemove.length}`);
+    }
+    
+    onMerge(finalChoices);
   }
 
   // Extract username from filename
   const theirUser = theirFilename.match(/schedule-[^-]+-[^-]+-([^.]+)\.db/)?.[1]?.replace(/-/g, ' ') || 'Other user';
 
+  const totalChanges = allChanges.length;
+  const theirChanges = allChanges.filter(c => c.source === "theirs").length;
+  const myChanges = allChanges.filter(c => c.source === "mine").length;
+
   return (
     <Dialog open={open} onOpenChange={(_, d) => !d.open && onClose()}>
-      <DialogSurface style={{ maxWidth: "600px" }}>
+      <DialogSurface style={{ maxWidth: "700px" }}>
         <DialogBody>
           <DialogTitle>
             <div style={{ display: "flex", alignItems: "center", gap: tokens.spacingHorizontalS }}>
               <Merge20Regular />
-              Merge Changes from {theirUser}
+              Merge Changes with {theirUser}
             </div>
           </DialogTitle>
           <DialogContent>
@@ -494,29 +674,52 @@ export default function MergeDialog({
               <div className={styles.loadingContainer}>
                 <Spinner size="medium" />
                 <Text block style={{ marginTop: tokens.spacingVerticalM }}>
-                  Analyzing all tables for differences...
+                  Analyzing changes...
                 </Text>
               </div>
             ) : (
               <>
+                {/* Help text */}
+                <div className={styles.helpText}>
+                  <Warning20Regular style={{ color: tokens.colorPaletteYellowForeground1, flexShrink: 0 }} />
+                  <div>
+                    <Text weight="semibold" block>Select which changes to keep</Text>
+                    <Text size={200} block style={{ marginTop: tokens.spacingVerticalXS }}>
+                      Check the changes you want to include in the merged result. Unchecked changes will be discarded.
+                    </Text>
+                    <div className={styles.legend}>
+                      <div className={styles.legendItem}>
+                        <Add20Regular style={{ color: tokens.colorPaletteGreenForeground1, fontSize: "14px" }} />
+                        <Text size={200}>= Added by {theirUser}</Text>
+                      </div>
+                      <div className={styles.legendItem}>
+                        <Add20Regular style={{ color: tokens.colorPaletteBlueForeground2, fontSize: "14px" }} />
+                        <Text size={200}>= Added by you</Text>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Summary */}
                 <div className={styles.summary}>
                   <Text weight="semibold" block>
-                    Comparison Summary
+                    Summary
                   </Text>
                   <Text size={200} block style={{ marginTop: tokens.spacingVerticalXS }}>
-                    Scanned {totalTablesScanned} tables: {" "}
-                    <Badge color="warning" appearance="filled">{tableDiffs.length} with differences</Badge>
+                    Found {totalChanges} difference{totalChanges !== 1 ? 's' : ''}: {" "}
+                    <Badge color="success" appearance="tint">{theirChanges} from {theirUser}</Badge>
                     {" "}
-                    <Badge color="success" appearance="tint">{totalTablesScanned - tableDiffs.length} identical</Badge>
+                    <Badge color="informative" appearance="tint">{myChanges} from you</Badge>
+                    {" • "}
+                    <Badge color="warning" appearance="filled">{selectedChanges.size} selected to keep</Badge>
                   </Text>
                 </div>
 
-                {tableDiffs.length === 0 ? (
+                {totalChanges === 0 ? (
                   <div className={styles.noDifferences}>
                     <Checkmark20Regular style={{ color: tokens.colorPaletteGreenForeground1 }} />
                     <Text block style={{ marginTop: tokens.spacingVerticalS }}>
-                      No differences detected in any tables!
+                      No differences detected!
                     </Text>
                     <Text size={200} block style={{ marginTop: tokens.spacingVerticalS }}>
                       The databases appear to be identical. You can close this dialog.
@@ -524,83 +727,76 @@ export default function MergeDialog({
                   </div>
                 ) : (
                   <>
-                    <Text block style={{ marginBottom: tokens.spacingVerticalM }}>
-                      Choose which version to keep for each table with differences:
-                    </Text>
+                    <div className={styles.selectAllRow}>
+                      <Checkbox
+                        checked={selectedChanges.size === totalChanges ? true : selectedChanges.size === 0 ? false : "mixed"}
+                        onChange={(_, data) => selectAll(!!data.checked)}
+                        label={<Text weight="semibold">Select all changes</Text>}
+                      />
+                    </div>
                     <div className={styles.scrollContainer}>
-                      {tableDiffs.map((table) => (
-                        <div 
-                          key={table.table} 
-                          className={`${styles.tableSection} ${styles.tableSectionDiff}`}
-                        >
-                          <div className={styles.tableName}>
-                            <Warning20Regular style={{ color: tokens.colorPaletteYellowForeground1 }} />
-                            <Text weight="semibold">{table.label}</Text>
-                          </div>
-                          <Text size={200} style={{ color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS }}>
-                            {table.description}
-                          </Text>
-                          <Text className={styles.counts}>
-                            Your version: {table.myCount} rows | {theirUser}: {table.theirCount} rows
-                          </Text>
-                          {table.differenceDetails && (
-                            <Text className={styles.diffDetails}>
-                              {table.differenceDetails}
-                            </Text>
-                          )}
-                          
-                          {/* Show sample differences */}
-                          {(table.sampleDiffs.onlyInMine.length > 0 || table.sampleDiffs.onlyInTheirs.length > 0) && (
-                            <div className={styles.sampleList}>
-                              {table.sampleDiffs.onlyInMine.length > 0 && (
-                                <div style={{ marginBottom: tokens.spacingVerticalS }}>
-                                  <Text className={`${styles.sampleLabel} ${styles.mineLabel}`}>
-                                    Only in your version:
-                                  </Text>
-                                  {table.sampleDiffs.onlyInMine.map((item, i) => (
-                                    <div key={i} className={styles.sampleItem}>
-                                      <span>•</span>
-                                      <Text size={200}>{item}</Text>
-                                    </div>
-                                  ))}
-                                  {table.sampleDiffs.onlyInMine.length === 3 && (
-                                    <Text size={200} style={{ fontStyle: 'italic', color: tokens.colorNeutralForeground3 }}>
-                                      ...and more
-                                    </Text>
-                                  )}
-                                </div>
-                              )}
-                              {table.sampleDiffs.onlyInTheirs.length > 0 && (
-                                <div>
-                                  <Text className={`${styles.sampleLabel} ${styles.theirsLabel}`}>
-                                    Only in {theirUser}'s version:
-                                  </Text>
-                                  {table.sampleDiffs.onlyInTheirs.map((item, i) => (
-                                    <div key={i} className={styles.sampleItem}>
-                                      <span>•</span>
-                                      <Text size={200}>{item}</Text>
-                                    </div>
-                                  ))}
-                                  {table.sampleDiffs.onlyInTheirs.length === 3 && (
-                                    <Text size={200} style={{ fontStyle: 'italic', color: tokens.colorNeutralForeground3 }}>
-                                      ...and more
-                                    </Text>
-                                  )}
-                                </div>
-                              )}
+                      {tableGroups.map((group) => {
+                        const isExpanded = expandedTables.has(group.table);
+                        const selectedInTable = group.changes.filter(c => 
+                          selectedChanges.has(`${c.table}:${c.source}:${c.rowHash}`)
+                        ).length;
+                        const allSelectedInTable = selectedInTable === group.changes.length;
+                        const noneSelectedInTable = selectedInTable === 0;
+                        
+                        return (
+                          <div key={group.table} className={styles.tableSection}>
+                            <div 
+                              className={styles.tableHeader}
+                              onClick={() => toggleTable(group.table)}
+                            >
+                              <div className={styles.tableHeaderLeft}>
+                                {isExpanded ? <ChevronDown20Regular /> : <ChevronRight20Regular />}
+                                <Text weight="semibold">{group.label}</Text>
+                                <Badge appearance="tint" color="warning">{group.changes.length}</Badge>
+                              </div>
+                              <Checkbox
+                                checked={allSelectedInTable ? true : noneSelectedInTable ? false : "mixed"}
+                                onChange={(e, data) => {
+                                  e.stopPropagation();
+                                  selectAllInTable(group.table, !!data.checked);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
                             </div>
-                          )}
-                          
-                          <RadioGroup
-                            value={choices[table.table]}
-                            onChange={(_, data) => handleChoiceChange(table.table, data.value as "mine" | "theirs")}
-                            layout="horizontal"
-                          >
-                            <Radio value="mine" label="Keep mine" />
-                            <Radio value="theirs" label="Use theirs" />
-                          </RadioGroup>
-                        </div>
-                      ))}
+                            {isExpanded && (
+                              <div className={styles.changeList}>
+                                {group.changes.map((change) => {
+                                  const changeId = `${change.table}:${change.source}:${change.rowHash}`;
+                                  const isSelected = selectedChanges.has(changeId);
+                                  const isTheirs = change.source === "theirs";
+                                  
+                                  return (
+                                    <div 
+                                      key={changeId} 
+                                      className={`${styles.changeItem} ${isTheirs ? styles.changeItemAdded : styles.changeItemRemoved}`}
+                                      style={{ borderLeftColor: isTheirs ? tokens.colorPaletteGreenBorder2 : tokens.colorNeutralStroke1 }}
+                                    >
+                                      <Checkbox
+                                        checked={isSelected}
+                                        onChange={() => toggleChange(changeId)}
+                                      />
+                                      <div className={`${styles.changeIcon} ${isTheirs ? styles.addIcon : ''}`} style={{ color: isTheirs ? tokens.colorPaletteGreenForeground1 : tokens.colorPaletteBlueForeground2 }}>
+                                        <Add20Regular />
+                                      </div>
+                                      <div className={styles.changeDescription}>
+                                        <Text size={200}>{change.description}</Text>
+                                        <Text className={styles.sourceLabel}>
+                                          ({isTheirs ? theirUser : "you"})
+                                        </Text>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </>
                 )}
@@ -611,14 +807,14 @@ export default function MergeDialog({
             <Button appearance="secondary" onClick={onClose}>
               Cancel
             </Button>
-            {tableDiffs.length > 0 && (
+            {totalChanges > 0 && (
               <Button
                 appearance="primary"
                 icon={<Merge20Regular />}
                 onClick={handleMerge}
                 disabled={loading}
               >
-                Merge & Save
+                Merge {selectedChanges.size} Change{selectedChanges.size !== 1 ? 's' : ''}
               </Button>
             )}
           </DialogActions>
