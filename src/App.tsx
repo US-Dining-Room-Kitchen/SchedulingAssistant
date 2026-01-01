@@ -672,6 +672,7 @@ export default function App() {
 
   // UI: simple dialogs
   const [showNeedsEditor, setShowNeedsEditor] = useState(false);
+  const [expandedNeedsGroups, setExpandedNeedsGroups] = useState<Set<number>>(new Set());
   const [profilePersonId, setProfilePersonId] = useState<number | null>(null);
 
   // Toast notifications
@@ -2988,10 +2989,16 @@ function PeopleEditor(){
   function NeedsEditor(){
     const d = selectedDateObj;
     const ds = useNeedsEditorStyles();
-    const [expandedGroups, setExpandedGroups] = useState<Set<number>>(() => new Set(groups.map((g: any) => g.id)));
+    
+    // Initialize expanded groups when dialog opens (if empty)
+    React.useEffect(() => {
+      if (showNeedsEditor && expandedNeedsGroups.size === 0 && groups.length > 0) {
+        setExpandedNeedsGroups(new Set(groups.map((g: any) => g.id)));
+      }
+    }, [showNeedsEditor, groups.length]);
     
     const toggleGroup = (groupId: number) => {
-      setExpandedGroups(prev => {
+      setExpandedNeedsGroups(prev => {
         const next = new Set(prev);
         if (next.has(groupId)) {
           next.delete(groupId);
@@ -3002,8 +3009,8 @@ function PeopleEditor(){
       });
     };
     
-    const expandAll = () => setExpandedGroups(new Set(groups.map((g: any) => g.id)));
-    const collapseAll = () => setExpandedGroups(new Set());
+    const expandAll = () => setExpandedNeedsGroups(new Set(groups.map((g: any) => g.id)));
+    const collapseAll = () => setExpandedNeedsGroups(new Set());
     
     return (
       <Dialog open={showNeedsEditor} onOpenChange={(_, data)=> setShowNeedsEditor(data.open)}>
@@ -3022,7 +3029,7 @@ function PeopleEditor(){
               <div className={ds.grid}>
                 {groups.map((g: any) => {
                   const groupRoles = roles.filter((r: any) => r.group_id === g.id);
-                  const isExpanded = expandedGroups.has(g.id);
+                  const isExpanded = expandedNeedsGroups.has(g.id);
                   return (
                     <div key={g.id} className={ds.card}>
                       <div className={ds.cardHeader} onClick={() => toggleGroup(g.id)}>
