@@ -155,6 +155,17 @@ export default function ExportPreview({
           [dYMD]
         );
 
+        // Fetch Flex Time (recurring timeoff) for this day
+        const dayIdx = d.getDay() - 1; // 0=Mon, 1=Tue, ...
+        const flexEntries = (dayIdx >= 0 && dayIdx <= 4) ? all(
+          `SELECT rt.person_id, rt.start_time, rt.end_time, rt.reason,
+                  p.first_name, p.last_name, p.work_email
+           FROM recurring_timeoff rt
+           JOIN person p ON p.id = rt.person_id
+           WHERE rt.active = 1 AND rt.weekday = ?`,
+          [dayIdx]
+        ) : [];
+
         // Group assignments by person to get per-person segment times
         const assignsByPerson = new Map<number, typeof assigns>();
         for (const a of assigns) {
@@ -197,6 +208,20 @@ export default function ExportPreview({
               });
             }
           }
+        }
+
+        // Add Flex Time rows
+        for (const f of flexEntries) {
+          rows.push({
+            date: fmtDateMDY(d),
+            member: `${f.last_name}, ${f.first_name}`,
+            email: f.work_email,
+            group: "Time Away",
+            start: f.start_time,
+            end: f.end_time,
+            label: "Time Away" + (f.reason ? `: ${f.reason}` : ""),
+            color: "Gray", // Standard Teams color for Time Away or generic
+          });
         }
       }
       d = addMinutes(d, 24 * 60);
@@ -247,7 +272,7 @@ export default function ExportPreview({
           </TableBody>
         </Table>
       </div>
-  <Text size={200} className={s.rowsText}>Rows: {previewRows.length}</Text>
+      <Text size={200} className={s.rowsText}>Rows: {previewRows.length}</Text>
     </div>
   );
 }

@@ -29,10 +29,10 @@ export const migrate4AddSegments: Migration = (db) => {
 export const migrate5AddGroupTheme: Migration = (db) => {
   try {
     db.run(`ALTER TABLE grp RENAME COLUMN theme_color TO theme;`);
-  } catch {}
+  } catch { }
   try {
     db.run(`ALTER TABLE grp ADD COLUMN custom_color TEXT;`);
-  } catch {}
+  } catch { }
 };
 
 export const migrate11AddTrainingSource: Migration = (db) => {
@@ -102,7 +102,7 @@ export const migrate14AddSegmentAdjustment: Migration = (db) => {
 export const migrate15AddSegmentAdjustmentRole: Migration = (db) => {
   try {
     db.run(`ALTER TABLE segment_adjustment ADD COLUMN condition_role_id INTEGER REFERENCES role(id);`);
-  } catch {}
+  } catch { }
 };
 
 export const migrate16AddCompetency: Migration = (db) => {
@@ -162,17 +162,17 @@ export const migrate18AddSkillCatalog: Migration = (db) => {
 export const migrate19AddSkillGroupId: Migration = (db) => {
   try {
     db.run(`ALTER TABLE skill ADD COLUMN group_id INTEGER REFERENCES grp(id);`);
-  } catch {}
+  } catch { }
 };
 
 // 20. Add start_date and end_date to person table
 export const migrate20AddPersonDates: Migration = (db) => {
   try {
     db.run(`ALTER TABLE person ADD COLUMN start_date TEXT;`);
-  } catch {}
+  } catch { }
   try {
     db.run(`ALTER TABLE person ADD COLUMN end_date TEXT;`);
-  } catch {}
+  } catch { }
 };
 
 // 21. Create training_rotation table
@@ -242,7 +242,7 @@ export const migrate25AddWeekStartMode: Migration = (db) => {
 export const migrate26AddMultiConditionSegmentAdjustments: Migration = (db) => {
   try {
     console.log('Starting migration 26 - Add multi-condition segment adjustments');
-    
+
     // 1. Create the new segment_adjustment_condition table
     db.run(`CREATE TABLE IF NOT EXISTS segment_adjustment_condition (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -252,34 +252,34 @@ export const migrate26AddMultiConditionSegmentAdjustments: Migration = (db) => {
       FOREIGN KEY (adjustment_id) REFERENCES segment_adjustment(id) ON DELETE CASCADE,
       FOREIGN KEY (condition_role_id) REFERENCES role(id)
     );`);
-    
+
     // 2. Check if logic_operator column already exists
     const tableInfo = db.exec(`PRAGMA table_info(segment_adjustment);`);
     const hasLogicOperator = tableInfo[0]?.values?.some((row: any[]) => row[1] === 'logic_operator');
-    
+
     if (!hasLogicOperator) {
       // Add logic_operator column without NOT NULL constraint initially
       db.run(`ALTER TABLE segment_adjustment ADD COLUMN logic_operator TEXT DEFAULT 'AND';`);
-      
+
       // Update existing rows to have 'AND' as the default
       db.run(`UPDATE segment_adjustment SET logic_operator = 'AND' WHERE logic_operator IS NULL;`);
     }
-    
+
     // 3. Migrate existing data from segment_adjustment to segment_adjustment_condition
     // Get all existing adjustments
     const existingAdjustments = db.exec(`SELECT id, condition_segment, condition_role_id FROM segment_adjustment;`);
-    
+
     if (existingAdjustments && existingAdjustments[0] && existingAdjustments[0].values) {
       for (const row of existingAdjustments[0].values) {
         const [adjustmentId, conditionSegment, conditionRoleId] = row;
-        
+
         // Check if this adjustment already has conditions in the new table
         const existingConditions = db.exec(
           `SELECT COUNT(*) FROM segment_adjustment_condition WHERE adjustment_id = ?;`,
           [adjustmentId]
         );
         const conditionCount = existingConditions[0]?.values?.[0]?.[0] || 0;
-        
+
         // Only migrate if no conditions exist yet
         if (conditionCount === 0 && conditionSegment) {
           db.run(
@@ -289,7 +289,7 @@ export const migrate26AddMultiConditionSegmentAdjustments: Migration = (db) => {
         }
       }
     }
-    
+
     console.log('Migration 26 complete');
   } catch (e) {
     console.error('migrate26AddMultiConditionSegmentAdjustments failed:', e);
@@ -377,7 +377,7 @@ export const migrate31AddAutofillPriority: Migration = (db) => {
   for (const r of defaultRules) {
     db.run(`INSERT OR IGNORE INTO autofill_priority (rule_key, enabled, priority) VALUES (?, 1, ?)`, [r.key, r.priority]);
   }
-  
+
   // Add group priority order table
   db.run(`CREATE TABLE IF NOT EXISTS autofill_group_priority (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -426,6 +426,16 @@ export const migrate34AddDbSnapshots: Migration = (db) => {
   console.log('Migration 34 complete - added db_snapshot table for version history');
 };
 
+// 35. Add occasional_commuter field to person table
+export const migrate35AddOccasionalCommuter: Migration = (db) => {
+  try {
+    db.run(`ALTER TABLE person ADD COLUMN occasional_commuter INTEGER DEFAULT 0;`);
+    console.log('Migration 35 complete - added occasional_commuter column');
+  } catch (e) {
+    console.error('migrate35AddOccasionalCommuter failed:', e);
+  }
+};
+
 export const migrate6AddExportGroup: Migration = (db) => {
   db.run(`CREATE TABLE IF NOT EXISTS export_group (
       group_id INTEGER PRIMARY KEY,
@@ -464,13 +474,13 @@ export const migrate7SegmentRefs: Migration = (_db) => {
 // COMPLETELY REWRITTEN MIGRATION 8
 export const migrate8FixSegmentConstraints: Migration = (db) => {
   console.log('Starting migration 8 - Fix segment constraints');
-  
+
   // Clean up any old temporary tables from failed migrations
-  const tempTables = ['assignment_old', 'monthly_default_old', 'monthly_default_day_old', 
-                      'needs_baseline_old', 'needs_override_old',
-                      'assignment_temp', 'monthly_default_temp', 'monthly_default_day_temp',
-                      'needs_baseline_temp', 'needs_override_temp'];
-  
+  const tempTables = ['assignment_old', 'monthly_default_old', 'monthly_default_day_old',
+    'needs_baseline_old', 'needs_override_old',
+    'assignment_temp', 'monthly_default_temp', 'monthly_default_day_temp',
+    'needs_baseline_temp', 'needs_override_temp'];
+
   for (const tempTable of tempTables) {
     try {
       db.run(`DROP TABLE IF EXISTS ${tempTable};`);
@@ -484,14 +494,14 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
     try {
       const sqlInfo = db.exec(`SELECT sql FROM sqlite_master WHERE type='table' AND name='${tableName}';`);
       const tableSql = sqlInfo[0]?.values?.[0]?.[0] as string || '';
-      
+
       // Check for old-style column definitions or CHECK constraints
-      if (tableSql.includes('CHECK(segment IN') || 
-          tableSql.includes('CHECK (segment IN') ||
-          tableSql.includes('am_role_id') ||
-          tableSql.includes('lunch_role_id') ||
-          tableSql.includes('pm_role_id') ||
-          tableSql.includes('early_role_id')) {
+      if (tableSql.includes('CHECK(segment IN') ||
+        tableSql.includes('CHECK (segment IN') ||
+        tableSql.includes('am_role_id') ||
+        tableSql.includes('lunch_role_id') ||
+        tableSql.includes('pm_role_id') ||
+        tableSql.includes('early_role_id')) {
         return true;
       }
       return false;
@@ -507,7 +517,7 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
       // Check if it's the old column structure
       const info = db.exec(`PRAGMA table_info(assignment);`);
       const columns = info[0]?.values?.map((r: any[]) => String(r[1])) || [];
-      
+
       if (columns.includes('am_role_id') || columns.includes('lunch_role_id') || columns.includes('pm_role_id')) {
         // Old structure with separate columns - not handling this case as it should have been migrated already
         console.log('Assignment table has old structure - skipping');
@@ -522,7 +532,7 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
           FOREIGN KEY (person_id) REFERENCES person(id),
           FOREIGN KEY (role_id) REFERENCES role(id)
         );`);
-        
+
         // Copy data excluding the id column (it will be auto-generated)
         db.run(`INSERT INTO assignment_new (date, person_id, role_id, segment) 
                 SELECT date, person_id, role_id, segment FROM assignment;`);
@@ -540,11 +550,11 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
     try {
       const info = db.exec(`PRAGMA table_info(monthly_default);`);
       const columns = info[0]?.values?.map((r: any[]) => String(r[1])) || [];
-      
+
       if (columns.includes('am_role_id')) {
         // Old structure - need to transform data
         console.log('Transforming old monthly_default structure...');
-        
+
         db.run(`CREATE TABLE monthly_default_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           month TEXT NOT NULL,
@@ -555,35 +565,35 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
           FOREIGN KEY (person_id) REFERENCES person(id),
           FOREIGN KEY (role_id) REFERENCES role(id)
         );`);
-        
+
         // Get all old data
         const hasEarly = columns.includes('early_role_id');
         let selectCols = 'month, person_id, am_role_id, lunch_role_id, pm_role_id';
         if (hasEarly) selectCols += ', early_role_id';
-        
+
         const oldData = db.exec(`SELECT ${selectCols} FROM monthly_default;`);
         const rows = oldData[0]?.values || [];
-        
+
         for (const row of rows) {
           const [month, personId, am, lunch, pm, early] = row as any[];
           if (am != null) {
-            db.run(`INSERT OR IGNORE INTO monthly_default_new (month, person_id, segment, role_id) VALUES (?,?,?,?)`, 
-                   [month, personId, 'AM', am]);
+            db.run(`INSERT OR IGNORE INTO monthly_default_new (month, person_id, segment, role_id) VALUES (?,?,?,?)`,
+              [month, personId, 'AM', am]);
           }
           if (lunch != null) {
-            db.run(`INSERT OR IGNORE INTO monthly_default_new (month, person_id, segment, role_id) VALUES (?,?,?,?)`, 
-                   [month, personId, 'Lunch', lunch]);
+            db.run(`INSERT OR IGNORE INTO monthly_default_new (month, person_id, segment, role_id) VALUES (?,?,?,?)`,
+              [month, personId, 'Lunch', lunch]);
           }
           if (pm != null) {
-            db.run(`INSERT OR IGNORE INTO monthly_default_new (month, person_id, segment, role_id) VALUES (?,?,?,?)`, 
-                   [month, personId, 'PM', pm]);
+            db.run(`INSERT OR IGNORE INTO monthly_default_new (month, person_id, segment, role_id) VALUES (?,?,?,?)`,
+              [month, personId, 'PM', pm]);
           }
           if (hasEarly && early != null) {
-            db.run(`INSERT OR IGNORE INTO monthly_default_new (month, person_id, segment, role_id) VALUES (?,?,?,?)`, 
-                   [month, personId, 'Early', early]);
+            db.run(`INSERT OR IGNORE INTO monthly_default_new (month, person_id, segment, role_id) VALUES (?,?,?,?)`,
+              [month, personId, 'Early', early]);
           }
         }
-        
+
         db.run(`DROP TABLE monthly_default;`);
         db.run(`ALTER TABLE monthly_default_new RENAME TO monthly_default;`);
       } else {
@@ -598,7 +608,7 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
           FOREIGN KEY (person_id) REFERENCES person(id),
           FOREIGN KEY (role_id) REFERENCES role(id)
         );`);
-        
+
         // Copy data excluding the id column (it will be auto-generated)
         db.run(`INSERT INTO monthly_default_new (month, person_id, segment, role_id) 
                 SELECT month, person_id, segment, role_id FROM monthly_default;`);
@@ -616,11 +626,11 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
     try {
       const info = db.exec(`PRAGMA table_info(monthly_default_day);`);
       const columns = info[0]?.values?.map((r: any[]) => String(r[1])) || [];
-      
+
       if (columns.includes('am_role_id')) {
         // Old structure - need to transform data
         console.log('Transforming old monthly_default_day structure...');
-        
+
         db.run(`CREATE TABLE monthly_default_day_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           month TEXT NOT NULL,
@@ -632,35 +642,35 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
           FOREIGN KEY (person_id) REFERENCES person(id),
           FOREIGN KEY (role_id) REFERENCES role(id)
         );`);
-        
+
         // Get all old data
         const hasEarly = columns.includes('early_role_id');
         let selectCols = 'month, person_id, weekday, am_role_id, lunch_role_id, pm_role_id';
         if (hasEarly) selectCols += ', early_role_id';
-        
+
         const oldData = db.exec(`SELECT ${selectCols} FROM monthly_default_day;`);
         const rows = oldData[0]?.values || [];
-        
+
         for (const row of rows) {
           const [month, personId, weekday, am, lunch, pm, early] = row as any[];
           if (am != null) {
-            db.run(`INSERT OR IGNORE INTO monthly_default_day_new (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`, 
-                   [month, personId, weekday, 'AM', am]);
+            db.run(`INSERT OR IGNORE INTO monthly_default_day_new (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`,
+              [month, personId, weekday, 'AM', am]);
           }
           if (lunch != null) {
-            db.run(`INSERT OR IGNORE INTO monthly_default_day_new (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`, 
-                   [month, personId, weekday, 'Lunch', lunch]);
+            db.run(`INSERT OR IGNORE INTO monthly_default_day_new (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`,
+              [month, personId, weekday, 'Lunch', lunch]);
           }
           if (pm != null) {
-            db.run(`INSERT OR IGNORE INTO monthly_default_day_new (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`, 
-                   [month, personId, weekday, 'PM', pm]);
+            db.run(`INSERT OR IGNORE INTO monthly_default_day_new (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`,
+              [month, personId, weekday, 'PM', pm]);
           }
           if (hasEarly && early != null) {
-            db.run(`INSERT OR IGNORE INTO monthly_default_day_new (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`, 
-                   [month, personId, weekday, 'Early', early]);
+            db.run(`INSERT OR IGNORE INTO monthly_default_day_new (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)`,
+              [month, personId, weekday, 'Early', early]);
           }
         }
-        
+
         db.run(`DROP TABLE monthly_default_day;`);
         db.run(`ALTER TABLE monthly_default_day_new RENAME TO monthly_default_day;`);
       } else {
@@ -676,7 +686,7 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
           FOREIGN KEY (person_id) REFERENCES person(id),
           FOREIGN KEY (role_id) REFERENCES role(id)
         );`);
-        
+
         // Copy data excluding the id column (it will be auto-generated)
         db.run(`INSERT INTO monthly_default_day_new (month, person_id, weekday, segment, role_id) 
                 SELECT month, person_id, weekday, segment, role_id FROM monthly_default_day;`);
@@ -700,7 +710,7 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
         required INTEGER NOT NULL DEFAULT 0,
         UNIQUE(group_id, role_id, segment)
       );`);
-      
+
       // Copy data excluding the id column (it will be auto-generated)
       db.run(`INSERT INTO needs_baseline_new (group_id, role_id, segment, required) 
               SELECT group_id, role_id, segment, required FROM needs_baseline;`);
@@ -724,7 +734,7 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
         required INTEGER NOT NULL,
         UNIQUE(date, group_id, role_id, segment)
       );`);
-      
+
       // Copy data excluding the id column (it will be auto-generated)
       db.run(`INSERT INTO needs_override_new (date, group_id, role_id, segment, required) 
               SELECT date, group_id, role_id, segment, required FROM needs_override;`);
@@ -742,8 +752,8 @@ export const migrate8FixSegmentConstraints: Migration = (db) => {
 export const migrate10BackfillGroupCustomColor: Migration = (db) => {
   try {
     // Ensure columns exist (defensive)
-    try { db.run(`ALTER TABLE grp ADD COLUMN custom_color TEXT;`); } catch {}
-    try { db.run(`ALTER TABLE grp ADD COLUMN theme TEXT;`); } catch {}
+    try { db.run(`ALTER TABLE grp ADD COLUMN custom_color TEXT;`); } catch { }
+    try { db.run(`ALTER TABLE grp ADD COLUMN theme TEXT;`); } catch { }
 
     // Get existing groups
     const res = db.exec(`SELECT id, name, theme, custom_color FROM grp;`);
@@ -903,7 +913,7 @@ const migrations: Record<number, Migration> = {
         db.run(`DROP TABLE training;`);
         db.run(`ALTER TABLE training_new RENAME TO training;`);
       }
-    } catch {}
+    } catch { }
 
     db.run(`CREATE TABLE IF NOT EXISTS monthly_default_day (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -949,6 +959,7 @@ const migrations: Record<number, Migration> = {
   32: migrate32AddTeamsWebhook,
   33: migrate33AddAutofillGroupSourcePriority,
   34: migrate34AddDbSnapshots,
+  35: migrate35AddOccasionalCommuter,
 };
 
 export function addMigration(version: number, fn: Migration) {
@@ -974,7 +985,7 @@ export function ensureSchemaIntegrity(db: Database) {
         FOREIGN KEY (condition_role_id) REFERENCES role(id)
       );`);
     }
-    
+
     // Ensure logic_operator column exists in segment_adjustment
     const tableInfo = db.exec(`PRAGMA table_info(segment_adjustment);`);
     const hasLogicOperator = tableInfo[0]?.values?.some((row: any[]) => row[1] === 'logic_operator');
@@ -983,7 +994,7 @@ export function ensureSchemaIntegrity(db: Database) {
       db.run(`ALTER TABLE segment_adjustment ADD COLUMN logic_operator TEXT DEFAULT 'AND';`);
       db.run(`UPDATE segment_adjustment SET logic_operator = 'AND' WHERE logic_operator IS NULL;`);
     }
-    
+
     // Migrate any adjustments that don't have corresponding conditions
     const adjustmentsWithoutConditions = db.exec(`
       SELECT sa.id, sa.condition_segment, sa.condition_role_id 
@@ -991,7 +1002,7 @@ export function ensureSchemaIntegrity(db: Database) {
       LEFT JOIN segment_adjustment_condition sac ON sa.id = sac.adjustment_id
       WHERE sac.id IS NULL AND sa.condition_segment IS NOT NULL AND sa.condition_segment != ''
     ;`);
-    
+
     if (adjustmentsWithoutConditions[0]?.values?.length) {
       console.log(`[SchemaIntegrity] Migrating ${adjustmentsWithoutConditions[0].values.length} adjustments to condition table`);
       for (const row of adjustmentsWithoutConditions[0].values) {
@@ -1002,7 +1013,7 @@ export function ensureSchemaIntegrity(db: Database) {
         );
       }
     }
-    
+
     // Ensure department_event table exists
     const deptEventTables = db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='department_event';`);
     if (!deptEventTables[0]?.values?.length) {
@@ -1021,7 +1032,7 @@ export function ensureSchemaIntegrity(db: Database) {
         FOREIGN KEY (role_id) REFERENCES role(id)
       );`);
     }
-    
+
     // Cleanup old change_log entries (older than 1 week)
     try {
       const oneWeekAgo = new Date();
@@ -1032,7 +1043,7 @@ export function ensureSchemaIntegrity(db: Database) {
     } catch (e) {
       // Table may not exist yet, that's fine
     }
-    
+
     console.log('[SchemaIntegrity] Schema integrity check complete');
   } catch (e) {
     console.error('[SchemaIntegrity] Error ensuring schema integrity:', e);
@@ -1068,7 +1079,7 @@ export function applyMigrations(db: Database) {
       }
     }
   }
-  
+
   // Always ensure schema integrity after migrations
   // This fixes databases where the version was set but migrations failed
   ensureSchemaIntegrity(db);
