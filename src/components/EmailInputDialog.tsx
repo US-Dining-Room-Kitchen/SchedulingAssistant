@@ -68,6 +68,11 @@ export default function EmailInputDialog({
                   setEmailInput(data.value);
                   setEmailInputError("");
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleSubmit();
+                  }
+                }}
                 placeholder="user@example.com"
                 type="email"
               />

@@ -135,6 +135,9 @@ export default function PersonProfileModal({ personId, onClose, all }: PersonPro
               <div className={s.cell}><b>Status:</b> {person.active ? "Active" : "Inactive"}</div>
               <div className={s.cell}><b>Brother/Sister:</b> {person.brother_sister || "-"}</div>
               <div className={s.cell}><b>Commuter:</b> {person.commuter ? "Yes" : "No"}</div>
+              {person.commuter && person.occasional_commuter ? (
+                <div className={s.cell}><b>Occasional Commuter:</b> Yes</div>
+              ) : null}
             </div>
           </div>
           <Divider className={s.divider} />
