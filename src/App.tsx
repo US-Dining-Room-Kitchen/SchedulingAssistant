@@ -67,7 +67,7 @@ function pad2(n: number) {
 function fmtTime24(d: Date): string {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
-function ymd(d: Date) { return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+function ymd(d: Date) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 
 function parseMDY(str: string): Date {
   // expects M/D/YYYY
@@ -127,7 +127,7 @@ let SQL: any = null; // sql.js module
 
 // XLSX (browser ESM via CDN only)
 const XLSX_URL = "https://cdn.sheetjs.com/xlsx-latest/package/xlsx.mjs";
-async function loadXLSX(){
+async function loadXLSX() {
   // Prevent bundlers from trying to pre-bundle the module
   // @ts-ignore
   const mod = await import(/* @vite-ignore */ XLSX_URL);
@@ -135,12 +135,12 @@ async function loadXLSX(){
 }
 
 const useRequiredCellStyles = makeStyles({
-  row: { 
-    display: 'flex', 
-    alignItems: 'center', 
+  row: {
+    display: 'flex',
+    alignItems: 'center',
     gap: tokens.spacingHorizontalS,
   },
-  input: { 
+  input: {
     width: '7ch',
     minHeight: '32px',
   },
@@ -150,15 +150,15 @@ const useRequiredCellStyles = makeStyles({
 });
 
 const useBaselineViewStyles = makeStyles({
-  root: { 
+  root: {
     padding: tokens.spacingHorizontalL,
   },
   header: {
     marginBottom: tokens.spacingVerticalL,
   },
-  title: { 
-    fontWeight: tokens.fontWeightSemibold, 
-    fontSize: tokens.fontSizeBase500, 
+  title: {
+    fontWeight: tokens.fontWeightSemibold,
+    fontSize: tokens.fontSizeBase500,
     marginBottom: tokens.spacingVerticalS,
   },
   description: {
@@ -249,14 +249,14 @@ const useBaselineViewStyles = makeStyles({
     gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
     alignItems: 'start',
   },
-  subTitle: { 
-    fontWeight: tokens.fontWeightSemibold, 
+  subTitle: {
+    fontWeight: tokens.fontWeightSemibold,
     fontSize: tokens.fontSizeBase400,
     marginBottom: tokens.spacingVerticalM,
   },
-  label: { 
-    fontSize: tokens.fontSizeBase200, 
-    color: tokens.colorNeutralForeground3, 
+  label: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
     marginBottom: tokens.spacingVerticalXS,
     fontWeight: tokens.fontWeightSemibold,
   },
@@ -269,7 +269,7 @@ const useBaselineViewStyles = makeStyles({
 });
 
 const usePeopleEditorStyles = makeStyles({
-  root: { 
+  root: {
     padding: tokens.spacingHorizontalM,
     // Mobile adjustments
     "@media (max-width: 767px)": {
@@ -319,10 +319,10 @@ const usePeopleEditorStyles = makeStyles({
       },
     },
   },
-  header: { 
-    display: 'flex', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: tokens.spacingVerticalS,
     // Mobile: stack vertically
     "@media (max-width: 767px)": {
@@ -331,12 +331,12 @@ const usePeopleEditorStyles = makeStyles({
       gap: tokens.spacingVerticalS,
     },
   },
-  title: { 
-    fontWeight: tokens.fontWeightSemibold, 
+  title: {
+    fontWeight: tokens.fontWeightSemibold,
     fontSize: tokens.fontSizeBase400,
   },
-  actions: { 
-    display: 'flex', 
+  actions: {
+    display: 'flex',
     gap: tokens.spacingHorizontalS,
     // Mobile: full width buttons
     "@media (max-width: 767px)": {
@@ -446,9 +446,9 @@ const usePeopleEditorStyles = makeStyles({
   col4: { gridColumn: 'span 4' },
   col6: { gridColumn: 'span 6' },
   centerRow: { display: 'flex', alignItems: 'center' },
-  smallLabel: { 
-    color: tokens.colorNeutralForeground3, 
-    marginBottom: tokens.spacingVerticalXS, 
+  smallLabel: {
+    color: tokens.colorNeutralForeground3,
+    marginBottom: tokens.spacingVerticalXS,
     fontSize: tokens.fontSizeBase200,
     fontWeight: tokens.fontWeightMedium,
   },
@@ -523,20 +523,20 @@ const useNeedsEditorStyles = makeStyles({
     marginBottom: tokens.spacingVerticalM,
     backgroundColor: tokens.colorNeutralBackground2,
   },
-  subTitle: { 
-    fontWeight: tokens.fontWeightSemibold, 
+  subTitle: {
+    fontWeight: tokens.fontWeightSemibold,
     fontSize: tokens.fontSizeBase400,
     marginBottom: tokens.spacingVerticalM,
   },
-  roleGrid: { 
-    display: 'grid', 
-    gap: tokens.spacingHorizontalM, 
-    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', 
+  roleGrid: {
+    display: 'grid',
+    gap: tokens.spacingHorizontalM,
+    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
     alignItems: 'start',
   },
-  label: { 
-    fontSize: tokens.fontSizeBase200, 
-    color: tokens.colorNeutralForeground3, 
+  label: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
     marginBottom: tokens.spacingVerticalXS,
     fontWeight: tokens.fontWeightSemibold,
   },
@@ -600,19 +600,21 @@ const useAppShellStyles = makeStyles({
 });
 
 export default function App() {
+  const [isNativeFsSupported] = useState(() => FileSystemUtils.isFileSystemAccessSupported());
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // Theme
   const [themeName, setThemeName] = useState<"light" | "dark">(() => {
     try {
       const saved = localStorage.getItem("theme");
       if (saved === "light" || saved === "dark") return saved;
-    } catch {}
+    } catch { }
     if (typeof window !== "undefined" && window.matchMedia) {
       return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
     return "light";
   });
   useEffect(() => {
-    try { localStorage.setItem("theme", themeName); } catch {}
+    try { localStorage.setItem("theme", themeName); } catch { }
   }, [themeName]);
 
   const [ready, setReady] = useState(false);
@@ -646,7 +648,7 @@ export default function App() {
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const d = new Date();
-    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
   });
   const [copyFromMonth, setCopyFromMonth] = useState<string>(() => {
     const d = new Date();
@@ -664,11 +666,11 @@ export default function App() {
   const [conflictPrompt, setConflictPrompt] = useState<
     | null
     | {
-        person: any;
-        date: Date;
-        segment: Segment;
-        resolve: (action: 'overwrite' | 'skip' | 'overwriteAll' | 'skipAll') => void;
-      }
+      person: any;
+      date: Date;
+      segment: Segment;
+      resolve: (action: 'overwrite' | 'skip' | 'overwriteAll' | 'skipAll') => void;
+    }
   >(null);
 
   // UI: simple dialogs
@@ -730,7 +732,7 @@ export default function App() {
       try {
         // Load sql.js via CDN script tag (npm import is broken by Vite bundling)
         const cdnUrl = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.min.js';
-        
+
         // Check if already loaded
         if (!(window as any).initSqlJs) {
           await new Promise<void>((resolve, reject) => {
@@ -747,14 +749,14 @@ export default function App() {
             document.head.appendChild(script);
           });
         }
-        
+
         const initSqlJs = (window as any).initSqlJs;
         if (!initSqlJs) {
           throw new Error('initSqlJs not found on window after script load');
         }
-        
+
         // Configure to load WASM files from CDN
-        SQL = await initSqlJs({ 
+        SQL = await initSqlJs({
           locateFile: (file: string) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
         });
         setReady(true);
@@ -832,7 +834,7 @@ export default function App() {
   // Scan folder for all schedule-*.db files with metadata
   async function scanScheduleFiles(dirHandle: FileSystemDirectoryHandle): Promise<FileVersionInfo[]> {
     const files: FileVersionInfo[] = [];
-    
+
     for await (const entry of (dirHandle as any).values()) {
       if (entry.kind === 'file' && entry.name.startsWith('schedule-') && entry.name.endsWith('.db')) {
         try {
@@ -841,7 +843,7 @@ export default function App() {
           const tempDb = new SQL.Database(new Uint8Array(buf));
           const meta = getFileMetadata(tempDb);
           tempDb.close();
-          
+
           files.push({
             filename: entry.name,
             savedAt: meta.savedAt || '',
@@ -855,7 +857,7 @@ export default function App() {
         }
       }
     }
-    
+
     // Sort by savedAt descending (newest first)
     files.sort((a, b) => b.savedAt.localeCompare(a.savedAt));
     return files;
@@ -865,7 +867,7 @@ export default function App() {
   function findConflictingFiles(files: FileVersionInfo[], sessionStart: string, currentFile: string): FileVersionInfo[] {
     const sessionStartTime = new Date(sessionStart).getTime();
     const now = Date.now();
-    
+
     return files.filter(f => {
       if (!f.savedAt || f.filename === currentFile) return false;
       const savedAtTime = new Date(f.savedAt).getTime();
@@ -883,17 +885,17 @@ export default function App() {
       'monthly_default_day',
       'monthly_default_week',
     ];
-    
+
     const conflicts: ConflictDetail[] = [];
-    
+
     for (const table of highConflictTables) {
       try {
         const myRows = myDb.exec(`SELECT COUNT(*) FROM ${table}`);
         const theirRows = theirDb.exec(`SELECT COUNT(*) FROM ${table}`);
-        
+
         const countA = (myRows[0]?.values[0]?.[0] as number) || 0;
         const countB = (theirRows[0]?.values[0]?.[0] as number) || 0;
-        
+
         if (countA !== countB) {
           conflicts.push({
             table,
@@ -907,7 +909,7 @@ export default function App() {
         // Table might not exist
       }
     }
-    
+
     return conflicts;
   }
 
@@ -921,12 +923,12 @@ export default function App() {
     for (const f of files) {
       fileMap.set(f.filename, f);
     }
-    
+
     const getAncestryChain = (filename: string): Set<string> => {
       const chain = new Set<string>();
       let current = filename;
       const visited = new Set<string>();
-      
+
       while (current && !visited.has(current)) {
         visited.add(current);
         chain.add(current);
@@ -936,10 +938,10 @@ export default function App() {
       }
       return chain;
     };
-    
+
     const ancestry1 = getAncestryChain(file1);
     const ancestry2 = getAncestryChain(file2);
-    
+
     // Find the first (most recent) common ancestor
     // Start from file2's chain and find first match in file1's chain
     let current = file2;
@@ -953,7 +955,7 @@ export default function App() {
       if (!file || !file.derivedFrom) break;
       current = file.derivedFrom;
     }
-    
+
     // Also check file1's direct ancestry
     current = file1;
     visited.clear();
@@ -966,7 +968,7 @@ export default function App() {
       if (!file || !file.derivedFrom) break;
       current = file.derivedFrom;
     }
-    
+
     // Fallback: return the oldest file that exists (excluding the two being merged)
     const sortedByAge = [...files].sort((a, b) => a.savedAt.localeCompare(b.savedAt));
     for (const f of sortedByAge) {
@@ -974,7 +976,7 @@ export default function App() {
         return f.filename;
       }
     }
-    
+
     return null;
   }
 
@@ -987,7 +989,7 @@ export default function App() {
     for (const f of files) {
       fileMap.set(f.filename, f);
     }
-    
+
     for (const f of files) {
       let current = f.derivedFrom;
       const visited = new Set<string>();
@@ -1011,35 +1013,35 @@ export default function App() {
       const files = await scanScheduleFiles(dirHandle);
       const now = Date.now();
       const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
-      
+
       // Files to keep
       const filesToKeep = new Set<string>();
-      
+
       // Keep the 10 most recent
       files.slice(0, 10).forEach(f => filesToKeep.add(f.filename));
-      
+
       // Also keep anything from last 24 hours
       files.forEach(f => {
         if (f.savedAt && new Date(f.savedAt).getTime() > twentyFourHoursAgo) {
           filesToKeep.add(f.filename);
         }
       });
-      
+
       // Always keep current file
       filesToKeep.add(currentFile);
-      
+
       // Protect ancestor files to ensure three-way merge is always possible
       const ancestorFiles = getAncestorFiles(files.filter(f => filesToKeep.has(f.filename)));
       for (const ancestor of ancestorFiles) {
         filesToKeep.add(ancestor);
       }
-      
+
       // Always keep at least one old file as fallback ancestor (the oldest)
       if (files.length > 0) {
         const oldest = files[files.length - 1];
         filesToKeep.add(oldest.filename);
       }
-      
+
       // Delete the rest
       for (const file of files) {
         if (!filesToKeep.has(file.filename)) {
@@ -1062,21 +1064,21 @@ export default function App() {
       setStatus('Cannot restore - no folder open');
       return;
     }
-    
+
     try {
       const fileHandle = await dirHandleRef.current.getFileHandle(filename);
       const file = await fileHandle.getFile();
       const buf = await file.arrayBuffer();
       const newDb = new SQL.Database(new Uint8Array(buf));
-      
+
       applyMigrations(newDb);
-      
+
       setSqlDb(newDb);
       setCurrentFilename(filename);
       setSessionStartedAt(new Date().toISOString());
       fileHandleRef.current = fileHandle;
       refreshCaches(newDb);
-      
+
       setStatus(`Restored ${filename}`);
       toast.showSuccess('Version restored');
     } catch (e) {
@@ -1091,22 +1093,22 @@ export default function App() {
       setStatus('Cannot merge - no folder open');
       return;
     }
-    
+
     try {
       // Load their database
       const fileHandle = await dirHandleRef.current.getFileHandle(filename);
       const file = await fileHandle.getFile();
       const buf = await file.arrayBuffer();
       const theirDb = new SQL.Database(new Uint8Array(buf));
-      
+
       // Try to find and load common ancestor for three-way merge
       let ancestorDb: any = null;
       let ancestorFilename: string | null = null;
-      
+
       try {
         const files = await scanScheduleFiles(dirHandleRef.current);
         ancestorFilename = findCommonAncestor(files, currentFilename, filename);
-        
+
         if (ancestorFilename) {
           const ancestorHandle = await dirHandleRef.current.getFileHandle(ancestorFilename);
           const ancestorFile = await ancestorHandle.getFile();
@@ -1119,7 +1121,7 @@ export default function App() {
       } catch (e) {
         console.warn('[Merge] Could not load ancestor, falling back to two-way merge:', e);
       }
-      
+
       setMergeTarget({ filename, db: theirDb, ancestorFilename, ancestorDb });
     } catch (e) {
       console.error('[Merge] Failed to load file:', e);
@@ -1133,17 +1135,17 @@ export default function App() {
       setStatus('Cannot complete merge');
       return;
     }
-    
+
     try {
       let addedCount = 0;
       let removedCount = 0;
-      
+
       console.log('[Merge] Processing choices:', JSON.stringify(choices, null, 2));
-      
+
       // Process each table's merge choices
       for (const { table, rowsToAdd, rowsToRemove } of choices) {
         console.log(`[Merge] Table ${table}: ${rowsToAdd.length} to add, ${rowsToRemove.length} to remove`);
-        
+
         // Add rows from theirs that user selected
         // Note: columns already exclude 'id' to avoid UNIQUE constraint issues
         for (const { data, columns } of rowsToAdd) {
@@ -1160,7 +1162,7 @@ export default function App() {
             console.warn(`[Merge] Could not add row to ${table}:`, e);
           }
         }
-        
+
         // Remove rows from mine that user deselected
         // rowsToRemove contains JSON-stringified row objects
         for (const rowJson of rowsToRemove) {
@@ -1169,7 +1171,7 @@ export default function App() {
             // Parse the row data object
             const rowData = JSON.parse(rowJson) as Record<string, any>;
             console.log(`[Merge] Parsed row data, id=${rowData.id}`);
-            
+
             // Use the id column if available (most reliable), otherwise match by content
             if (rowData.id !== undefined) {
               console.log(`[Merge] Running: DELETE FROM ${table} WHERE id = ${rowData.id}`);
@@ -1180,7 +1182,7 @@ export default function App() {
               // Fallback: Build WHERE clause to match this row by its content
               const conditions: string[] = [];
               const values: any[] = [];
-              
+
               for (const [col, val] of Object.entries(rowData)) {
                 if (val === null) {
                   conditions.push(`${col} IS NULL`);
@@ -1189,7 +1191,7 @@ export default function App() {
                   values.push(val);
                 }
               }
-              
+
               if (conditions.length > 0) {
                 // Note: SQLite doesn't support LIMIT in DELETE, use subquery instead
                 sqlDb.run(
@@ -1204,20 +1206,20 @@ export default function App() {
           }
         }
       }
-      
+
       mergeTarget.db.close();
       if (mergeTarget.ancestorDb) {
         mergeTarget.ancestorDb.close();
       }
       setMergeTarget(null);
       setPendingConflicts(null);
-      
+
       // Save as merged file
       await performSave(true);
       refreshCaches(sqlDb);
-      
+
       toast.showSuccess(`Merge completed: ${addedCount} added, ${removedCount} removed`);
-      
+
       // If we were in the opening flow and needed email prompt, do it now
       if (needsEmailPrompt) {
         setNeedsEmailPrompt(false);
@@ -1255,7 +1257,32 @@ export default function App() {
     refreshCaches(db);
   }
 
+  async function handleLegacyFileSelection(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!SQL) return;
+    try {
+      const buf = await file.arrayBuffer();
+      const db = new SQL.Database(new Uint8Array(buf));
+      applyMigrations(db);
+      setSqlDb(db);
+      setCurrentFilename(file.name);
+      setStatus(`Opened ${file.name} (Legacy Mode)`);
+      refreshCaches(db);
+      promptForEmail();
+    } catch (err: any) {
+      setAlertDialog({ title: "Error", message: err.message || "Failed to load database" });
+    } finally {
+      // Clear input value so same file can be selected again
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
   async function openDbFromFile() {
+    if (!isNativeFsSupported) {
+      fileInputRef.current?.click();
+      return;
+    }
     if (!SQL) {
       setStatus("Database engine not initialized. Please wait and try again.");
       return;
@@ -1282,7 +1309,7 @@ export default function App() {
               const tempDb = new SQL.Database(new Uint8Array(buf));
               const meta = getFileMetadata(tempDb);
               tempDb.close();
-              
+
               const savedAt = meta.savedAt || '';
               if (!latestFile || savedAt > latestFile.savedAt) {
                 latestFile = { handle: entry, savedAt, filename: entry.name };
@@ -1366,7 +1393,7 @@ export default function App() {
           setNeedsEmailPrompt(true); // Prompt for email after conflict resolution
 
           toast.showInfo(`Found ${conflictingOnOpen.length} file(s) with potential conflicts. Review before editing.`);
-          
+
           // Don't show email dialog yet - show it after conflict resolution
           return;
         }
@@ -1375,7 +1402,7 @@ export default function App() {
       // Step 4: Prompt for Email (used for save metadata) - only if no conflicts
       promptForEmail();
 
-    } catch (e:any) {
+    } catch (e: any) {
       if (e.name !== 'AbortError') {
         logger.error("Failed to open database:", e);
         setAlertDialog({ title: "Error Opening Project", message: e.message || "Open failed" });
@@ -1384,20 +1411,40 @@ export default function App() {
   }
 
   async function saveDbAs() {
-    if (!sqlDb || !dirHandleRef.current) {
+    if (!sqlDb) return;
+
+    if (!isNativeFsSupported) {
+      try {
+        const data = sqlDb.export();
+        const blob = new Blob([data], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const baseName = currentFilename || `schedule-${new Date().toISOString().replace(/[:.]/g, '-')}.db`;
+        a.download = baseName;
+        a.click();
+        URL.revokeObjectURL(url);
+        setStatus(`Downloaded ${baseName}`);
+      } catch (e: any) {
+        setAlertDialog({ title: "Save Error", message: e.message || "Failed to download database" });
+      }
+      return;
+    }
+
+    if (!dirHandleRef.current) {
       // No folder open yet, use traditional save picker
       const handle = await (window as any).showSaveFilePicker({
         suggestedName: `schedule-${new Date().toISOString().replace(/[:.]/g, '-')}.db`,
         types: [{ description: "SQLite DB", accept: { "application/octet-stream": [".db"] } }],
       });
-      
+
       // Get the directory from the saved file
       // Note: This won't work perfectly but provides a fallback
       const data = sqlDb.export();
       const writable = await (handle as any).createWritable();
       await writable.write(data);
       await writable.close();
-      
+
       fileHandleRef.current = handle;
       setCurrentFilename(handle.name);
       setSessionStartedAt(new Date().toISOString());
@@ -1405,7 +1452,7 @@ export default function App() {
       toast.showSuccess("Database saved");
       return;
     }
-    
+
     // With folder open, use the new timestamped save
     await performSave(false);
   }
@@ -1413,12 +1460,12 @@ export default function App() {
   async function saveDb() {
     if (!sqlDb) return;
     if (!dirHandleRef.current) return saveDbAs();
-    
+
     // Check for conflicting saves (files saved since our session started)
     if (sessionStartedAt) {
       const files = await scanScheduleFiles(dirHandleRef.current);
       const conflicting = findConflictingFiles(files, sessionStartedAt, currentFilename);
-      
+
       if (conflicting.length > 0) {
         // Load the most recent conflicting file to show differences
         try {
@@ -1427,10 +1474,10 @@ export default function App() {
           const conflictFile = await conflictHandle.getFile();
           const conflictBuf = await conflictFile.arrayBuffer();
           const conflictDb = new SQL.Database(new Uint8Array(conflictBuf));
-          
+
           const conflictDetails = detectConflictDetails(sqlDb, conflictDb);
           conflictDb.close();
-          
+
           // Show conflict dialog
           setPendingConflicts({
             conflictingFiles: conflicting,
@@ -1443,42 +1490,42 @@ export default function App() {
         }
       }
     }
-    
+
     // No conflicts - proceed with save
     await performSave(false);
   }
 
   async function performSave(isMerge: boolean = false): Promise<void> {
     if (!sqlDb || !dirHandleRef.current) return;
-    
+
     try {
       // Track lineage: this new save is derived from the current file (if any)
       const derivedFrom = currentFilename || null;
-      
+
       // Set metadata in the database (including lineage)
       setSessionMetadata(sqlDb, userEmail || 'Unknown', sessionStartedAt || new Date().toISOString(), derivedFrom);
-      
+
       // Generate new filename
       const filename = generateSaveFilename(userEmail, isMerge);
-      
+
       // Create new file in the folder
       const newHandle = await dirHandleRef.current.getFileHandle(filename, { create: true });
       const data = sqlDb.export();
       const writable = await (newHandle as any).createWritable();
       await writable.write(data);
       await writable.close();
-      
+
       // Update our references
       fileHandleRef.current = newHandle;
       setCurrentFilename(filename);
-      
+
       // Update session start to now (we're now based on this save)
       const newSessionStart = new Date().toISOString();
       setSessionStartedAt(newSessionStart);
-      
+
       // Cleanup old files
       await cleanupOldFiles(dirHandleRef.current, filename);
-      
+
       setStatus(`Saved as ${filename}`);
       toast.showSuccess("Database saved");
     } catch (e) {
@@ -1539,7 +1586,7 @@ export default function App() {
     }
   }
 
-  function refreshCaches(db = sqlDb) {
+  function refreshCaches(db = sqlDb, shouldSave = false) {
     if (!db) return;
     const g = all(`SELECT id,name,theme,custom_color FROM grp ORDER BY name`, [], db);
     setGroups(g);
@@ -1552,7 +1599,7 @@ export default function App() {
     const adj = listSegmentAdjustments(db);
     setSegmentAdjustments(adj);
     loadMonthlyDefaults(selectedMonth, db);
-    
+
     // Load time-off block threshold from meta table
     try {
       const thresholdRows = all(`SELECT value FROM meta WHERE key='time_off_block_threshold'`, [], db);
@@ -1565,19 +1612,24 @@ export default function App() {
     } catch (e) {
       console.error('Failed to load time_off_block_threshold:', e);
     }
+
+    if (shouldSave) {
+      performSave(false);
+    }
   }
 
   // People CRUD minimal
   function addPerson(rec: any) {
     run(
-      `INSERT INTO person (last_name, first_name, work_email, brother_sister, commuter, active, avail_mon, avail_tue, avail_wed, avail_thu, avail_fri, start_date, end_date)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO person (last_name, first_name, work_email, brother_sister, commuter, occasional_commuter, active, avail_mon, avail_tue, avail_wed, avail_thu, avail_fri, start_date, end_date)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         rec.last_name?.trim() || "",
         rec.first_name?.trim() || "",
         rec.work_email?.trim().toLowerCase() || "",
         rec.brother_sister || null,
         rec.commuter ? 1 : 0,
+        rec.occasional_commuter ? 1 : 0,
         rec.active ? 1 : 1,
         rec.avail_mon || "U",
         rec.avail_tue || "U",
@@ -1589,19 +1641,20 @@ export default function App() {
       ]
     );
     const id = all(`SELECT last_insert_rowid() as id`)[0]?.id;
-    refreshCaches();
+    refreshCaches(sqlDb, true);
     return id;
   }
 
   function updatePerson(rec: any) {
     run(
-      `UPDATE person SET last_name=?, first_name=?, work_email=?, brother_sister=?, commuter=?, active=?, avail_mon=?, avail_tue=?, avail_wed=?, avail_thu=?, avail_fri=?, start_date=?, end_date=? WHERE id=?`,
+      `UPDATE person SET last_name=?, first_name=?, work_email=?, brother_sister=?, commuter=?, occasional_commuter=?, active=?, avail_mon=?, avail_tue=?, avail_wed=?, avail_thu=?, avail_fri=?, start_date=?, end_date=? WHERE id=?`,
       [
         rec.last_name,
         rec.first_name,
         rec.work_email?.trim().toLowerCase(),
         rec.brother_sister,
         rec.commuter ? 1 : 0,
+        rec.occasional_commuter ? 1 : 0,
         rec.active ? 1 : 0,
         rec.avail_mon,
         rec.avail_tue,
@@ -1613,26 +1666,26 @@ export default function App() {
         rec.id,
       ]
     );
-    refreshCaches();
+    refreshCaches(sqlDb, true);
   }
 
   function deletePerson(id: number) {
     run(`DELETE FROM training WHERE person_id=?`, [id]);
     run(`DELETE FROM person WHERE id=?`, [id]);
-    refreshCaches();
+    refreshCaches(sqlDb, true);
   }
 
   function saveTraining(personId: number, rolesSet: Set<number>) {
     // Only adjust manual-sourced entries; preserve monthly-derived training which reflects history
     run(`DELETE FROM training WHERE person_id=? AND source='manual'`, [personId]);
-    for (const rid of rolesSet) {
+    for (const rid of Array.from(rolesSet)) {
       run(
         `INSERT INTO training (person_id, role_id, status, source) VALUES (?,?, 'Qualified', 'manual')
          ON CONFLICT(person_id, role_id) DO UPDATE SET status='Qualified', source='manual'`,
         [personId, rid]
       );
     }
-    refreshCaches();
+    refreshCaches(sqlDb, true);
   }
 
   // Assignments
@@ -1654,17 +1707,17 @@ export default function App() {
   function addAssignment(dateMDY: string, personId: number, roleId: number, segment: Segment) {
     // Weekend guard
     const d = parseMDY(dateMDY);
-    if (weekdayName(d) === "Weekend") { 
+    if (weekdayName(d) === "Weekend") {
       setAlertDialog({ title: "Invalid Date", message: "Weekends are ignored. Pick a weekday." });
-      return; 
+      return;
     }
 
     // Time-off block enforcement
     if (segment !== "Early") {
-    const blocked = isSegmentBlockedByTimeOff(personId, d, segment);
-      if (blocked) { 
+      const blocked = isSegmentBlockedByTimeOff(personId, d, segment);
+      if (blocked) {
         setAlertDialog({ title: "Assignment Blocked", message: "Time-off overlaps this segment. Blocked." });
-        return; 
+        return;
       }
     }
 
@@ -1680,9 +1733,9 @@ export default function App() {
       [dYMD, personId, segment]
     );
     if (existing.length) {
-      const person = people.find((p:any) => p.id === personId);
+      const person = people.find((p: any) => p.id === personId);
       const personName = person ? `${person.first_name} ${person.last_name}` : "This person";
-      const details = existing.map((e:any)=> `${e.group_name} - ${e.role_name}`).join("; ");
+      const details = existing.map((e: any) => `${e.group_name} - ${e.role_name}`).join("; ");
       setConfirmDialog({
         title: "Assignment Conflict",
         message: `${personName} is already assigned in ${segment}: ${details}.\n\nClick OK to continue and remove the other assignment(s), or Cancel to abort.`,
@@ -1692,7 +1745,7 @@ export default function App() {
           }
           run(`INSERT INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`, [ymd(d), personId, roleId, segment]);
           // Do not auto-qualify from assignment; training is user-controlled in profile
-          refreshCaches();
+          refreshCaches(sqlDb, true);
           setConfirmDialog(null);
         }
       });
@@ -1700,16 +1753,16 @@ export default function App() {
     }
 
     run(`INSERT INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`, [ymd(d), personId, roleId, segment]);
-  // Do not auto-qualify from assignment; training is user-controlled in profile
-    refreshCaches();
+    // Do not auto-qualify from assignment; training is user-controlled in profile
+    refreshCaches(sqlDb, true);
   }
 
-  function deleteAssignment(id:number){ run(`DELETE FROM assignment WHERE id=?`,[id]); refreshCaches(); }
+  function deleteAssignment(id: number) { run(`DELETE FROM assignment WHERE id=?`, [id]); refreshCaches(sqlDb, true); }
 
   function segmentTimesForDate(date: Date): Record<string, { start: Date; end: Date }> {
     const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const mk = (t: string) => {
-      const [h, m] = t.split(":" ).map(Number);
+      const [h, m] = t.split(":").map(Number);
       return new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m, 0, 0);
     };
     const out: Record<string, { start: Date; end: Date }> = {};
@@ -1780,7 +1833,7 @@ export default function App() {
     const checkAdjustmentConditions = (adj: SegmentAdjustmentRow): boolean => {
       try {
         const conditions = listSegmentAdjustmentConditions(sqlDb, adj.id);
-        
+
         // If no conditions in new table, fall back to old format
         if (conditions.length === 0) {
           const roles = segRoleMap.get(adj.condition_segment);
@@ -1788,10 +1841,10 @@ export default function App() {
           if (adj.condition_role_id != null && !roles.has(adj.condition_role_id)) return false;
           return true;
         }
-        
+
         // Check multiple conditions with AND/OR logic
         const logicOp = adj.logic_operator || 'AND';
-        
+
         if (logicOp === 'AND') {
           return conditions.every(cond => {
             const roles = segRoleMap.get(cond.condition_segment);
@@ -1819,7 +1872,7 @@ export default function App() {
     // Apply segment adjustments only if this person meets the conditions
     for (const adj of segmentAdjustments) {
       if (!checkAdjustmentConditions(adj)) continue;
-      
+
       const target = out[adj.target_segment];
       if (!target) continue;
       const cond = out[adj.condition_segment];
@@ -1844,16 +1897,16 @@ export default function App() {
   function getTimeOffOverlapInfo(personId: number, date: Date, segment: Segment): { hasOverlap: boolean; overlapPercent: number; overlapMinutes: number } {
     const intervals = listTimeOffIntervals(personId, date);
     if (intervals.length === 0) return { hasOverlap: false, overlapPercent: 0, overlapMinutes: 0 };
-    
+
     const seg = segmentTimesForDate(date)[segment];
     if (!seg) return { hasOverlap: false, overlapPercent: 0, overlapMinutes: 0 };
-    
+
     const segStart = seg.start.getTime();
     const segEnd = seg.end.getTime();
     const segMinutes = Math.max(0, Math.round((segEnd - segStart) / 60000));
-    
+
     if (segMinutes === 0) return { hasOverlap: false, overlapPercent: 0, overlapMinutes: 0 };
-    
+
     // Sum up all overlapping time-off intervals
     let totalOverlapMs = 0;
     for (const interval of intervals) {
@@ -1862,10 +1915,10 @@ export default function App() {
       const overlap = Math.max(0, Math.min(e, segEnd) - Math.max(s, segStart));
       totalOverlapMs += overlap;
     }
-    
+
     const overlapMinutes = Math.round(totalOverlapMs / 60000);
     const overlapPercent = Math.round((overlapMinutes / segMinutes) * 100);
-    
+
     return {
       hasOverlap: overlapMinutes > 0,
       overlapPercent,
@@ -1882,10 +1935,10 @@ export default function App() {
     return overlapPercent >= threshold;
   }
 
-  function listTimeOffIntervals(personId: number, date: Date): Array<{start: Date; end: Date; reason?: string}> {
-    const startDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0,0,0,0);
-    const endDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23,59,59,999);
-    
+  function listTimeOffIntervals(personId: number, date: Date): Array<{ start: Date; end: Date; reason?: string }> {
+    const startDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+    const endDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+
     // Regular time-off entries
     const rows = all(`SELECT start_ts, end_ts, reason FROM timeoff WHERE person_id=?`, [personId]);
     const regularTimeOff = rows
@@ -1897,8 +1950,8 @@ export default function App() {
     // Convert Date's getDay() (0=Sun..6=Sat) to our weekday (0=Mon..4=Fri)
     const jsWeekday = date.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
     const weekday = jsWeekday >= 1 && jsWeekday <= 5 ? jsWeekday - 1 : -1; // 0=Mon..4=Fri, -1 for weekend
-    
-    const recurringTimeOff: Array<{start: Date; end: Date; reason?: string}> = [];
+
+    const recurringTimeOff: Array<{ start: Date; end: Date; reason?: string }> = [];
     if (weekday >= 0) {
       const recurringRows = all(
         `SELECT start_time, end_time, reason FROM recurring_timeoff WHERE person_id=? AND weekday=? AND active=1`,
@@ -1978,13 +2031,13 @@ export default function App() {
     if (roleId != null) {
       run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
            ON CONFLICT(month, person_id, segment) DO UPDATE SET role_id=excluded.role_id`,
-          [selectedMonth, personId, segment, roleId]);
+        [selectedMonth, personId, segment, roleId]);
     } else {
       run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
-          [selectedMonth, personId, segment]);
+        [selectedMonth, personId, segment]);
     }
-  loadMonthlyDefaults(selectedMonth);
-  syncTrainingFromMonthly();
+    loadMonthlyDefaults(selectedMonth);
+    syncTrainingFromMonthly();
   }
 
   function setWeeklyOverride(personId: number, weekday: number, segment: Segment, roleId: number | null) {
@@ -1992,13 +2045,13 @@ export default function App() {
     if (roleId != null) {
       run(`INSERT INTO monthly_default_day (month, person_id, weekday, segment, role_id) VALUES (?,?,?,?,?)
            ON CONFLICT(month, person_id, weekday, segment) DO UPDATE SET role_id=excluded.role_id`,
-          [selectedMonth, personId, weekday, segment, roleId]);
+        [selectedMonth, personId, weekday, segment, roleId]);
     } else {
       run(`DELETE FROM monthly_default_day WHERE month=? AND person_id=? AND weekday=? AND segment=?`,
-          [selectedMonth, personId, weekday, segment]);
+        [selectedMonth, personId, weekday, segment]);
     }
-  loadMonthlyDefaults(selectedMonth);
-  syncTrainingFromMonthly();
+    loadMonthlyDefaults(selectedMonth);
+    syncTrainingFromMonthly();
   }
 
   function setWeekNumberOverride(personId: number, weekNumber: number, segment: Segment, roleId: number | null) {
@@ -2006,13 +2059,13 @@ export default function App() {
     if (roleId != null) {
       run(`INSERT INTO monthly_default_week (month, person_id, week_number, segment, role_id) VALUES (?,?,?,?,?)
            ON CONFLICT(month, person_id, week_number, segment) DO UPDATE SET role_id=excluded.role_id`,
-          [selectedMonth, personId, weekNumber, segment, roleId]);
+        [selectedMonth, personId, weekNumber, segment, roleId]);
     } else {
       run(`DELETE FROM monthly_default_week WHERE month=? AND person_id=? AND week_number=? AND segment=?`,
-          [selectedMonth, personId, weekNumber, segment]);
+        [selectedMonth, personId, weekNumber, segment]);
     }
-  loadMonthlyDefaults(selectedMonth);
-  syncTrainingFromMonthly();
+    loadMonthlyDefaults(selectedMonth);
+    syncTrainingFromMonthly();
   }
 
   function setMonthlyNote(personId: number, note: string | null) {
@@ -2021,10 +2074,10 @@ export default function App() {
     if (text) {
       run(`INSERT INTO monthly_default_note (month, person_id, note) VALUES (?,?,?)
            ON CONFLICT(month, person_id) DO UPDATE SET note=excluded.note`,
-          [selectedMonth, personId, text]);
+        [selectedMonth, personId, text]);
     } else {
       run(`DELETE FROM monthly_default_note WHERE month=? AND person_id=?`,
-          [selectedMonth, personId]);
+        [selectedMonth, personId]);
     }
     loadMonthlyDefaults(selectedMonth);
   }
@@ -2034,12 +2087,12 @@ export default function App() {
     if (roleId != null) {
       run(`INSERT INTO monthly_default (month, person_id, segment, role_id) VALUES (?,?,?,?)
            ON CONFLICT(month, person_id, segment) DO UPDATE SET role_id=excluded.role_id`,
-          [month, personId, segment, roleId]);
+        [month, personId, segment, roleId]);
     } else {
       run(`DELETE FROM monthly_default WHERE month=? AND person_id=? AND segment=?`,
-          [month, personId, segment]);
+        [month, personId, segment]);
     }
-  syncTrainingFromMonthly();
+    syncTrainingFromMonthly();
   }
 
   function copyMonthlyDefaults(fromMonth: string, toMonth: string) {
@@ -2069,15 +2122,15 @@ export default function App() {
       );
     }
     loadMonthlyDefaults(toMonth);
-  syncTrainingFromMonthly();
+    syncTrainingFromMonthly();
     setStatus(`Copied monthly defaults from ${fromMonth}.`);
   }
 
   async function applyMonthlyDefaults(month: string) {
     if (!sqlDb) return;
-    const [y,m] = month.split('-').map(n=>parseInt(n,10));
+    const [y, m] = month.split('-').map(n => parseInt(n, 10));
     const days = new Date(y, m, 0).getDate();
-    
+
     // Load week_start_mode setting from meta table
     let weekStartMode: WeekStartMode = 'first_monday';
     try {
@@ -2091,7 +2144,7 @@ export default function App() {
     } catch (e) {
       console.error('Failed to load week_start_mode:', e);
     }
-    
+
     const defaultMap = new Map<string, number>();
     for (const def of monthlyDefaults) {
       defaultMap.set(`${def.person_id}|${def.segment}`, def.role_id);
@@ -2107,8 +2160,8 @@ export default function App() {
     let overwriteAll = false;
     let skipAll = false;
     for (const person of people) {
-      for (let day=1; day<=days; day++) {
-        const d = new Date(y, m-1, day);
+      for (let day = 1; day <= days; day++) {
+        const d = new Date(y, m - 1, day);
         const wdName = weekdayName(d);
         if (wdName === 'Weekend') continue;
         const wdNum = d.getDay(); // 1=Mon..5=Fri
@@ -2135,7 +2188,7 @@ export default function App() {
           if (existing.length) {
             if (skipAll) continue;
             if (!overwriteAll) {
-              const action = await new Promise<'overwrite'|'skip'|'overwriteAll'|'skipAll'>(resolve => {
+              const action = await new Promise<'overwrite' | 'skip' | 'overwriteAll' | 'skipAll'>(resolve => {
                 setConflictPrompt({ person, date: d, segment: seg, resolve });
               });
               if (action === 'skip' || action === 'skipAll') {
@@ -2146,11 +2199,11 @@ export default function App() {
             }
           }
           run(`INSERT OR REPLACE INTO assignment (date, person_id, role_id, segment) VALUES (?,?,?,?)`,
-              [dateStr, person.id, roleId, seg]);
+            [dateStr, person.id, roleId, seg]);
         }
       }
     }
-    refreshCaches();
+    refreshCaches(sqlDb, true);
     setStatus('Applied monthly defaults.');
   }
 
@@ -2161,17 +2214,17 @@ export default function App() {
       'First Name',
       ...segments.map(s => `${s.name} Role`),
       'Notes',
-      'B/S','Commute','Active',
-      'Mon','Tue','Wed','Thu','Fri'
+      'B/S', 'Commute', 'Active',
+      'Mon', 'Tue', 'Wed', 'Thu', 'Fri'
     ];
 
     const contrastColor = (hex: string) => {
-      const c = hex.replace('#','');
+      const c = hex.replace('#', '');
       if (c.length !== 6) return '#000';
-      const r = parseInt(c.substring(0,2),16);
-      const g = parseInt(c.substring(2,4),16);
-      const b = parseInt(c.substring(4,6),16);
-      const l = 0.299*r + 0.587*g + 0.114*b;
+      const r = parseInt(c.substring(0, 2), 16);
+      const g = parseInt(c.substring(2, 4), 16);
+      const b = parseInt(c.substring(4, 6), 16);
+      const l = 0.299 * r + 0.587 * g + 0.114 * b;
       return l > 186 ? '#000' : '#fff';
     };
 
@@ -2190,70 +2243,70 @@ export default function App() {
       .replace(/>/g, '&gt;');
 
     const headerHtml = headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
-    const bodyHtml = people.map((p:any) => {
+    const bodyHtml = people.map((p: any) => {
       const roleTds = segments.map(s => {
         const seg = s.name as Segment;
-        const def = monthlyDefaults.find(d => d.person_id===p.id && d.segment===seg);
-        const role = roles.find(r => r.id===def?.role_id);
+        const def = monthlyDefaults.find(d => d.person_id === p.id && d.segment === seg);
+        const role = roles.find(r => r.id === def?.role_id);
         const group = groups.find(g => g.id === role?.group_id);
         const bg = group?.custom_color || '';
         const color = bg ? contrastColor(bg) : '';
         const style = bg ? ` style="background:${bg};color:${color};"` : '';
         const overrideStrs: string[] = [];
         for (let w = 1; w <= 5; w++) {
-          const ov = monthlyOverrides.find(o => o.person_id===p.id && o.weekday===w && o.segment===seg);
-          const ovRole = roles.find(r => r.id===ov?.role_id);
+          const ov = monthlyOverrides.find(o => o.person_id === p.id && o.weekday === w && o.segment === seg);
+          const ovRole = roles.find(r => r.id === ov?.role_id);
           if (ovRole && ovRole.id !== def?.role_id) {
-            overrideStrs.push(`${WEEKDAYS[w-1].slice(0,3)}: ${escapeHtml(ovRole.name)}`);
+            overrideStrs.push(`${WEEKDAYS[w - 1].slice(0, 3)}: ${escapeHtml(ovRole.name)}`);
           }
         }
         const overrideHtml = overrideStrs.length ? `<div class="ov">${overrideStrs.join(', ')}</div>` : '';
         return `<td${style}>${escapeHtml(role?.name || '')}${overrideHtml}</td>`;
       }).join('');
       const note = monthlyNotes.find(n => n.person_id === p.id)?.note;
-      return `<tr>`+
-        `<td>${escapeHtml(p.last_name)}</td>`+
-        `<td>${escapeHtml(p.first_name)}</td>`+
-        roleTds+
-        `<td>${escapeHtml(note || '')}</td>`+
-        `<td>${escapeHtml(p.brother_sister || '')}</td>`+
-        `<td>${p.commuter ? 'Yes' : 'No'}</td>`+
-        `<td>${p.active ? 'Yes' : 'No'}</td>`+
-        `<td>${escapeHtml(p.avail_mon)}</td>`+
-        `<td>${escapeHtml(p.avail_tue)}</td>`+
-        `<td>${escapeHtml(p.avail_wed)}</td>`+
-        `<td>${escapeHtml(p.avail_thu)}</td>`+
-        `<td>${escapeHtml(p.avail_fri)}</td>`+
+      return `<tr>` +
+        `<td>${escapeHtml(p.last_name)}</td>` +
+        `<td>${escapeHtml(p.first_name)}</td>` +
+        roleTds +
+        `<td>${escapeHtml(note || '')}</td>` +
+        `<td>${escapeHtml(p.brother_sister || '')}</td>` +
+        `<td>${p.commuter ? 'Yes' : 'No'}</td>` +
+        `<td>${p.active ? 'Yes' : 'No'}</td>` +
+        `<td>${escapeHtml(p.avail_mon)}</td>` +
+        `<td>${escapeHtml(p.avail_tue)}</td>` +
+        `<td>${escapeHtml(p.avail_wed)}</td>` +
+        `<td>${escapeHtml(p.avail_thu)}</td>` +
+        `<td>${escapeHtml(p.avail_fri)}</td>` +
         `</tr>`;
     }).join('');
 
-    const style = `body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f5f7fa;color:#1a1a1a;margin:0;padding:40px;}\n`+
-      `h1{text-align:center;font-weight:300;margin-bottom:24px;}\n`+
-      `.search{text-align:right;margin-bottom:12px;}\n`+
-      `.search input{padding:8px 12px;border:1px solid #cbd5e1;border-radius:4px;}\n`+
-      `table{width:100%;border-collapse:collapse;box-shadow:0 2px 4px rgba(0,0,0,0.1);}\n`+
-      `th,td{padding:12px 16px;border-bottom:1px solid #e5e7eb;}\n`+
-      `th{background:#111827;color:#fff;position:sticky;top:0;cursor:pointer;}\n`+
-      `tr:nth-child(even){background:#f9fafb;}\n`+
+    const style = `body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f5f7fa;color:#1a1a1a;margin:0;padding:40px;}\n` +
+      `h1{text-align:center;font-weight:300;margin-bottom:24px;}\n` +
+      `.search{text-align:right;margin-bottom:12px;}\n` +
+      `.search input{padding:8px 12px;border:1px solid #cbd5e1;border-radius:4px;}\n` +
+      `table{width:100%;border-collapse:collapse;box-shadow:0 2px 4px rgba(0,0,0,0.1);}\n` +
+      `th,td{padding:12px 16px;border-bottom:1px solid #e5e7eb;}\n` +
+      `th{background:#111827;color:#fff;position:sticky;top:0;cursor:pointer;}\n` +
+      `tr:nth-child(even){background:#f9fafb;}\n` +
       `.ov{font-size:0.8em;margin-top:4px;}`;
 
-    const script = `const getCellValue=(tr,idx)=>tr.children[idx].innerText;\n`+
-      `const comparer=(idx,asc)=>((a,b)=>((v1,v2)=>v1!==''&&v2!==''&&!isNaN(v1)&&!isNaN(v2)?v1-v2:v1.localeCompare(v2))(`+
-      `getCellValue(asc?a:b,idx),getCellValue(asc?b:a,idx)));\n`+
-      `document.querySelectorAll('th').forEach(th=>th.addEventListener('click',(()=>{`+
-      `const table=th.closest('table');const tbody=table.querySelector('tbody');Array.from(tbody.querySelectorAll('tr'))`+
-      `.sort(comparer(Array.from(th.parentNode.children).indexOf(th),this.asc=!this.asc))`+
-      `.forEach(tr=>tbody.appendChild(tr));})));\n`+
-      `const search=document.getElementById('table-search');search.addEventListener('input',()=>{`+
-      `const term=search.value.toLowerCase();document.querySelectorAll('tbody tr').forEach(tr=>{`+
+    const script = `const getCellValue=(tr,idx)=>tr.children[idx].innerText;\n` +
+      `const comparer=(idx,asc)=>((a,b)=>((v1,v2)=>v1!==''&&v2!==''&&!isNaN(v1)&&!isNaN(v2)?v1-v2:v1.localeCompare(v2))(` +
+      `getCellValue(asc?a:b,idx),getCellValue(asc?b:a,idx)));\n` +
+      `document.querySelectorAll('th').forEach(th=>th.addEventListener('click',(()=>{` +
+      `const table=th.closest('table');const tbody=table.querySelector('tbody');Array.from(tbody.querySelectorAll('tr'))` +
+      `.sort(comparer(Array.from(th.parentNode.children).indexOf(th),this.asc=!this.asc))` +
+      `.forEach(tr=>tbody.appendChild(tr));})));\n` +
+      `const search=document.getElementById('table-search');search.addEventListener('input',()=>{` +
+      `const term=search.value.toLowerCase();document.querySelectorAll('tbody tr').forEach(tr=>{` +
       `tr.style.display=Array.from(tr.children).some(td=>td.textContent.toLowerCase().includes(term))?'':'none';});});`;
 
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>`+
-      `<title>Monthly Defaults - ${escapeHtml(titleText)}</title>`+
-      `<style>${style}</style></head><body>`+
-      `<h1>Monthly Defaults - ${escapeHtml(titleText)}</h1>`+
-      `<div class="search"><label>Search: <input id="table-search" type="search" placeholder="Filter rows"/></label></div>`+
-      `<table><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`+
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>` +
+      `<title>Monthly Defaults - ${escapeHtml(titleText)}</title>` +
+      `<style>${style}</style></head><body>` +
+      `<h1>Monthly Defaults - ${escapeHtml(titleText)}</h1>` +
+      `<div class="search"><label>Search: <input id="table-search" type="search" placeholder="Filter rows"/></label></div>` +
+      `<table><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>` +
       `<script>${script}<\/script></body></html>`;
 
     const blob = new Blob([html], { type: 'text/html' });
@@ -2278,27 +2331,27 @@ export default function App() {
     if (date) {
       run(`INSERT INTO needs_override (date, group_id, role_id, segment, required) VALUES (?,?,?,?,?)
            ON CONFLICT(date, group_id, role_id, segment) DO UPDATE SET required=excluded.required`,
-          [ ymd(date), groupId, roleId, segment, required ]);
+        [ymd(date), groupId, roleId, segment, required]);
     } else {
       run(`INSERT INTO needs_baseline (group_id, role_id, segment, required) VALUES (?,?,?,?)
            ON CONFLICT(group_id, role_id, segment) DO UPDATE SET required=excluded.required`,
-          [ groupId, roleId, segment, required ]);
+        [groupId, roleId, segment, required]);
     }
-    refreshCaches();
+    refreshCaches(sqlDb, true);
   }
 
-// Export to Shifts XLSX
-async function exportShifts() {
-    if (!sqlDb) { 
+  // Export to Shifts XLSX
+  async function exportShifts() {
+    if (!sqlDb) {
       setAlertDialog({ title: "No Database", message: "Open a DB first" });
-      return; 
+      return;
     }
     const XLSX = await loadXLSX();
     const start = parseYMD(exportStart);
     const end = parseYMD(exportEnd);
-    if (end < start) { 
+    if (end < start) {
       setAlertDialog({ title: "Invalid Date Range", message: "End date must be after start date" });
-      return; 
+      return;
     }
 
     // Helper to parse HH:MM time string into a Date for a given day
@@ -2312,19 +2365,19 @@ async function exportShifts() {
     while (d <= end) {
       if (weekdayName(d) !== "Weekend") {
         const dYMD = ymd(d);
-        
+
         // Query department events for this date - build a map of event title -> time range
         const deptEvents = all(`SELECT title, start_time, end_time, group_id, role_id FROM department_event WHERE date=?`, [dYMD]);
         const eventTimeMap = new Map<string, { start_time: string; end_time: string; group_id: number | null; role_id: number | null }>();
         for (const evt of deptEvents) {
-          eventTimeMap.set(evt.title, { 
-            start_time: evt.start_time, 
+          eventTimeMap.set(evt.title, {
+            start_time: evt.start_time,
             end_time: evt.end_time,
             group_id: evt.group_id,
             role_id: evt.role_id
           });
         }
-        
+
         const assigns = all(`SELECT a.id, a.person_id, a.role_id, a.segment,
                                     p.first_name, p.last_name, p.work_email,
                                     r.name as role_name, r.code as role_code, r.group_id,
@@ -2334,6 +2387,17 @@ async function exportShifts() {
                              LEFT JOIN role r ON r.id=a.role_id
                              LEFT JOIN grp g  ON g.id=r.group_id
                              WHERE a.date=?`, [dYMD]);
+
+        // Fetch Flex Time (recurring timeoff) for this day
+        const dayIdx = d.getDay() - 1; // 0=Mon, 1=Tue, ...
+        const flexEntries = (dayIdx >= 0 && dayIdx <= 4) ? all(
+          `SELECT rt.person_id, rt.start_time, rt.end_time, rt.reason,
+                  p.first_name, p.last_name, p.work_email
+           FROM recurring_timeoff rt
+           JOIN person p ON p.id = rt.person_id
+           WHERE rt.active = 1 AND rt.weekday = ?`,
+          [dayIdx]
+        ) : [];
 
         // For Teams export, use per-person segment times to correctly apply adjustments
         // Group assignments by person to determine which adjustments apply to each person
@@ -2347,15 +2411,15 @@ async function exportShifts() {
         for (const a of assigns) {
           // Check if this assignment is for a department event (segment name matches event title)
           const eventInfo = eventTimeMap.get(a.segment);
-          
+
           let seg: { start: Date; end: Date } | undefined;
           let labelOverride: string | undefined;
-          
+
           if (eventInfo) {
             // This is a department event - use the event's time range
-            seg = { 
-              start: mkTime(d, eventInfo.start_time), 
-              end: mkTime(d, eventInfo.end_time) 
+            seg = {
+              start: mkTime(d, eventInfo.start_time),
+              end: mkTime(d, eventInfo.end_time)
             };
             // Use the event title as the label (not the role name)
             labelOverride = a.segment;
@@ -2365,7 +2429,7 @@ async function exportShifts() {
             const segMap = segmentTimesForPersonDate(d, personAssigns);
             seg = segMap[a.segment];
           }
-          
+
           if (!seg) continue;
           const windows: Array<{ start: Date; end: Date; label: string; group: string }> = [
             { start: seg.start, end: seg.end, label: labelOverride || a.role_name, group: a.group_name },
@@ -2378,13 +2442,31 @@ async function exportShifts() {
             for (const s of split) rows.push(makeShiftRow(a, d, s.start, s.end, labelOverride));
           }
         }
+
+        // Add Flex Time rows
+        for (const f of flexEntries) {
+          rows.push({
+            member: `${f.last_name}, ${f.first_name}`,
+            workEmail: f.work_email,
+            group: "Time Away",
+            startDate: fmtDateMDY(d),
+            startTime: f.start_time,
+            endDate: fmtDateMDY(d),
+            endTime: f.end_time,
+            themeColor: "Gray",
+            customLabel: "Time Away" + (f.reason ? `: ${f.reason}` : ""),
+            unpaidBreak: 0,
+            notes: f.reason || "",
+            shared: "Yes"
+          });
+        }
       }
-      d = addMinutes(d, 24*60);
+      d = addMinutes(d, 24 * 60);
     }
 
     // Build XLSX
     const header = [
-      "Member","Work Email","Group","Start Date","Start Time","End Date","End Time","Theme Color","Custom Label","Unpaid Break (minutes)","Notes","Shared"
+      "Member", "Work Email", "Group", "Start Date", "Start Time", "End Date", "End Time", "Theme Color", "Custom Label", "Unpaid Break (minutes)", "Notes", "Shared"
     ];
     const aoa = [header, ...rows.map(r => [
       r.member,
@@ -2416,7 +2498,7 @@ async function exportShifts() {
     setStatus(`Exported ${rows.length} rows.`);
   }
 
-  function subtractIntervals(start: Date, end: Date, offs: Array<{start: Date; end: Date}>): Array<{start: Date; end: Date}> {
+  function subtractIntervals(start: Date, end: Date, offs: Array<{ start: Date; end: Date }>): Array<{ start: Date; end: Date }> {
     // Returns array of non-overlapping sub-intervals of [start,end) with offs removed
     let segments = [{ start, end }];
     for (const off of offs) {
@@ -2439,7 +2521,7 @@ async function exportShifts() {
     // For department events without a group, use the event title (segment) as the group
     const group = a.segment === "Early" ? "Dining Room" : (a.group_name || a.segment);
     const themeColor = groups.find((g) => g.name === group)?.theme || "";
-    
+
     // Simplify role label to remove redundant group name prefix
     // e.g., if group is "Dining Room" and role is "Dining Room", label is blank
     // If role is "Dining Room Coordinator", label is "Coordinator"
@@ -2454,9 +2536,9 @@ async function exportShifts() {
     };
     // If labelOverride is provided (for department events), use it directly
     const customLabel = labelOverride || simplifyRole(a.role_name, group);
-    
+
     const unpaidBreak = 0; // per user
-    
+
     // Format time for notes (e.g., "8-12" or "1-5")
     const formatTimeForNotes = (d: Date) => {
       let hour = d.getHours();
@@ -2490,7 +2572,7 @@ async function exportShifts() {
   // UI helpers
   const canEdit = !!sqlDb;
   const canSave = !!sqlDb;
-  const selectedDateObj = useMemo(()=>parseMDY(selectedDate),[selectedDate]);
+  const selectedDateObj = useMemo(() => parseMDY(selectedDate), [selectedDate]);
   const currentAssignmentsCount = useMemo(() => {
     if (!sqlDb) return 0;
     try {
@@ -2553,10 +2635,10 @@ async function exportShifts() {
 
   // Removed unused helpers assignmentsByGroupRole and countAssigned
 
-  function RequiredCell({date, group, role, segment}:{date:Date|null; group:any; role:any; segment:Segment}){
-    const req = date ? getRequiredFor(date, group.id, role.id, segment) : (all(`SELECT required FROM needs_baseline WHERE group_id=? AND role_id=? AND segment=?`, [group.id, role.id, segment])[0]?.required||0);
-    const [val,setVal] = useState<number>(req);
-    useEffect(()=>setVal(req),[req]);
+  function RequiredCell({ date, group, role, segment }: { date: Date | null; group: any; role: any; segment: Segment }) {
+    const req = date ? getRequiredFor(date, group.id, role.id, segment) : (all(`SELECT required FROM needs_baseline WHERE group_id=? AND role_id=? AND segment=?`, [group.id, role.id, segment])[0]?.required || 0);
+    const [val, setVal] = useState<number>(req);
+    useEffect(() => setVal(req), [req]);
     const r = useRequiredCellStyles();
     const hasChanged = val !== req;
     return (
@@ -2564,15 +2646,15 @@ async function exportShifts() {
         <Input
           type="number"
           value={String(val)}
-          onChange={(_, d)=>setVal(parseInt(d.value||'0',10))}
+          onChange={(_, d) => setVal(parseInt(d.value || '0', 10))}
           className={r.input}
           size="small"
           appearance="outline"
         />
-        <Button 
-          size="small" 
+        <Button
+          size="small"
           appearance={hasChanged ? "primary" : "secondary"}
-          onClick={()=>setRequired(date, group.id, role.id, segment, val)}
+          onClick={() => setRequired(date, group.id, role.id, segment, val)}
           className={r.button}
           disabled={!hasChanged}
         >
@@ -2581,10 +2663,10 @@ async function exportShifts() {
       </div>
     );
   }
-  function BaselineView(){
+  function BaselineView() {
     const s = useBaselineViewStyles();
     const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
-    
+
     // Calculate summary metrics
     const totalRoles = roles.length;
     const totalSegments = segments.length;
@@ -2592,7 +2674,7 @@ async function exportShifts() {
     const totalBaselines = useMemo(() => {
       return all(`SELECT COUNT(*) as count FROM needs_baseline WHERE required > 0`)[0]?.count || 0;
     }, [all]);
-    
+
     // Calculate per-group stats
     const groupStats = useMemo(() => {
       const stats = new Map<number, { rolesCount: number; totalRequired: number }>();
@@ -2612,7 +2694,7 @@ async function exportShifts() {
       }
       return stats;
     }, [groups, roles, segments, all]);
-    
+
     const toggleGroup = (groupId: number) => {
       setExpandedGroups(prev => {
         const next = new Set(prev);
@@ -2624,15 +2706,15 @@ async function exportShifts() {
         return next;
       });
     };
-    
+
     const expandAll = () => {
       setExpandedGroups(new Set(groups.map((g: any) => g.id)));
     };
-    
+
     const collapseAll = () => {
       setExpandedGroups(new Set());
     };
-    
+
     return (
       <div className={s.root}>
         <div className={s.header}>
@@ -2640,7 +2722,7 @@ async function exportShifts() {
           <div className={s.description}>
             Configure the default staffing requirements for each role and segment. These baselines can be overridden for specific dates.
           </div>
-          
+
           <div className={s.metricsRow}>
             <div className={s.metricCard}>
               <div className={s.metricValue}>{totalGroups}</div>
@@ -2659,25 +2741,25 @@ async function exportShifts() {
               <div className={s.metricLabel}>Configured Needs</div>
             </div>
           </div>
-          
+
           <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, marginBottom: tokens.spacingVerticalM }}>
             <Button appearance="secondary" size="small" onClick={expandAll}>Expand All</Button>
             <Button appearance="secondary" size="small" onClick={collapseAll}>Collapse All</Button>
           </div>
         </div>
-        
+
         <div className={s.grid}>
-          {groups.map((g:any)=> {
+          {groups.map((g: any) => {
             const stats = groupStats.get(g.id);
             const isExpanded = expandedGroups.has(g.id);
             return (
               <div key={g.id} className={s.card}>
-                <div 
+                <div
                   className={s.cardHeader}
                   onClick={() => toggleGroup(g.id)}
                 >
                   <div className={s.cardHeaderLeft}>
-                    <ChevronDown20Regular 
+                    <ChevronDown20Regular
                       className={`${s.chevron} ${isExpanded ? s.chevronExpanded : ''}`}
                     />
                     <span className={s.subTitle} style={{ marginBottom: 0 }}>{g.name}</span>
@@ -2689,7 +2771,7 @@ async function exportShifts() {
                 </div>
                 {isExpanded && (
                   <div className={s.cardContent}>
-                    {roles.filter((r)=>r.group_id===g.id).map((r:any)=> (
+                    {roles.filter((r) => r.group_id === g.id).map((r: any) => (
                       <div key={r.id} className={s.roleCard}>
                         <div className={s.subTitle}>{r.name}</div>
                         <div className={s.roleGrid}>
@@ -2713,650 +2795,656 @@ async function exportShifts() {
   }
 
 
-function PeopleEditor(){
-  const emptyForm = { active:true, commuter:false, brother_sister:'Brother', avail_mon:'U', avail_tue:'U', avail_wed:'U', avail_thu:'U', avail_fri:'U' };
-  const [form,setForm] = useState<any>(emptyForm);
-  const [editing,setEditing] = useState<any|null>(null);
-  const [qualifications,setQualifications] = useState<Set<number>>(new Set());
-  const [showModal,setShowModal] = useState(false);
-  const [showBulk,setShowBulk] = useState(false);
-  const [bulkAction,setBulkAction] = useState<'add'|'remove'>('add');
-  const [bulkPeople,setBulkPeople] = useState<Set<number>>(new Set());
-  const [bulkRoles,setBulkRoles] = useState<Set<number>>(new Set());
-  const [filters, setFilters] = usePersistentFilters('peopleEditorFilters');
-  
-  // Bulk Flex Time state
-  const [showBulkFlex, setShowBulkFlex] = useState(false);
-  const [bulkFlexPeople, setBulkFlexPeople] = useState<Set<number>>(new Set());
-  const [bulkFlexAction, setBulkFlexAction] = useState<'add' | 'remove'>('add');
-  const [bulkFlexWeekdays, setBulkFlexWeekdays] = useState<Set<number>>(new Set());
-  const [bulkFlexStart, setBulkFlexStart] = useState('09:00');
-  const [bulkFlexEnd, setBulkFlexEnd] = useState('17:00');
-  const [bulkFlexReason, setBulkFlexReason] = useState('');
-  
-  // Flex Time state
-  const [flexEntries, setFlexEntries] = useState<Array<{id: number; weekday: number; start_time: string; end_time: string; reason: string; active: number}>>([]);
-  const [newFlexEntry, setNewFlexEntry] = useState({ weekday: 0, start_time: '09:00', end_time: '17:00', reason: '', active: 1 });
-  const FLEX_WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  function PeopleEditor() {
+    const emptyForm = { active: true, commuter: false, occasional_commuter: false, brother_sister: 'Brother', avail_mon: 'U', avail_tue: 'U', avail_wed: 'U', avail_thu: 'U', avail_fri: 'U' };
+    const [form, setForm] = useState<any>(emptyForm);
+    const [editing, setEditing] = useState<any | null>(null);
+    const [qualifications, setQualifications] = useState<Set<number>>(new Set());
+    const [showModal, setShowModal] = useState(false);
+    const [showBulk, setShowBulk] = useState(false);
+    const [bulkAction, setBulkAction] = useState<'add' | 'remove'>('add');
+    const [bulkPeople, setBulkPeople] = useState<Set<number>>(new Set());
+    const [bulkRoles, setBulkRoles] = useState<Set<number>>(new Set());
+    const [filters, setFilters] = usePersistentFilters('peopleEditorFilters');
 
-  // Query all people, including inactive entries, so they can be edited
-  const people = all(`SELECT * FROM person ORDER BY last_name, first_name`);
-  const viewPeople = useMemo(() => filterPeopleList(people, filters), [people, filters]);
+    // Bulk Flex Time state
+    const [showBulkFlex, setShowBulkFlex] = useState(false);
+    const [bulkFlexPeople, setBulkFlexPeople] = useState<Set<number>>(new Set());
+    const [bulkFlexAction, setBulkFlexAction] = useState<'add' | 'remove'>('add');
+    const [bulkFlexWeekdays, setBulkFlexWeekdays] = useState<Set<number>>(new Set());
+    const [bulkFlexStart, setBulkFlexStart] = useState('09:00');
+    const [bulkFlexEnd, setBulkFlexEnd] = useState('17:00');
+    const [bulkFlexReason, setBulkFlexReason] = useState('');
 
-  useEffect(()=>{
-    if(editing){
-      const rows = all(`SELECT role_id FROM training WHERE person_id=? AND status='Qualified'`, [editing.id]);
-      setQualifications(new Set(rows.map((r:any)=>r.role_id)));
-      // Load flex time entries
+    // Flex Time state
+    const [flexEntries, setFlexEntries] = useState<Array<{ id: number; weekday: number; start_time: string; end_time: string; reason: string; active: number }>>([]);
+    const [newFlexEntry, setNewFlexEntry] = useState({ weekday: 0, start_time: '09:00', end_time: '17:00', reason: '', active: 1 });
+    const FLEX_WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+    // Query all people, including inactive entries, so they can be edited
+    const people = all(`SELECT * FROM person ORDER BY last_name, first_name`);
+    const viewPeople = useMemo(() => filterPeopleList(people, filters), [people, filters]);
+
+    useEffect(() => {
+      if (editing) {
+        const rows = all(`SELECT role_id FROM training WHERE person_id=? AND status='Qualified'`, [editing.id]);
+        setQualifications(new Set(rows.map((r: any) => r.role_id)));
+        // Load flex time entries
+        const flexRows = all(`SELECT id, weekday, start_time, end_time, reason, active FROM recurring_timeoff WHERE person_id=? ORDER BY weekday, start_time`, [editing.id]);
+        setFlexEntries(flexRows);
+      } else {
+        setQualifications(new Set());
+        setFlexEntries([]);
+      }
+    }, [editing]);
+
+    function addFlexEntry() {
+      if (!editing) return;
+      run(
+        `INSERT INTO recurring_timeoff (person_id, weekday, start_time, end_time, reason, active) VALUES (?, ?, ?, ?, ?, ?)`,
+        [editing.id, newFlexEntry.weekday, newFlexEntry.start_time, newFlexEntry.end_time, newFlexEntry.reason, newFlexEntry.active]
+      );
       const flexRows = all(`SELECT id, weekday, start_time, end_time, reason, active FROM recurring_timeoff WHERE person_id=? ORDER BY weekday, start_time`, [editing.id]);
       setFlexEntries(flexRows);
-    } else {
-      setQualifications(new Set());
-      setFlexEntries([]);
+      setNewFlexEntry({ weekday: 0, start_time: '09:00', end_time: '17:00', reason: '', active: 1 });
+      refreshCaches(sqlDb, true);
     }
-  },[editing]);
-  
-  function addFlexEntry() {
-    if (!editing) return;
-    run(
-      `INSERT INTO recurring_timeoff (person_id, weekday, start_time, end_time, reason, active) VALUES (?, ?, ?, ?, ?, ?)`,
-      [editing.id, newFlexEntry.weekday, newFlexEntry.start_time, newFlexEntry.end_time, newFlexEntry.reason, newFlexEntry.active]
-    );
-    const flexRows = all(`SELECT id, weekday, start_time, end_time, reason, active FROM recurring_timeoff WHERE person_id=? ORDER BY weekday, start_time`, [editing.id]);
-    setFlexEntries(flexRows);
-    setNewFlexEntry({ weekday: 0, start_time: '09:00', end_time: '17:00', reason: '', active: 1 });
-  }
-  
-  function deleteFlexEntry(id: number) {
-    run(`DELETE FROM recurring_timeoff WHERE id=?`, [id]);
-    setFlexEntries(flexEntries.filter(e => e.id !== id));
-  }
-  
-  function toggleFlexActive(id: number, active: boolean) {
-    run(`UPDATE recurring_timeoff SET active=? WHERE id=?`, [active ? 1 : 0, id]);
-    setFlexEntries(flexEntries.map(e => e.id === id ? {...e, active: active ? 1 : 0} : e));
-  }
 
-  function openModal(p?:any){
-    if(p){
-      setEditing(p);
-      setForm(p);
-    } else {
+    function deleteFlexEntry(id: number) {
+      run(`DELETE FROM recurring_timeoff WHERE id=?`, [id]);
+      setFlexEntries(flexEntries.filter(e => e.id !== id));
+      refreshCaches(sqlDb, true);
+    }
+
+    function toggleFlexActive(id: number, active: boolean) {
+      run(`UPDATE recurring_timeoff SET active=? WHERE id=?`, [active ? 1 : 0, id]);
+      setFlexEntries(flexEntries.map(e => e.id === id ? { ...e, active: active ? 1 : 0 } : e));
+      refreshCaches(sqlDb, true);
+    }
+
+    function openModal(p?: any) {
+      if (p) {
+        setEditing(p);
+        setForm(p);
+      } else {
+        setEditing(null);
+        setForm(emptyForm);
+        setQualifications(new Set());
+      }
+      setShowModal(true);
+    }
+    function closeModal() {
+      setShowModal(false);
       setEditing(null);
       setForm(emptyForm);
       setQualifications(new Set());
     }
-    setShowModal(true);
-  }
-  function closeModal(){
-    setShowModal(false);
-    setEditing(null);
-    setForm(emptyForm);
-    setQualifications(new Set());
-  }
-  function save(){
-    // Validate required fields
-    if (!form.first_name?.trim()) {
-      setAlertDialog({ title: "Validation Error", message: "First name is required" });
-      return;
-    }
-    if (!form.last_name?.trim()) {
-      setAlertDialog({ title: "Validation Error", message: "Last name is required" });
-      return;
-    }
-    
-    // Validate email format
-    const email = form.work_email?.trim().toLowerCase() || "";
-    if (email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        setAlertDialog({ title: "Validation Error", message: "Invalid email format" });
+    function save() {
+      // Validate required fields
+      if (!form.first_name?.trim()) {
+        setAlertDialog({ title: "Validation Error", message: "First name is required" });
         return;
       }
-      
-      // Check for duplicate emails
-      const duplicate = people.find(p => 
-        p.work_email?.toLowerCase() === email && 
-        (!editing || p.id !== editing.id)
-      );
-      if (duplicate) {
-        setAlertDialog({ 
-          title: "Validation Error", 
-          message: `Email already in use by ${duplicate.first_name} ${duplicate.last_name}` 
-        });
+      if (!form.last_name?.trim()) {
+        setAlertDialog({ title: "Validation Error", message: "Last name is required" });
         return;
       }
-    }
-    
-    if(editing){
-      updatePerson({...editing, ...form});
-      saveTraining(editing.id, qualifications);
-    } else {
-      const id = addPerson(form);
-      saveTraining(id, qualifications);
-    }
-    toast.showSuccess(editing ? "Person updated successfully" : "Person added successfully");
-    closeModal();
-  }
 
-  function closeBulk(){
-    setShowBulk(false);
-    setBulkPeople(new Set());
-    setBulkRoles(new Set());
-    setBulkAction('add');
-  }
-
-  function applyBulk(){
-    for(const pid of bulkPeople){
-      if(bulkAction==='add'){
-        for(const rid of bulkRoles){
-          run(
-            `INSERT INTO training (person_id, role_id, status, source) VALUES (?,?, 'Qualified', 'manual')
-             ON CONFLICT(person_id, role_id) DO UPDATE SET status='Qualified', source='manual'`,
-            [pid, rid]
-          );
+      // Validate email format
+      const email = form.work_email?.trim().toLowerCase() || "";
+      if (email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          setAlertDialog({ title: "Validation Error", message: "Invalid email format" });
+          return;
         }
+
+        // Check for duplicate emails
+        const duplicate = people.find(p =>
+          p.work_email?.toLowerCase() === email &&
+          (!editing || p.id !== editing.id)
+        );
+        if (duplicate) {
+          setAlertDialog({
+            title: "Validation Error",
+            message: `Email already in use by ${duplicate.first_name} ${duplicate.last_name}`
+          });
+          return;
+        }
+      }
+
+      if (editing) {
+        updatePerson({ ...editing, ...form });
+        saveTraining(editing.id, qualifications);
       } else {
-        for(const rid of bulkRoles){
-          run(`DELETE FROM training WHERE person_id=? AND role_id=? AND source='manual'`, [pid, rid]);
-        }
+        const id = addPerson(form);
+        saveTraining(id, qualifications);
       }
+      toast.showSuccess(editing ? "Person updated successfully" : "Person added successfully");
+      closeModal();
     }
-    refreshCaches();
-    closeBulk();
-  }
 
-  function closeBulkFlex() {
-    setShowBulkFlex(false);
-    setBulkFlexPeople(new Set());
-    setBulkFlexWeekdays(new Set());
-    setBulkFlexAction('add');
-    setBulkFlexStart('09:00');
-    setBulkFlexEnd('17:00');
-    setBulkFlexReason('');
-  }
-
-  function applyBulkFlex() {
-    if (bulkFlexPeople.size === 0 || bulkFlexWeekdays.size === 0) {
-      setAlertDialog({ title: 'Validation Error', message: 'Please select at least one person and one weekday.' });
-      return;
+    function closeBulk() {
+      setShowBulk(false);
+      setBulkPeople(new Set());
+      setBulkRoles(new Set());
+      setBulkAction('add');
     }
-    
-    for (const pid of bulkFlexPeople) {
-      for (const weekday of bulkFlexWeekdays) {
-        if (bulkFlexAction === 'add') {
-          // Check if entry already exists
-          const existing = all(
-            `SELECT id FROM recurring_timeoff WHERE person_id=? AND weekday=? AND start_time=? AND end_time=?`,
-            [pid, weekday, bulkFlexStart, bulkFlexEnd]
-          );
-          if (existing.length === 0) {
+
+    function applyBulk() {
+      for (const pid of bulkPeople) {
+        if (bulkAction === 'add') {
+          for (const rid of bulkRoles) {
             run(
-              `INSERT INTO recurring_timeoff (person_id, weekday, start_time, end_time, reason, active) VALUES (?, ?, ?, ?, ?, 1)`,
-              [pid, weekday, bulkFlexStart, bulkFlexEnd, bulkFlexReason || 'Flex Time']
+              `INSERT INTO training (person_id, role_id, status, source) VALUES (?,?, 'Qualified', 'manual')
+             ON CONFLICT(person_id, role_id) DO UPDATE SET status='Qualified', source='manual'`,
+              [pid, rid]
             );
           }
         } else {
-          // Remove all flex entries for this person on this weekday
-          run(`DELETE FROM recurring_timeoff WHERE person_id=? AND weekday=?`, [pid, weekday]);
+          for (const rid of bulkRoles) {
+            run(`DELETE FROM training WHERE person_id=? AND role_id=? AND source='manual'`, [pid, rid]);
+          }
         }
       }
+      refreshCaches(sqlDb, true);
+      closeBulk();
     }
-    refreshCaches();
-    toast.showSuccess(`Flex time ${bulkFlexAction === 'add' ? 'added' : 'removed'} for ${bulkFlexPeople.size} people`);
-    closeBulkFlex();
-  }
 
-  const s = usePeopleEditorStyles();
+    function closeBulkFlex() {
+      setShowBulkFlex(false);
+      setBulkFlexPeople(new Set());
+      setBulkFlexWeekdays(new Set());
+      setBulkFlexAction('add');
+      setBulkFlexStart('09:00');
+      setBulkFlexEnd('17:00');
+      setBulkFlexReason('');
+    }
 
-  return (
-    <div className={s.root}>
-      <div className="w-full">
-        <div className={s.header}>
-          <div className={s.title}>People</div>
-          <div className={s.actions}>
-            <Button appearance="secondary" onClick={()=>setShowBulk(true)}>Bulk Edit Qualifications</Button>
-            <Button appearance="secondary" onClick={()=>setShowBulkFlex(true)}>Bulk Edit Flex Time</Button>
-            <Button appearance="primary" onClick={()=>openModal()}>Add Person</Button>
+    function applyBulkFlex() {
+      if (bulkFlexPeople.size === 0 || bulkFlexWeekdays.size === 0) {
+        setAlertDialog({ title: 'Validation Error', message: 'Please select at least one person and one weekday.' });
+        return;
+      }
+
+      for (const pid of bulkFlexPeople) {
+        for (const weekday of bulkFlexWeekdays) {
+          if (bulkFlexAction === 'add') {
+            // Check if entry already exists
+            const existing = all(
+              `SELECT id FROM recurring_timeoff WHERE person_id=? AND weekday=? AND start_time=? AND end_time=?`,
+              [pid, weekday, bulkFlexStart, bulkFlexEnd]
+            );
+            if (existing.length === 0) {
+              run(
+                `INSERT INTO recurring_timeoff (person_id, weekday, start_time, end_time, reason, active) VALUES (?, ?, ?, ?, ?, 1)`,
+                [pid, weekday, bulkFlexStart, bulkFlexEnd, bulkFlexReason || 'Flex Time']
+              );
+            }
+          } else {
+            // Remove all flex entries for this person on this weekday
+            run(`DELETE FROM recurring_timeoff WHERE person_id=? AND weekday=?`, [pid, weekday]);
+          }
+        }
+      }
+      refreshCaches(sqlDb, true);
+      toast.showSuccess(`Flex time ${bulkFlexAction === 'add' ? 'added' : 'removed'} for ${bulkFlexPeople.size} people`);
+      closeBulkFlex();
+    }
+
+    const s = usePeopleEditorStyles();
+
+    return (
+      <div className={s.root}>
+        <div className="w-full">
+          <div className={s.header}>
+            <div className={s.title}>People</div>
+            <div className={s.actions}>
+              <Button appearance="secondary" onClick={() => setShowBulk(true)}>Bulk Edit Qualifications</Button>
+              <Button appearance="secondary" onClick={() => setShowBulkFlex(true)}>Bulk Edit Flex Time</Button>
+              <Button appearance="primary" onClick={() => openModal()}>Add Person</Button>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: tokens.spacingVerticalS }}>
+            <PeopleFiltersBar state={filters} onChange={setFilters} />
+          </div>
+
+          <div className={s.tableWrap}>
+            <Table aria-label="People table">
+              <TableHeader>
+                <TableRow>
+                  <TableHeaderCell>Name</TableHeaderCell>
+                  <TableHeaderCell className={s.mobileHideCell}>Work Email</TableHeaderCell>
+                  <TableHeaderCell className={s.mobileHideCell}>B/S</TableHeaderCell>
+                  <TableHeaderCell className={s.mobileHideCell}>Commute</TableHeaderCell>
+                  <TableHeaderCell>Active</TableHeaderCell>
+                  <TableHeaderCell className={s.mobileHideCell}>Availability</TableHeaderCell>
+                  <TableHeaderCell>Actions</TableHeaderCell>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {viewPeople.map(p => (
+                  <TableRow key={p.id}>
+                    <TableCell className={s.cellWrap}><PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName></TableCell>
+                    <TableCell className={`${s.cellWrap} ${s.mobileHideCell}`}>{p.work_email}</TableCell>
+                    <TableCell className={s.mobileHideCell}>{p.brother_sister || '-'}</TableCell>
+                    <TableCell className={s.mobileHideCell}>{p.commuter ? "Yes" : "No"}</TableCell>
+                    <TableCell>{p.active ? "Yes" : "No"}</TableCell>
+                    <TableCell className={`${s.cellWrap} ${s.mobileHideCell}`}>
+                      <div className={s.availText}>
+                        Mon: {p.avail_mon || 'U'} | Tue: {p.avail_tue || 'U'} | Wed: {p.avail_wed || 'U'} | Thu: {p.avail_thu || 'U'} | Fri: {p.avail_fri || 'U'}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className={s.actionButtons}>
+                        <Button size="small" onClick={() => openModal(p)}>Edit</Button>
+                        <Button size="small" appearance="secondary" onClick={() => { setPersonToDelete(p.id); }}>Delete</Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </div>
-
-        <div style={{ marginBottom: tokens.spacingVerticalS }}>
-          <PeopleFiltersBar state={filters} onChange={setFilters} />
-        </div>
-
-        <div className={s.tableWrap}>
-          <Table aria-label="People table">
-            <TableHeader>
-              <TableRow>
-                <TableHeaderCell>Name</TableHeaderCell>
-                <TableHeaderCell className={s.mobileHideCell}>Work Email</TableHeaderCell>
-                <TableHeaderCell className={s.mobileHideCell}>B/S</TableHeaderCell>
-                <TableHeaderCell className={s.mobileHideCell}>Commute</TableHeaderCell>
-                <TableHeaderCell>Active</TableHeaderCell>
-                <TableHeaderCell className={s.mobileHideCell}>Availability</TableHeaderCell>
-                <TableHeaderCell>Actions</TableHeaderCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {viewPeople.map(p => (
-                <TableRow key={p.id}>
-                  <TableCell className={s.cellWrap}><PersonName personId={p.id}>{p.last_name}, {p.first_name}</PersonName></TableCell>
-                  <TableCell className={`${s.cellWrap} ${s.mobileHideCell}`}>{p.work_email}</TableCell>
-                  <TableCell className={s.mobileHideCell}>{p.brother_sister||'-'}</TableCell>
-                  <TableCell className={s.mobileHideCell}>{p.commuter?"Yes":"No"}</TableCell>
-                  <TableCell>{p.active?"Yes":"No"}</TableCell>
-                  <TableCell className={`${s.cellWrap} ${s.mobileHideCell}`}>
-                    <div className={s.availText}>
-                      Mon: {p.avail_mon || 'U'} | Tue: {p.avail_tue || 'U'} | Wed: {p.avail_wed || 'U'} | Thu: {p.avail_thu || 'U'} | Fri: {p.avail_fri || 'U'}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className={s.actionButtons}>
-                      <Button size="small" onClick={()=>openModal(p)}>Edit</Button>
-                      <Button size="small" appearance="secondary" onClick={()=>{ setPersonToDelete(p.id); }}>Delete</Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-      <Dialog open={showBulk} onOpenChange={(_, d) => setShowBulk(d.open)}>
-        <DialogSurface>
-          <DialogBody>
-            <DialogTitle>Bulk Edit Qualifications</DialogTitle>
-            <DialogContent>
-              <div className={s.formGrid}>
-                <div className={s.col6}>
-                  <div className={s.smallLabel}>People</div>
-                  <Dropdown
-                    multiselect
-                    placeholder="Select people..."
-                    selectedOptions={[...bulkPeople].map(String)}
-                    value={bulkPeople.size > 0 ? `${bulkPeople.size} selected` : ''}
-                    onOptionSelect={(_, data) =>
-                      setBulkPeople(new Set((data.selectedOptions as string[]).map(Number)))
-                    }
-                  >
-                    {people.map((p: any) => {
-                      const label = `${p.last_name}, ${p.first_name}`;
-                      return (
-                        <Option key={p.id} value={String(p.id)} text={label}>
-                          {label}
-                        </Option>
-                      );
-                    })}
-                  </Dropdown>
-                </div>
-                <div className={s.col6}>
-                  <div className={s.smallLabel}>Action</div>
-                  <Dropdown
-                    selectedOptions={[bulkAction]}
-                    value={bulkAction === 'add' ? 'Add' : 'Remove'}
-                    onOptionSelect={(_, data) =>
-                      setBulkAction((data.optionValue ?? data.optionText) as 'add' | 'remove')
-                    }
-                  >
-                    <Option value="add" text="Add">Add</Option>
-                    <Option value="remove" text="Remove">Remove</Option>
-                  </Dropdown>
-                </div>
-              </div>
-              <div>
-                <div className={s.smallLabel}>Roles</div>
-                <div className={s.qualGrid}>
-                  {roles.map((r: any) => (
-                    <Checkbox
-                      key={r.id}
-                      label={r.name}
-                      checked={bulkRoles.has(r.id)}
-                      onChange={(_, data) => {
-                        const next = new Set(bulkRoles);
-                        if (data.checked) next.add(r.id); else next.delete(r.id);
-                        setBulkRoles(next);
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={closeBulk}>Cancel</Button>
-              <Button appearance="primary" onClick={applyBulk}>Apply</Button>
-            </DialogActions>
-          </DialogBody>
-        </DialogSurface>
-      </Dialog>
-
-      <Dialog open={showBulkFlex} onOpenChange={(_, d) => setShowBulkFlex(d.open)}>
-        <DialogSurface>
-          <DialogBody>
-            <DialogTitle>Bulk Edit Flex Time</DialogTitle>
-            <DialogContent>
-              <div className={s.formGrid}>
-                <div className={s.col6}>
-                  <div className={s.smallLabel}>People</div>
-                  <Dropdown
-                    multiselect
-                    placeholder="Select people..."
-                    selectedOptions={[...bulkFlexPeople].map(String)}
-                    value={bulkFlexPeople.size > 0 ? `${bulkFlexPeople.size} selected` : ''}
-                    onOptionSelect={(_, data) =>
-                      setBulkFlexPeople(new Set((data.selectedOptions as string[]).map(Number)))
-                    }
-                  >
-                    {people.filter((p: any) => p.active).map((p: any) => {
-                      const label = `${p.last_name}, ${p.first_name}`;
-                      return (
-                        <Option key={p.id} value={String(p.id)} text={label}>
-                          {label}
-                        </Option>
-                      );
-                    })}
-                  </Dropdown>
-                </div>
-                <div className={s.col6}>
-                  <div className={s.smallLabel}>Action</div>
-                  <Dropdown
-                    selectedOptions={[bulkFlexAction]}
-                    value={bulkFlexAction === 'add' ? 'Add Flex Time' : 'Remove Flex Time'}
-                    onOptionSelect={(_, data) =>
-                      setBulkFlexAction((data.optionValue ?? data.optionText) as 'add' | 'remove')
-                    }
-                  >
-                    <Option value="add" text="Add Flex Time">Add Flex Time</Option>
-                    <Option value="remove" text="Remove Flex Time">Remove Flex Time</Option>
-                  </Dropdown>
-                </div>
-              </div>
-              <div style={{ marginTop: tokens.spacingVerticalM }}>
-                <div className={s.smallLabel}>Weekdays</div>
-                <div style={{ display: 'flex', gap: tokens.spacingHorizontalM, flexWrap: 'wrap' }}>
-                  {FLEX_WEEKDAYS.map((day, idx) => (
-                    <Checkbox
-                      key={idx}
-                      label={day}
-                      checked={bulkFlexWeekdays.has(idx)}
-                      onChange={(_, data) => {
-                        const next = new Set(bulkFlexWeekdays);
-                        if (data.checked) next.add(idx); else next.delete(idx);
-                        setBulkFlexWeekdays(next);
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-              {bulkFlexAction === 'add' && (
-                <>
-                  <div className={s.formGrid} style={{ marginTop: tokens.spacingVerticalM }}>
-                    <div className={s.col4}>
-                      <div className={s.smallLabel}>Start Time</div>
-                      <Input
-                        type="time"
-                        value={bulkFlexStart}
-                        onChange={(_, d) => setBulkFlexStart(d.value)}
-                      />
-                    </div>
-                    <div className={s.col4}>
-                      <div className={s.smallLabel}>End Time</div>
-                      <Input
-                        type="time"
-                        value={bulkFlexEnd}
-                        onChange={(_, d) => setBulkFlexEnd(d.value)}
-                      />
-                    </div>
-                    <div className={s.col4}>
-                      <div className={s.smallLabel}>Reason</div>
-                      <Input
-                        placeholder="Flex Time"
-                        value={bulkFlexReason}
-                        onChange={(_, d) => setBulkFlexReason(d.value)}
-                      />
-                    </div>
-                  </div>
-                </>              )}
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={closeBulkFlex}>Cancel</Button>
-              <Button appearance="primary" onClick={applyBulkFlex}>Apply</Button>
-            </DialogActions>
-          </DialogBody>
-        </DialogSurface>
-      </Dialog>
-
-      <Dialog open={showModal} onOpenChange={(_, d) => setShowModal(d.open)}>
-        <DialogSurface className={s.dialogSurface}>
-          <DialogBody className={s.dialogBody}>
-            <DialogTitle>{editing ? 'Edit Person' : 'Add Person'}</DialogTitle>
-            <DialogContent className={s.dialogContent}>
-              {/* Basic Information Section */}
-              <div className={s.section}>
-                <div className={s.sectionTitle}>Basic Information</div>
-                <div className={s.formRow}>
-                  <div className={s.formField}>
-                    <div className={s.smallLabel}>First Name *</div>
-                    <Input 
-                      value={form.first_name||''} 
-                      onChange={(_,d)=>setForm({...form,first_name:d.value})} 
-                      placeholder="First Name"
-                    />
-                  </div>
-                  <div className={s.formField}>
-                    <div className={s.smallLabel}>Last Name *</div>
-                    <Input 
-                      value={form.last_name||''} 
-                      onChange={(_,d)=>setForm({...form,last_name:d.value})} 
-                      placeholder="Last Name"
-                    />
-                  </div>
-                </div>
-                <div className={s.formRow}>
-                  <div className={s.formField}>
-                    <div className={s.smallLabel}>Work Email</div>
-                    <Input 
-                      type="email"
-                      value={form.work_email||''} 
-                      onChange={(_,d)=>setForm({...form,work_email:d.value})} 
-                      placeholder="user@example.com"
-                    />
-                  </div>
-                  <div className={s.formField}>
-                    <div className={s.smallLabel}>Gender</div>
+        <Dialog open={showBulk} onOpenChange={(_, d) => setShowBulk(d.open)}>
+          <DialogSurface>
+            <DialogBody>
+              <DialogTitle>Bulk Edit Qualifications</DialogTitle>
+              <DialogContent>
+                <div className={s.formGrid}>
+                  <div className={s.col6}>
+                    <div className={s.smallLabel}>People</div>
                     <Dropdown
-                      selectedOptions={[form.brother_sister || 'Brother']}
-                      value={form.brother_sister || 'Brother'}
-                      onOptionSelect={(_, data)=> setForm({...form, brother_sister: String(data.optionValue ?? data.optionText)})}
+                      multiselect
+                      placeholder="Select people..."
+                      selectedOptions={[...bulkPeople].map(String)}
+                      value={bulkPeople.size > 0 ? `${bulkPeople.size} selected` : ''}
+                      onOptionSelect={(_, data) =>
+                        setBulkPeople(new Set((data.selectedOptions as string[]).map(Number)))
+                      }
                     >
-                      <Option value="Brother" text="Brother">Brother</Option>
-                      <Option value="Sister" text="Sister">Sister</Option>
+                      {people.map((p: any) => {
+                        const label = `${p.last_name}, ${p.first_name}`;
+                        return (
+                          <Option key={p.id} value={String(p.id)} text={label}>
+                            {label}
+                          </Option>
+                        );
+                      })}
+                    </Dropdown>
+                  </div>
+                  <div className={s.col6}>
+                    <div className={s.smallLabel}>Action</div>
+                    <Dropdown
+                      selectedOptions={[bulkAction]}
+                      value={bulkAction === 'add' ? 'Add' : 'Remove'}
+                      onOptionSelect={(_, data) =>
+                        setBulkAction((data.optionValue ?? data.optionText) as 'add' | 'remove')
+                      }
+                    >
+                      <Option value="add" text="Add">Add</Option>
+                      <Option value="remove" text="Remove">Remove</Option>
                     </Dropdown>
                   </div>
                 </div>
-                <div className={s.checkboxRow}>
-                  <Checkbox label="Commuter" checked={!!form.commuter} onChange={(_,data)=>setForm({...form,commuter:!!data.checked})} />
-                  <Checkbox label="Active" checked={!!form.active} onChange={(_,data)=>setForm({...form,active:!!data.checked})} />
-                </div>
-              </div>
-
-              {/* Dates Section */}
-              <div className={s.section}>
-                <div className={s.sectionTitle}>Dates</div>
-                <div className={s.formRow}>
-                  <div className={s.formField}>
-                    <div className={s.smallLabel}>Start Date</div>
-                    <Input type="date" value={form.start_date||''} onChange={(_,d)=>setForm({...form,start_date:d.value})} />
-                  </div>
-                  <div className={s.formField}>
-                    <div className={s.smallLabel}>End Date (optional)</div>
-                    <Input type="date" value={form.end_date||''} onChange={(_,d)=>setForm({...form,end_date:d.value})} />
+                <div>
+                  <div className={s.smallLabel}>Roles</div>
+                  <div className={s.qualGrid}>
+                    {roles.map((r: any) => (
+                      <Checkbox
+                        key={r.id}
+                        label={r.name}
+                        checked={bulkRoles.has(r.id)}
+                        onChange={(_, data) => {
+                          const next = new Set(bulkRoles);
+                          if (data.checked) next.add(r.id); else next.delete(r.id);
+                          setBulkRoles(next);
+                        }}
+                      />
+                    ))}
                   </div>
                 </div>
-              </div>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={closeBulk}>Cancel</Button>
+                <Button appearance="primary" onClick={applyBulk}>Apply</Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
 
-              {/* Availability Section */}
-              <div className={s.section}>
-                <div className={s.sectionTitle}>Weekly Availability</div>
-                <div className={s.availabilityGrid}>
-                  {WEEKDAYS.map((w,idx)=> {
-                    const availKey = ["avail_mon","avail_tue","avail_wed","avail_thu","avail_fri"][idx];
-                    const currentValue = form[availKey] || 'U';
-                    const availLabels: Record<string, string> = { U: 'Unavailable', AM: 'AM', PM: 'PM', B: 'Both' };
-                    return (
-                      <div key={w} className={s.formField}>
-                        <div className={s.smallLabel}>{w.slice(0, 3)}</div>
-                        <Dropdown
-                          selectedOptions={[currentValue]}
-                          value={availLabels[currentValue] || 'Unavailable'}
-                          onOptionSelect={(_, data)=>{
-                            const key = availKey as keyof typeof form;
-                            setForm({...form,[key]: String(data.optionValue ?? data.optionText)});
-                          }}
-                        >
-                          <Option value="U" text="Unavailable">Unavailable</Option>
-                          <Option value="AM" text="AM">AM</Option>
-                          <Option value="PM" text="PM">PM</Option>
-                          <Option value="B" text="Both">Both</Option>
-                        </Dropdown>
+        <Dialog open={showBulkFlex} onOpenChange={(_, d) => setShowBulkFlex(d.open)}>
+          <DialogSurface>
+            <DialogBody>
+              <DialogTitle>Bulk Edit Flex Time</DialogTitle>
+              <DialogContent>
+                <div className={s.formGrid}>
+                  <div className={s.col6}>
+                    <div className={s.smallLabel}>People</div>
+                    <Dropdown
+                      multiselect
+                      placeholder="Select people..."
+                      selectedOptions={[...bulkFlexPeople].map(String)}
+                      value={bulkFlexPeople.size > 0 ? `${bulkFlexPeople.size} selected` : ''}
+                      onOptionSelect={(_, data) =>
+                        setBulkFlexPeople(new Set((data.selectedOptions as string[]).map(Number)))
+                      }
+                    >
+                      {people.filter((p: any) => p.active).map((p: any) => {
+                        const label = `${p.last_name}, ${p.first_name}`;
+                        return (
+                          <Option key={p.id} value={String(p.id)} text={label}>
+                            {label}
+                          </Option>
+                        );
+                      })}
+                    </Dropdown>
+                  </div>
+                  <div className={s.col6}>
+                    <div className={s.smallLabel}>Action</div>
+                    <Dropdown
+                      selectedOptions={[bulkFlexAction]}
+                      value={bulkFlexAction === 'add' ? 'Add Flex Time' : 'Remove Flex Time'}
+                      onOptionSelect={(_, data) =>
+                        setBulkFlexAction((data.optionValue ?? data.optionText) as 'add' | 'remove')
+                      }
+                    >
+                      <Option value="add" text="Add Flex Time">Add Flex Time</Option>
+                      <Option value="remove" text="Remove Flex Time">Remove Flex Time</Option>
+                    </Dropdown>
+                  </div>
+                </div>
+                <div style={{ marginTop: tokens.spacingVerticalM }}>
+                  <div className={s.smallLabel}>Weekdays</div>
+                  <div style={{ display: 'flex', gap: tokens.spacingHorizontalM, flexWrap: 'wrap' }}>
+                    {FLEX_WEEKDAYS.map((day, idx) => (
+                      <Checkbox
+                        key={idx}
+                        label={day}
+                        checked={bulkFlexWeekdays.has(idx)}
+                        onChange={(_, data) => {
+                          const next = new Set(bulkFlexWeekdays);
+                          if (data.checked) next.add(idx); else next.delete(idx);
+                          setBulkFlexWeekdays(next);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                {bulkFlexAction === 'add' && (
+                  <>
+                    <div className={s.formGrid} style={{ marginTop: tokens.spacingVerticalM }}>
+                      <div className={s.col4}>
+                        <div className={s.smallLabel}>Start Time</div>
+                        <Input
+                          type="time"
+                          value={bulkFlexStart}
+                          onChange={(_, d) => setBulkFlexStart(d.value)}
+                        />
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Qualifications Section */}
-              <div className={s.section}>
-                <div className={s.sectionTitle}>Qualified Roles</div>
-                <div className={s.qualGrid}>
-                  {roles.map((r:any)=>(
-                    <Checkbox key={r.id}
-                      label={r.name}
-                      checked={qualifications.has(r.id)}
-                      onChange={(_, data) => {
-                        const next = new Set(qualifications);
-                        if (data.checked) next.add(r.id); else next.delete(r.id);
-                        setQualifications(next);
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Training Status */}
-              {form.start_date && (() => {
-                const now = new Date();
-                const startDate = new Date(form.start_date);
-                const endDate = form.end_date ? new Date(form.end_date) : null;
-                const isTrainee = isInTrainingPeriod(startDate, endDate, now);
-                
-                if (isTrainee) {
-                  const weeksRemaining = weeksRemainingInTraining(startDate, now);
-                  return (
-                    <div className={s.trainingStatus}>
-                      <div style={{ fontWeight: tokens.fontWeightSemibold, marginBottom: tokens.spacingVerticalXS }}>Training Status</div>
-                      <div style={{ fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3 }}>
-                        In training period • {weeksRemaining} weeks remaining
+                      <div className={s.col4}>
+                        <div className={s.smallLabel}>End Time</div>
+                        <Input
+                          type="time"
+                          value={bulkFlexEnd}
+                          onChange={(_, d) => setBulkFlexEnd(d.value)}
+                        />
+                      </div>
+                      <div className={s.col4}>
+                        <div className={s.smallLabel}>Reason</div>
+                        <Input
+                          placeholder="Flex Time"
+                          value={bulkFlexReason}
+                          onChange={(_, d) => setBulkFlexReason(d.value)}
+                        />
                       </div>
                     </div>
-                  );
-                }
-                return null;
-              })()}
-              
-              {/* Flex Time Section - only show when editing */}
-              {editing && (
+                  </>)}
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={closeBulkFlex}>Cancel</Button>
+                <Button appearance="primary" onClick={applyBulkFlex}>Apply</Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
+
+        <Dialog open={showModal} onOpenChange={(_, d) => setShowModal(d.open)}>
+          <DialogSurface className={s.dialogSurface}>
+            <DialogBody className={s.dialogBody}>
+              <DialogTitle>{editing ? 'Edit Person' : 'Add Person'}</DialogTitle>
+              <DialogContent className={s.dialogContent}>
+                {/* Basic Information Section */}
                 <div className={s.section}>
-                  <div className={s.sectionTitle}>Flex Time (Recurring Time Away)</div>
-                  {flexEntries.length === 0 && (
-                    <div style={{ fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalS }}>
-                      No recurring time away configured.
+                  <div className={s.sectionTitle}>Basic Information</div>
+                  <div className={s.formRow}>
+                    <div className={s.formField}>
+                      <div className={s.smallLabel}>First Name *</div>
+                      <Input
+                        value={form.first_name || ''}
+                        onChange={(_, d) => setForm({ ...form, first_name: d.value })}
+                        placeholder="First Name"
+                      />
                     </div>
-                  )}
-                  {flexEntries.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXS, marginBottom: tokens.spacingVerticalM }}>
-                      {flexEntries.map((entry) => (
-                        <div 
-                          key={entry.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: tokens.spacingHorizontalS,
-                            padding: tokens.spacingHorizontalS,
-                            backgroundColor: entry.active ? tokens.colorNeutralBackground3 : tokens.colorNeutralBackground2,
-                            borderRadius: tokens.borderRadiusMedium,
-                            opacity: entry.active ? 1 : 0.6,
-                          }}
-                        >
-                          <span style={{ minWidth: '80px', fontWeight: tokens.fontWeightSemibold }}>{FLEX_WEEKDAYS[entry.weekday]}</span>
-                          <span>{entry.start_time} - {entry.end_time}</span>
-                          {entry.reason && <span style={{ color: tokens.colorNeutralForeground3, fontSize: tokens.fontSizeBase200 }}>({entry.reason})</span>}
-                          <div style={{ marginLeft: 'auto', display: 'flex', gap: tokens.spacingHorizontalXS }}>
-                            <Checkbox 
-                              checked={!!entry.active} 
-                              onChange={(_, data) => toggleFlexActive(entry.id, !!data.checked)}
-                              label="Active"
-                            />
-                            <Button size="small" appearance="subtle" onClick={() => deleteFlexEntry(entry.id)}>✕</Button>
-                          </div>
-                        </div>
-                      ))}
+                    <div className={s.formField}>
+                      <div className={s.smallLabel}>Last Name *</div>
+                      <Input
+                        value={form.last_name || ''}
+                        onChange={(_, d) => setForm({ ...form, last_name: d.value })}
+                        placeholder="Last Name"
+                      />
                     </div>
-                  )}
-                  <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                    <div style={{ minWidth: '100px' }}>
-                      <div className={s.smallLabel}>Day</div>
+                  </div>
+                  <div className={s.formRow}>
+                    <div className={s.formField}>
+                      <div className={s.smallLabel}>Work Email</div>
+                      <Input
+                        type="email"
+                        value={form.work_email || ''}
+                        onChange={(_, d) => setForm({ ...form, work_email: d.value })}
+                        placeholder="user@example.com"
+                      />
+                    </div>
+                    <div className={s.formField}>
+                      <div className={s.smallLabel}>Gender</div>
                       <Dropdown
-                        value={FLEX_WEEKDAYS[newFlexEntry.weekday]}
-                        selectedOptions={[String(newFlexEntry.weekday)]}
-                        onOptionSelect={(_, d) => setNewFlexEntry({...newFlexEntry, weekday: Number(d.optionValue)})}
+                        selectedOptions={[form.brother_sister || 'Brother']}
+                        value={form.brother_sister || 'Brother'}
+                        onOptionSelect={(_, data) => setForm({ ...form, brother_sister: String(data.optionValue ?? data.optionText) })}
                       >
-                        {FLEX_WEEKDAYS.map((day, idx) => (
-                          <Option key={idx} value={String(idx)} text={day}>{day}</Option>
-                        ))}
+                        <Option value="Brother" text="Brother">Brother</Option>
+                        <Option value="Sister" text="Sister">Sister</Option>
                       </Dropdown>
                     </div>
-                    <div style={{ minWidth: '100px' }}>
-                      <div className={s.smallLabel}>Start</div>
-                      <Input 
-                        type="time" 
-                        value={newFlexEntry.start_time} 
-                        onChange={(_, d) => setNewFlexEntry({...newFlexEntry, start_time: d.value})}
-                        style={{ minWidth: '100px' }}
-                      />
-                    </div>
-                    <div style={{ minWidth: '100px' }}>
-                      <div className={s.smallLabel}>End</div>
-                      <Input 
-                        type="time" 
-                        value={newFlexEntry.end_time} 
-                        onChange={(_, d) => setNewFlexEntry({...newFlexEntry, end_time: d.value})}
-                        style={{ minWidth: '100px' }}
-                      />
-                    </div>
-                    <div style={{ flex: 1, minWidth: '120px' }}>
-                      <div className={s.smallLabel}>Reason (optional)</div>
-                      <Input 
-                        value={newFlexEntry.reason} 
-                        onChange={(_, d) => setNewFlexEntry({...newFlexEntry, reason: d.value})}
-                        placeholder="e.g., Doctor appointment"
-                      />
-                    </div>
-                    <Button appearance="primary" onClick={addFlexEntry}>Add</Button>
+                  </div>
+                  <div className={s.checkboxRow}>
+                    <Checkbox label="Commuter" checked={!!form.commuter} onChange={(_, data) => setForm({ ...form, commuter: !!data.checked, occasional_commuter: data.checked ? form.occasional_commuter : false })} />
+                    {form.commuter && (
+                      <Checkbox label="Occasional Commuter" checked={!!form.occasional_commuter} onChange={(_, data) => setForm({ ...form, occasional_commuter: !!data.checked })} />
+                    )}
+                    <Checkbox label="Active" checked={!!form.active} onChange={(_, data) => setForm({ ...form, active: !!data.checked })} />
                   </div>
                 </div>
-              )}
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={closeModal}>Cancel</Button>
-              <Button appearance="primary" onClick={save}>{editing ? 'Save Changes' : 'Add Person'}</Button>
-            </DialogActions>
-          </DialogBody>
-        </DialogSurface>
-      </Dialog>
-    </div>
-  );
-}
+
+                {/* Dates Section */}
+                <div className={s.section}>
+                  <div className={s.sectionTitle}>Dates</div>
+                  <div className={s.formRow}>
+                    <div className={s.formField}>
+                      <div className={s.smallLabel}>Start Date</div>
+                      <Input type="date" value={form.start_date || ''} onChange={(_, d) => setForm({ ...form, start_date: d.value })} />
+                    </div>
+                    <div className={s.formField}>
+                      <div className={s.smallLabel}>End Date (optional)</div>
+                      <Input type="date" value={form.end_date || ''} onChange={(_, d) => setForm({ ...form, end_date: d.value })} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Availability Section */}
+                <div className={s.section}>
+                  <div className={s.sectionTitle}>Weekly Availability</div>
+                  <div className={s.availabilityGrid}>
+                    {WEEKDAYS.map((w, idx) => {
+                      const availKey = ["avail_mon", "avail_tue", "avail_wed", "avail_thu", "avail_fri"][idx];
+                      const currentValue = form[availKey] || 'U';
+                      const availLabels: Record<string, string> = { U: 'Unavailable', AM: 'AM', PM: 'PM', B: 'Both' };
+                      return (
+                        <div key={w} className={s.formField}>
+                          <div className={s.smallLabel}>{w.slice(0, 3)}</div>
+                          <Dropdown
+                            selectedOptions={[currentValue]}
+                            value={availLabels[currentValue] || 'Unavailable'}
+                            onOptionSelect={(_, data) => {
+                              const key = availKey as keyof typeof form;
+                              setForm({ ...form, [key]: String(data.optionValue ?? data.optionText) });
+                            }}
+                          >
+                            <Option value="U" text="Unavailable">Unavailable</Option>
+                            <Option value="AM" text="AM">AM</Option>
+                            <Option value="PM" text="PM">PM</Option>
+                            <Option value="B" text="Both">Both</Option>
+                          </Dropdown>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Qualifications Section */}
+                <div className={s.section}>
+                  <div className={s.sectionTitle}>Qualified Roles</div>
+                  <div className={s.qualGrid}>
+                    {roles.map((r: any) => (
+                      <Checkbox key={r.id}
+                        label={r.name}
+                        checked={qualifications.has(r.id)}
+                        onChange={(_, data) => {
+                          const next = new Set(qualifications);
+                          if (data.checked) next.add(r.id); else next.delete(r.id);
+                          setQualifications(next);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Training Status */}
+                {form.start_date && (() => {
+                  const now = new Date();
+                  const startDate = new Date(form.start_date);
+                  const endDate = form.end_date ? new Date(form.end_date) : null;
+                  const isTrainee = isInTrainingPeriod(startDate, endDate, now);
+
+                  if (isTrainee) {
+                    const weeksRemaining = weeksRemainingInTraining(startDate, now);
+                    return (
+                      <div className={s.trainingStatus}>
+                        <div style={{ fontWeight: tokens.fontWeightSemibold, marginBottom: tokens.spacingVerticalXS }}>Training Status</div>
+                        <div style={{ fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3 }}>
+                          In training period • {weeksRemaining} weeks remaining
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {/* Flex Time Section - only show when editing */}
+                {editing && (
+                  <div className={s.section}>
+                    <div className={s.sectionTitle}>Flex Time (Recurring Time Away)</div>
+                    {flexEntries.length === 0 && (
+                      <div style={{ fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalS }}>
+                        No recurring time away configured.
+                      </div>
+                    )}
+                    {flexEntries.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXS, marginBottom: tokens.spacingVerticalM }}>
+                        {flexEntries.map((entry) => (
+                          <div
+                            key={entry.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: tokens.spacingHorizontalS,
+                              padding: tokens.spacingHorizontalS,
+                              backgroundColor: entry.active ? tokens.colorNeutralBackground3 : tokens.colorNeutralBackground2,
+                              borderRadius: tokens.borderRadiusMedium,
+                              opacity: entry.active ? 1 : 0.6,
+                            }}
+                          >
+                            <span style={{ minWidth: '80px', fontWeight: tokens.fontWeightSemibold }}>{FLEX_WEEKDAYS[entry.weekday]}</span>
+                            <span>{entry.start_time} - {entry.end_time}</span>
+                            {entry.reason && <span style={{ color: tokens.colorNeutralForeground3, fontSize: tokens.fontSizeBase200 }}>({entry.reason})</span>}
+                            <div style={{ marginLeft: 'auto', display: 'flex', gap: tokens.spacingHorizontalXS }}>
+                              <Checkbox
+                                checked={!!entry.active}
+                                onChange={(_, data) => toggleFlexActive(entry.id, !!data.checked)}
+                                label="Active"
+                              />
+                              <Button size="small" appearance="subtle" onClick={() => deleteFlexEntry(entry.id)}>✕</Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                      <div style={{ minWidth: '100px' }}>
+                        <div className={s.smallLabel}>Day</div>
+                        <Dropdown
+                          value={FLEX_WEEKDAYS[newFlexEntry.weekday]}
+                          selectedOptions={[String(newFlexEntry.weekday)]}
+                          onOptionSelect={(_, d) => setNewFlexEntry({ ...newFlexEntry, weekday: Number(d.optionValue) })}
+                        >
+                          {FLEX_WEEKDAYS.map((day, idx) => (
+                            <Option key={idx} value={String(idx)} text={day}>{day}</Option>
+                          ))}
+                        </Dropdown>
+                      </div>
+                      <div style={{ minWidth: '100px' }}>
+                        <div className={s.smallLabel}>Start</div>
+                        <Input
+                          type="time"
+                          value={newFlexEntry.start_time}
+                          onChange={(_, d) => setNewFlexEntry({ ...newFlexEntry, start_time: d.value })}
+                          style={{ minWidth: '100px' }}
+                        />
+                      </div>
+                      <div style={{ minWidth: '100px' }}>
+                        <div className={s.smallLabel}>End</div>
+                        <Input
+                          type="time"
+                          value={newFlexEntry.end_time}
+                          onChange={(_, d) => setNewFlexEntry({ ...newFlexEntry, end_time: d.value })}
+                          style={{ minWidth: '100px' }}
+                        />
+                      </div>
+                      <div style={{ flex: 1, minWidth: '120px' }}>
+                        <div className={s.smallLabel}>Reason (optional)</div>
+                        <Input
+                          value={newFlexEntry.reason}
+                          onChange={(_, d) => setNewFlexEntry({ ...newFlexEntry, reason: d.value })}
+                          placeholder="e.g., Doctor appointment"
+                        />
+                      </div>
+                      <Button appearance="primary" onClick={addFlexEntry}>Add</Button>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={closeModal}>Cancel</Button>
+                <Button appearance="primary" onClick={save}>{editing ? 'Save Changes' : 'Add Person'}</Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
+      </div>
+    );
+  }
 
   const toggleNeedsGroup = (groupId: number) => {
     setExpandedNeedsGroups(prev => {
@@ -3369,12 +3457,12 @@ function PeopleEditor(){
       return next;
     });
   };
-  
+
   const expandAllNeedsGroups = () => setExpandedNeedsGroups(new Set(groups.map((g: any) => g.id)));
   const collapseAllNeedsGroups = () => setExpandedNeedsGroups(new Set());
   const sh = useAppShellStyles();
   const needsStyles = useNeedsEditorStyles();
-  
+
   // Initialize expanded groups when needs dialog opens
   useEffect(() => {
     if (showNeedsEditor && expandedNeedsGroups.size === 0 && groups.length > 0) {
@@ -3383,398 +3471,406 @@ function PeopleEditor(){
   }, [showNeedsEditor, groups.length, expandedNeedsGroups.size]);
 
   return (
-  <FluentProvider theme={themeName === "dark" ? webDarkTheme : webLightTheme}>
-  <ProfileContext.Provider value={{ showProfile: (id: number) => setProfilePersonId(id) }}>
-  <div className={sh.shell}>
-      <TopBar 
-        appName="Scheduling Assistant"
-        ready={ready}
-        sqlDb={sqlDb}
-        canSave={!!sqlDb}
-        createNewDb={createNewDb}
-        openDbFromFile={openDbFromFile}
-        saveDb={saveDb}
-        saveDbAs={saveDbAs}
-        status={status}
-      />
-      {showBrowserWarning && (
-        <MessageBar intent="warning" style={{ margin: tokens.spacingVerticalM }}>
-          <MessageBarBody>
-            <strong>Browser Compatibility Warning:</strong> This application requires the File System Access API, 
-            which is not supported in your current browser (likely Firefox). Some features may not work correctly. 
-            For the best experience, please use Chrome, Edge, or Safari 15.2+.
-            <Button 
-              size="small" 
-              appearance="transparent" 
-              icon={<DismissRegular />}
-              onClick={() => setShowBrowserWarning(false)}
-              style={{ marginLeft: tokens.spacingHorizontalS }}
-            />
-          </MessageBarBody>
-        </MessageBar>
-      )}
-      <div className={sh.contentRow}>
-        <SideRail
-          ready={ready}
-          sqlDb={sqlDb}
-          status={status}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          themeName={themeName}
-          setThemeName={setThemeName}
-        />
-        <main className={sh.main}>
-        <div className={sh.mainInner}>
-      {!sqlDb && (
-        <div className="p-6 text-slate-600">
-          <div className="font-semibold mb-2">First run</div>
-          <ol className="list-decimal ml-5 space-y-1 text-sm">
-            <li>Click <b>New DB</b> to create a local SQLite database (unsaved) or <b>Open DB</b> to load an existing one.</li>
-            <li>Use <b>Save As</b> to write the <code>.db</code> file to a shared folder on your LAN. Only one editor at a time.</li>
-            <li>Add <b>People</b> in the <b>People</b> tab and set <b>Baseline Needs</b>.</li>
-            <li>Assign roles in the <b>Daily Run</b> board. The app will warn on availability and training; time-off blocks assignment.</li>
-            <li>Export date range with one row per segment, split for overlaps.</li>
-          </ol>
-          <div className="mt-4 text-xs text-slate-500">If export fails to load XLSX, your network may block the SheetJS CDN. I can swap to a different CDN if needed.</div>
-        </div>
-      )}
-
-      {sqlDb && (
-        <>
-            {activeTab === 'RUN' && (
-              <Suspense fallback={<div className="p-4 text-slate-600">Loading Daily Run…</div>}>
-                <DailyRunBoard
-                  activeRunSegment={activeRunSegment}
-                  setActiveRunSegment={setActiveRunSegment}
-                  groups={groups}
-                  segments={segments}
-                  lockEmail={userEmail}
-                  sqlDb={sqlDb}
-                  all={all}
-                  roleListForSegment={roleListForSegment}
-                  selectedDate={selectedDate}
-                  selectedDateObj={selectedDateObj}
-                  setSelectedDate={setSelectedDate}
-                  fmtDateMDY={fmtDateMDY}
-                  parseYMD={parseYMD}
-                  ymd={ymd}
-                  setShowNeedsEditor={setShowNeedsEditor}
-                  canEdit={canEdit}
-                  peopleOptionsForSegment={peopleOptionsForSegment}
-                  getTimeOffOverlapInfo={getTimeOffOverlapInfo}
-                  getRequiredFor={getRequiredFor}
-                  addAssignment={addAssignment}
-                  deleteAssignment={deleteAssignment}
-                  segmentAdjustments={segmentAdjustments}
-                  loadMonthlyDefaultsForMonth={loadMonthlyDefaultsForMonth}
-                  people={people}
-                  allRoles={roles}
-                  availabilityFor={availabilityFor}
-                  isSegmentBlockedByTimeOff={isSegmentBlockedByTimeOff}
-                  timeOffThreshold={timeOffThreshold}
-                  weekdayName={weekdayName}
-                  refreshCaches={refreshCaches}
-                  setStatus={setStatus}
-                  run={run}
+    <FluentProvider theme={themeName === "dark" ? webDarkTheme : webLightTheme}>
+      <ProfileContext.Provider value={{ showProfile: (id: number) => setProfilePersonId(id) }}>
+        <div className={sh.shell}>
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            accept=".db"
+            onChange={handleLegacyFileSelection}
+          />
+          <TopBar
+            appName="Scheduling Assistant"
+            ready={ready}
+            sqlDb={sqlDb}
+            canSave={!!sqlDb}
+            createNewDb={createNewDb}
+            openDbFromFile={openDbFromFile}
+            saveDb={saveDb}
+            saveDbAs={saveDbAs}
+            status={status}
+          />
+          {showBrowserWarning && (
+            <MessageBar intent="warning" style={{ margin: tokens.spacingVerticalM }}>
+              <MessageBarBody>
+                <strong>Browser Compatibility Warning:</strong> This application works best with the File System Access API,
+                which is not supported in your current browser. You can still open and save files using standard upload/download.
+                <Button
+                  size="small"
+                  appearance="transparent"
+                  icon={<DismissRegular />}
+                  onClick={() => setShowBrowserWarning(false)}
+                  style={{ marginLeft: tokens.spacingHorizontalS }}
                 />
-              </Suspense>
-            )}
-          {activeTab === 'PEOPLE' && <PeopleEditor />}
-          {activeTab === 'TRAINING' && (
-            <Training
-              people={people}
-              roles={roles}
-              groups={groups}
-              all={all}
-              run={run}
-            />
-          )}
-          {activeTab === 'NEEDS' && <BaselineView />}
-          {activeTab === 'EXPORT' && (
-            <Suspense fallback={<div className="p-4 text-slate-600">Loading Export Preview…</div>}>
-              <ExportPreview
-                sqlDb={sqlDb}
-                exportStart={exportStart}
-                exportEnd={exportEnd}
-                setExportStart={setExportStart}
-                setExportEnd={setExportEnd}
-                exportShifts={exportShifts}
-                all={all}
-                segmentTimesForDate={segmentTimesForDate}
-                segmentTimesForPersonDate={segmentTimesForPersonDate}
-                listTimeOffIntervals={listTimeOffIntervals}
-                subtractIntervals={subtractIntervals}
-                groups={groups}
-                people={people}
-                roles={roles}
-              />
-            </Suspense>
-          )}
-          {activeTab === 'MONTHLY' && (
-            <MonthlyDefaults
-              selectedMonth={selectedMonth}
-              setSelectedMonth={setSelectedMonth}
-              copyFromMonth={copyFromMonth}
-              setCopyFromMonth={setCopyFromMonth}
-              people={people}
-              segments={segments}
-              monthlyDefaults={monthlyDefaults}
-              monthlyOverrides={monthlyOverrides}
-              monthlyWeekOverrides={monthlyWeekOverrides}
-              monthlyNotes={monthlyNotes}
-              monthlyEditing={monthlyEditing}
-              setMonthlyEditing={setMonthlyEditing}
-              setMonthlyDefault={setMonthlyDefault}
-              setWeeklyOverride={setWeeklyOverride}
-              setWeekNumberOverride={setWeekNumberOverride}
-              setMonthlyNote={setMonthlyNote}
-              copyMonthlyDefaults={copyMonthlyDefaults}
-
-              exportMonthlyDefaults={exportMonthlyDefaults}
-              roleListForSegment={roleListForSegment}
-              groups={groups}
-              roles={roles}
-              availabilityOverrides={availabilityOverrides}
-              getRequiredFor={getRequiredFor}
-              all={all}
-            />
+              </MessageBarBody>
+            </MessageBar>
           )}
 
-
-          {activeTab === 'HISTORY' && (
-            <CrewHistoryView
+          <div className={sh.contentRow}>
+            <SideRail
+              ready={ready}
               sqlDb={sqlDb}
-              monthlyDefaults={monthlyDefaults}
-              segments={segments}
-              people={people}
-              roles={roles}
-              groups={groups}
-              roleListForSegment={roleListForSegment}
-              setMonthlyDefaultForMonth={setMonthlyDefaultForMonth}
-              all={all}
+              status={status}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              themeName={themeName}
+              setThemeName={setThemeName}
             />
-          )}
-          {activeTab === 'ADMIN' && (
-            <Suspense fallback={<div className="p-4 text-slate-600">Loading Admin…</div>}>
-              <AdminView 
-                sqlDb={sqlDb} 
-                all={all} 
-                run={run} 
-                refresh={refreshCaches} 
-                segments={segments} 
-                groups={groups} 
-                onTimeOffThresholdChange={setTimeOffThreshold} 
-                dirHandle={dirHandleRef.current}
-                currentFilename={currentFilename}
-                onRestoreVersion={handleRestoreVersion}
-                onMergeVersion={handleStartMerge}
-                SQL={SQL}
-              />
-            </Suspense>
-          )}
-        </>
-      )}
-
-      {showNeedsEditor && (
-        <Dialog open={showNeedsEditor} onOpenChange={(_, data)=> setShowNeedsEditor(data.open)}>
-          <DialogSurface className={needsStyles.surface}>
-            <DialogBody className={needsStyles.dialogBody}>
-              <DialogTitle>
-                <div className={needsStyles.header}>
-                  <span>Needs for {fmtDateMDY(selectedDateObj)}</span>
-                  <div style={{ display: 'flex', gap: tokens.spacingHorizontalS }}>
-                    <Button size="small" appearance="subtle" onClick={expandAllNeedsGroups}>Expand All</Button>
-                    <Button size="small" appearance="subtle" onClick={collapseAllNeedsGroups}>Collapse All</Button>
+            <main className={sh.main}>
+              <div className={sh.mainInner}>
+                {!sqlDb && (
+                  <div className="p-6 text-slate-600">
+                    <div className="font-semibold mb-2">First run</div>
+                    <ol className="list-decimal ml-5 space-y-1 text-sm">
+                      <li>Click <b>New DB</b> to create a local SQLite database (unsaved) or <b>Open DB</b> to load an existing one.</li>
+                      <li>Use <b>Save As</b> to write the <code>.db</code> file to a shared folder on your LAN. Only one editor at a time.</li>
+                      <li>Add <b>People</b> in the <b>People</b> tab and set <b>Baseline Needs</b>.</li>
+                      <li>Assign roles in the <b>Daily Run</b> board. The app will warn on availability and training; time-off blocks assignment.</li>
+                      <li>Export date range with one row per segment, split for overlaps.</li>
+                    </ol>
+                    <div className="mt-4 text-xs text-slate-500">If export fails to load XLSX, your network may block the SheetJS CDN. I can swap to a different CDN if needed.</div>
                   </div>
-                </div>
-              </DialogTitle>
-              <DialogContent className={needsStyles.content}>
-                <div className={needsStyles.grid}>
-                  {groups.map((g: any) => {
-                    const groupRoles = roles.filter((r: any) => r.group_id === g.id);
-                    const isExpanded = expandedNeedsGroups.has(g.id);
-                    return (
-                      <div key={g.id} className={needsStyles.card}>
-                        <div className={needsStyles.cardHeader} onClick={() => toggleNeedsGroup(g.id)}>
-                          <div className={needsStyles.cardHeaderLeft}>
-                            <Text weight="semibold">{g.name}</Text>
-                            <span className={needsStyles.statBadge}>{groupRoles.length} roles</span>
-                          </div>
-                          <ChevronDown20Regular className={`${needsStyles.chevron} ${isExpanded ? needsStyles.chevronExpanded : ''}`} />
-                        </div>
-                        {isExpanded && (
-                          <div className={needsStyles.cardContent}>
-                            {groupRoles.map((r: any) => (
-                              <div key={r.id} className={needsStyles.roleCard}>
-                                <div className={needsStyles.subTitle}>{r.name}</div>
-                                <div className={needsStyles.roleGrid}>
-                                  {segments.map((seg) => (
-                                    <div key={seg.name}>
-                                      <div className={needsStyles.label}>{seg.name} Required</div>
-                                      <RequiredCell date={selectedDateObj} group={g} role={r} segment={seg.name as Segment} />
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={() => setShowNeedsEditor(false)}>Close</Button>
-              </DialogActions>
-            </DialogBody>
-          </DialogSurface>
-        </Dialog>
-      )}
-      {profilePersonId !== null && (
-        <PersonProfileModal
-          personId={profilePersonId}
-          onClose={() => setProfilePersonId(null)}
-          all={all}
-        />
-      )}
+                )}
 
-      {conflictPrompt && (
-        <Dialog open>
-          <DialogSurface>
-            <DialogBody>
-              <DialogTitle>Assignment Conflict</DialogTitle>
-              <DialogContent>
-                {conflictPrompt.person.first_name} {conflictPrompt.person.last_name} is already assigned on {conflictPrompt.date.toLocaleDateString()} for {conflictPrompt.segment}. What would you like to do?
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={() => { conflictPrompt.resolve('overwrite'); setConflictPrompt(null); }}>Overwrite</Button>
-                <Button onClick={() => { conflictPrompt.resolve('skip'); setConflictPrompt(null); }}>Skip</Button>
-                <Button onClick={() => { conflictPrompt.resolve('overwriteAll'); setConflictPrompt(null); }}>Overwrite All</Button>
-                <Button onClick={() => { conflictPrompt.resolve('skipAll'); setConflictPrompt(null); }}>Skip All</Button>
-              </DialogActions>
-            </DialogBody>
-          </DialogSurface>
-        </Dialog>
-      )}
-      
-      {/* Toast notifications */}
-      <ToastContainer messages={toast.messages} onDismiss={toast.dismissToast} />
-      
-      {/* Alert dialog */}
-      {alertDialog && (
-        <AlertDialog
-          open={true}
-          title={alertDialog.title}
-          message={alertDialog.message}
-          onClose={() => {
-            if (alertDialog.onClose) {
-              alertDialog.onClose();
-            }
-            setAlertDialog(null);
-          }}
-        />
-      )}
-      
-      {/* Confirm dialog */}
-      {confirmDialog && (
-        <ConfirmDialog
-          open={true}
-          title={confirmDialog.title}
-          message={confirmDialog.message}
-          onConfirm={confirmDialog.onConfirm}
-          onCancel={() => setConfirmDialog(null)}
-        />
-      )}
-      
-      {/* Email input dialog */}
-      <EmailInputDialog
-        open={!!emailDialog}
-        onSubmit={(email) => {
-          emailDialog?.onSubmit(email);
-          setEmailDialog(null);
-        }}
-        onCancel={() => {
-          emailDialog?.onCancel();
-          setEmailDialog(null);
-        }}
-      />
-      
-      {/* Person delete confirmation */}
-      {personToDelete !== null && (
-        <ConfirmDialog
-          open={true}
-          title="Delete Person"
-          message="Are you sure you want to delete this person? This will also remove all their training records and cannot be undone."
-          confirmText="Delete"
-          onConfirm={() => {
-            deletePerson(personToDelete);
-            setPersonToDelete(null);
-            toast.showSuccess("Person deleted successfully");
-          }}
-          onCancel={() => setPersonToDelete(null)}
-        />
-      )}
-      
-      {/* Conflict detection dialog */}
-      {pendingConflicts && (
-        <ConflictDialog
-          open={true}
-          onClose={() => {
-            setPendingConflicts(null);
-            // If we need to prompt for email (opening flow), do it now
-            if (needsEmailPrompt) {
-              setNeedsEmailPrompt(false);
-              promptForEmail();
-            }
-          }}
-          conflicts={pendingConflicts}
-          onSaveAnyway={handleSaveAnyway}
-          onMerge={(filename) => {
-            setPendingConflicts(null);
-            // Don't prompt for email during merge - will do after merge completes
-            handleStartMerge(filename);
-          }}
-        />
-      )}
-      
-      {/* Merge dialog */}
-      {mergeTarget && sqlDb && (
-        <MergeDialog
-          open={true}
-          onClose={() => {
-            mergeTarget.db.close();
-            if (mergeTarget.ancestorDb) {
-              mergeTarget.ancestorDb.close();
-            }
-            setMergeTarget(null);
-            // If we need to prompt for email (opening flow), do it now
-            if (needsEmailPrompt) {
-              setNeedsEmailPrompt(false);
-              promptForEmail();
-            }
-          }}
-          myDb={sqlDb}
-          theirFilename={mergeTarget.filename}
-          theirDb={mergeTarget.db}
-          ancestorFilename={mergeTarget.ancestorFilename}
-          ancestorDb={mergeTarget.ancestorDb}
-          onMerge={executeMerge}
-        />
-      )}
+                {sqlDb && (
+                  <>
+                    {activeTab === 'RUN' && (
+                      <Suspense fallback={<div className="p-4 text-slate-600">Loading Daily Run…</div>}>
+                        <DailyRunBoard
+                          activeRunSegment={activeRunSegment}
+                          setActiveRunSegment={setActiveRunSegment}
+                          groups={groups}
+                          segments={segments}
+                          lockEmail={userEmail}
+                          sqlDb={sqlDb}
+                          all={all}
+                          roleListForSegment={roleListForSegment}
+                          selectedDate={selectedDate}
+                          selectedDateObj={selectedDateObj}
+                          setSelectedDate={setSelectedDate}
+                          fmtDateMDY={fmtDateMDY}
+                          parseYMD={parseYMD}
+                          ymd={ymd}
+                          setShowNeedsEditor={setShowNeedsEditor}
+                          canEdit={canEdit}
+                          peopleOptionsForSegment={peopleOptionsForSegment}
+                          getTimeOffOverlapInfo={getTimeOffOverlapInfo}
+                          getRequiredFor={getRequiredFor}
+                          addAssignment={addAssignment}
+                          deleteAssignment={deleteAssignment}
+                          segmentAdjustments={segmentAdjustments}
+                          loadMonthlyDefaultsForMonth={loadMonthlyDefaultsForMonth}
+                          people={people}
+                          allRoles={roles}
+                          availabilityFor={availabilityFor}
+                          isSegmentBlockedByTimeOff={isSegmentBlockedByTimeOff}
+                          timeOffThreshold={timeOffThreshold}
+                          weekdayName={weekdayName}
+                          refreshCaches={() => refreshCaches(sqlDb, true)}
+                          setStatus={setStatus}
+                          run={run}
+                        />
+                      </Suspense>
+                    )}
+                    {activeTab === 'PEOPLE' && <PeopleEditor />}
+                    {activeTab === 'TRAINING' && (
+                      <Training
+                        people={people}
+                        roles={roles}
+                        groups={groups}
+                        all={all}
+                        run={run}
+                        refresh={() => refreshCaches(sqlDb, true)}
+                      />
+                    )}
+                    {activeTab === 'NEEDS' && <BaselineView />}
+                    {activeTab === 'EXPORT' && (
+                      <Suspense fallback={<div className="p-4 text-slate-600">Loading Export Preview…</div>}>
+                        <ExportPreview
+                          sqlDb={sqlDb}
+                          exportStart={exportStart}
+                          exportEnd={exportEnd}
+                          setExportStart={setExportStart}
+                          setExportEnd={setExportEnd}
+                          exportShifts={exportShifts}
+                          all={all}
+                          segmentTimesForDate={segmentTimesForDate}
+                          segmentTimesForPersonDate={segmentTimesForPersonDate}
+                          listTimeOffIntervals={listTimeOffIntervals}
+                          subtractIntervals={subtractIntervals}
+                          groups={groups}
+                          people={people}
+                          roles={roles}
+                        />
+                      </Suspense>
+                    )}
+                    {activeTab === 'MONTHLY' && (
+                      <MonthlyDefaults
+                        selectedMonth={selectedMonth}
+                        setSelectedMonth={setSelectedMonth}
+                        copyFromMonth={copyFromMonth}
+                        setCopyFromMonth={setCopyFromMonth}
+                        people={people}
+                        segments={segments}
+                        monthlyDefaults={monthlyDefaults}
+                        monthlyOverrides={monthlyOverrides}
+                        monthlyWeekOverrides={monthlyWeekOverrides}
+                        monthlyNotes={monthlyNotes}
+                        monthlyEditing={monthlyEditing}
+                        setMonthlyEditing={setMonthlyEditing}
+                        setMonthlyDefault={setMonthlyDefault}
+                        setWeeklyOverride={setWeeklyOverride}
+                        setWeekNumberOverride={setWeekNumberOverride}
+                        setMonthlyNote={setMonthlyNote}
+                        copyMonthlyDefaults={copyMonthlyDefaults}
+
+                        exportMonthlyDefaults={exportMonthlyDefaults}
+                        roleListForSegment={roleListForSegment}
+                        groups={groups}
+                        roles={roles}
+                        availabilityOverrides={availabilityOverrides}
+                        getRequiredFor={getRequiredFor}
+                        all={all}
+                      />
+                    )}
+
+
+                    {activeTab === 'HISTORY' && (
+                      <CrewHistoryView
+                        sqlDb={sqlDb}
+                        monthlyDefaults={monthlyDefaults}
+                        segments={segments}
+                        people={people}
+                        roles={roles}
+                        groups={groups}
+                        roleListForSegment={roleListForSegment}
+                        setMonthlyDefaultForMonth={setMonthlyDefaultForMonth}
+                        all={all}
+                      />
+                    )}
+                    {activeTab === 'ADMIN' && (
+                      <Suspense fallback={<div className="p-4 text-slate-600">Loading Admin…</div>}>
+                        <AdminView
+                          sqlDb={sqlDb}
+                          all={all}
+                          run={run}
+                          refresh={() => refreshCaches(sqlDb, true)}
+                          segments={segments}
+                          groups={groups}
+                          onTimeOffThresholdChange={setTimeOffThreshold}
+                          dirHandle={dirHandleRef.current}
+                          currentFilename={currentFilename}
+                          onRestoreVersion={handleRestoreVersion}
+                          onMergeVersion={handleStartMerge}
+                          SQL={SQL}
+                        />
+                      </Suspense>
+                    )}
+                  </>
+                )}
+
+                {showNeedsEditor && (
+                  <Dialog open={showNeedsEditor} onOpenChange={(_, data) => setShowNeedsEditor(data.open)}>
+                    <DialogSurface className={needsStyles.surface}>
+                      <DialogBody className={needsStyles.dialogBody}>
+                        <DialogTitle>
+                          <div className={needsStyles.header}>
+                            <span>Needs for {fmtDateMDY(selectedDateObj)}</span>
+                            <div style={{ display: 'flex', gap: tokens.spacingHorizontalS }}>
+                              <Button size="small" appearance="subtle" onClick={expandAllNeedsGroups}>Expand All</Button>
+                              <Button size="small" appearance="subtle" onClick={collapseAllNeedsGroups}>Collapse All</Button>
+                            </div>
+                          </div>
+                        </DialogTitle>
+                        <DialogContent className={needsStyles.content}>
+                          <div className={needsStyles.grid}>
+                            {groups.map((g: any) => {
+                              const groupRoles = roles.filter((r: any) => r.group_id === g.id);
+                              const isExpanded = expandedNeedsGroups.has(g.id);
+                              return (
+                                <div key={g.id} className={needsStyles.card}>
+                                  <div className={needsStyles.cardHeader} onClick={() => toggleNeedsGroup(g.id)}>
+                                    <div className={needsStyles.cardHeaderLeft}>
+                                      <Text weight="semibold">{g.name}</Text>
+                                      <span className={needsStyles.statBadge}>{groupRoles.length} roles</span>
+                                    </div>
+                                    <ChevronDown20Regular className={`${needsStyles.chevron} ${isExpanded ? needsStyles.chevronExpanded : ''}`} />
+                                  </div>
+                                  {isExpanded && (
+                                    <div className={needsStyles.cardContent}>
+                                      {groupRoles.map((r: any) => (
+                                        <div key={r.id} className={needsStyles.roleCard}>
+                                          <div className={needsStyles.subTitle}>{r.name}</div>
+                                          <div className={needsStyles.roleGrid}>
+                                            {segments.map((seg) => (
+                                              <div key={seg.name}>
+                                                <div className={needsStyles.label}>{seg.name} Required</div>
+                                                <RequiredCell date={selectedDateObj} group={g} role={r} segment={seg.name as Segment} />
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </DialogContent>
+                        <DialogActions>
+                          <Button onClick={() => setShowNeedsEditor(false)}>Close</Button>
+                        </DialogActions>
+                      </DialogBody>
+                    </DialogSurface>
+                  </Dialog>
+                )}
+                {profilePersonId !== null && (
+                  <PersonProfileModal
+                    personId={profilePersonId}
+                    onClose={() => setProfilePersonId(null)}
+                    all={all}
+                  />
+                )}
+
+                {conflictPrompt && (
+                  <Dialog open>
+                    <DialogSurface>
+                      <DialogBody>
+                        <DialogTitle>Assignment Conflict</DialogTitle>
+                        <DialogContent>
+                          {conflictPrompt.person.first_name} {conflictPrompt.person.last_name} is already assigned on {conflictPrompt.date.toLocaleDateString()} for {conflictPrompt.segment}. What would you like to do?
+                        </DialogContent>
+                        <DialogActions>
+                          <Button onClick={() => { conflictPrompt.resolve('overwrite'); setConflictPrompt(null); }}>Overwrite</Button>
+                          <Button onClick={() => { conflictPrompt.resolve('skip'); setConflictPrompt(null); }}>Skip</Button>
+                          <Button onClick={() => { conflictPrompt.resolve('overwriteAll'); setConflictPrompt(null); }}>Overwrite All</Button>
+                          <Button onClick={() => { conflictPrompt.resolve('skipAll'); setConflictPrompt(null); }}>Skip All</Button>
+                        </DialogActions>
+                      </DialogBody>
+                    </DialogSurface>
+                  </Dialog>
+                )}
+
+                {/* Toast notifications */}
+                <ToastContainer messages={toast.messages} onDismiss={toast.dismissToast} />
+
+                {/* Alert dialog */}
+                {alertDialog && (
+                  <AlertDialog
+                    open={true}
+                    title={alertDialog.title}
+                    message={alertDialog.message}
+                    onClose={() => {
+                      if (alertDialog.onClose) {
+                        alertDialog.onClose();
+                      }
+                      setAlertDialog(null);
+                    }}
+                  />
+                )}
+
+                {/* Confirm dialog */}
+                {confirmDialog && (
+                  <ConfirmDialog
+                    open={true}
+                    title={confirmDialog.title}
+                    message={confirmDialog.message}
+                    onConfirm={confirmDialog.onConfirm}
+                    onCancel={() => setConfirmDialog(null)}
+                  />
+                )}
+
+                {/* Email input dialog */}
+                <EmailInputDialog
+                  open={!!emailDialog}
+                  onSubmit={(email) => {
+                    emailDialog?.onSubmit(email);
+                    setEmailDialog(null);
+                  }}
+                  onCancel={() => {
+                    emailDialog?.onCancel();
+                    setEmailDialog(null);
+                  }}
+                />
+
+                {/* Person delete confirmation */}
+                {personToDelete !== null && (
+                  <ConfirmDialog
+                    open={true}
+                    title="Delete Person"
+                    message="Are you sure you want to delete this person? This will also remove all their training records and cannot be undone."
+                    confirmText="Delete"
+                    onConfirm={() => {
+                      deletePerson(personToDelete);
+                      setPersonToDelete(null);
+                      toast.showSuccess("Person deleted successfully");
+                    }}
+                    onCancel={() => setPersonToDelete(null)}
+                  />
+                )}
+
+                {/* Conflict detection dialog */}
+                {pendingConflicts && (
+                  <ConflictDialog
+                    open={true}
+                    onClose={() => {
+                      setPendingConflicts(null);
+                      // If we need to prompt for email (opening flow), do it now
+                      if (needsEmailPrompt) {
+                        setNeedsEmailPrompt(false);
+                        promptForEmail();
+                      }
+                    }}
+                    conflicts={pendingConflicts}
+                    onSaveAnyway={handleSaveAnyway}
+                    onMerge={(filename) => {
+                      setPendingConflicts(null);
+                      // Don't prompt for email during merge - will do after merge completes
+                      handleStartMerge(filename);
+                    }}
+                  />
+                )}
+
+                {/* Merge dialog */}
+                {mergeTarget && sqlDb && (
+                  <MergeDialog
+                    open={true}
+                    onClose={() => {
+                      mergeTarget.db.close();
+                      if (mergeTarget.ancestorDb) {
+                        mergeTarget.ancestorDb.close();
+                      }
+                      setMergeTarget(null);
+                      // If we need to prompt for email (opening flow), do it now
+                      if (needsEmailPrompt) {
+                        setNeedsEmailPrompt(false);
+                        promptForEmail();
+                      }
+                    }}
+                    myDb={sqlDb}
+                    theirFilename={mergeTarget.filename}
+                    theirDb={mergeTarget.db}
+                    ancestorFilename={mergeTarget.ancestorFilename}
+                    ancestorDb={mergeTarget.ancestorDb}
+                    onMerge={executeMerge}
+                  />
+                )}
+              </div>
+            </main>
+          </div>
+          <CopilotContext
+            activeTab={activeTab}
+            selectedDate={selectedDate}
+            activeRunSegment={activeRunSegment}
+            peopleCount={people.length}
+            assignmentsCount={currentAssignmentsCount}
+            statusMessage={status}
+          />
         </div>
-        </main>
-      </div>
-      <CopilotContext
-        activeTab={activeTab}
-        selectedDate={selectedDate}
-        activeRunSegment={activeRunSegment}
-        peopleCount={people.length}
-        assignmentsCount={currentAssignmentsCount}
-        statusMessage={status}
-      />
-  </div>
-  </ProfileContext.Provider>
-  </FluentProvider>
+      </ProfileContext.Provider>
+    </FluentProvider>
   );
 }

@@ -124,8 +124,14 @@ export function filterPeopleList<T extends Record<string, any>>(people: T[], sta
     // Enrollment (empty set -> no restriction)
     .filter((p) => {
       if (!state.enrollment || state.enrollment.size === 0) return true;
-      const enroll: Enrollment = (p as any).commuter ? "commuter" : "full-time";
-      return state.enrollment.has(enroll);
+      const isOccasional = Boolean((p as any).occasional_commuter);
+      const isCommuter = Boolean((p as any).commuter);
+
+      if (state.enrollment.has("occasional") && isOccasional) return true;
+      if (state.enrollment.has("commuter") && isCommuter && !isOccasional) return true;
+      if (state.enrollment.has("full-time") && !isCommuter) return true;
+
+      return false;
     })
     // Availability day filter
     .filter((p) => {
@@ -160,6 +166,7 @@ export function filterPeopleList<T extends Record<string, any>>(people: T[], sta
         (p as any).email,
         (p as any).brother_sister,
         (p as any).commuter ? "commuter" : "",
+        (p as any).occasional_commuter ? "occasional" : "",
         (p as any).active ? "active" : "",
         (p as any).avail_mon,
         (p as any).avail_tue,
@@ -175,9 +182,9 @@ export function filterPeopleList<T extends Record<string, any>>(people: T[], sta
 }
 
 const useStyles = makeStyles({
-  bar: { 
-    display: "grid", 
-    gap: tokens.spacingVerticalS, 
+  bar: {
+    display: "grid",
+    gap: tokens.spacingVerticalS,
     width: "100%",
   },
   topRow: {
@@ -190,8 +197,8 @@ const useStyles = makeStyles({
       gap: tokens.spacingHorizontalXS,
     },
   },
-  grow: { 
-    flex: 1, 
+  grow: {
+    flex: 1,
     minWidth: "240px",
     // Full width on mobile
     "@media (max-width: 767px)": {
@@ -212,14 +219,14 @@ const useStyles = makeStyles({
       padding: tokens.spacingVerticalXS,
     },
   },
-  group: { 
-    display: "grid", 
+  group: {
+    display: "grid",
     gap: tokens.spacingHorizontalXS,
   },
-  row: { 
-    display: "flex", 
-    alignItems: "center", 
-    gap: tokens.spacingHorizontalS, 
+  row: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalS,
     flexWrap: "wrap",
     // Mobile adjustments
     "@media (max-width: 767px)": {
@@ -310,6 +317,15 @@ export function PeopleFiltersBar({
                   onChange={(_, d) => {
                     const next = new Set(state.enrollment || []);
                     if (d.checked) next.add("commuter"); else next.delete("commuter");
+                    onChange({ enrollment: next });
+                  }}
+                />
+                <Checkbox
+                  label="Occasional"
+                  checked={state.enrollment?.has("occasional")}
+                  onChange={(_, d) => {
+                    const next = new Set(state.enrollment || []);
+                    if (d.checked) next.add("occasional"); else next.delete("occasional");
                     onChange({ enrollment: next });
                   }}
                 />

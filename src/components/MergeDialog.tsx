@@ -13,12 +13,12 @@ import {
   tokens,
   Badge,
 } from "@fluentui/react-components";
-import { 
-  Merge20Regular, 
-  Warning20Regular, 
-  Checkmark20Regular, 
-  ChevronDown20Regular, 
-  ChevronRight20Regular, 
+import {
+  Merge20Regular,
+  Warning20Regular,
+  Checkmark20Regular,
+  ChevronDown20Regular,
+  ChevronRight20Regular,
   Add20Regular,
   Delete20Regular,
   Edit20Regular,
@@ -27,7 +27,7 @@ import {
 } from "@fluentui/react-icons";
 
 // Change type for three-way merge
-type ChangeType = 
+type ChangeType =
   | "mine-added"      // I added this row (not in ancestor, in mine)
   | "theirs-added"    // They added this row (not in ancestor, in theirs)
   | "both-added"      // Both added same row (not in ancestor, in both)
@@ -230,6 +230,24 @@ const TABLE_CONFIG: Record<string, {
       const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
       const dayName = weekdays[row.weekday] || `Day ${row.weekday}`;
       return `${person}: ${dayName} ${row.start_time}-${row.end_time}`;
+    },
+  },
+  segment_adjustment: {
+    label: "Segment Adjustments",
+    description: "Rules for adjusting segment times",
+    primaryKey: ["condition_segment", "condition_role_id", "target_segment", "target_field", "baseline", "offset_minutes", "logic_operator"],
+    describeRow: (row, db) => {
+      const roleText = row.condition_role_id ? ` (${getRoleName(db, row.condition_role_id)})` : '';
+      return `When ${row.condition_segment}${roleText}, adjust ${row.target_segment} ${row.target_field} by ${row.offset_minutes}m`;
+    },
+  },
+  segment_adjustment_condition: {
+    label: "Adjustment Conditions",
+    description: "Additional conditions for segment adjustments",
+    primaryKey: ["adjustment_id", "condition_segment", "condition_role_id"],
+    describeRow: (row, db) => {
+      const roleText = row.condition_role_id ? ` (${getRoleName(db, row.condition_role_id)})` : '';
+      return `Adjustment #${row.adjustment_id}: ${row.condition_segment}${roleText}`;
     },
   },
 };
@@ -520,7 +538,7 @@ export default function MergeDialog({
       const config = TABLE_CONFIG[tableName];
       const autoMergeChanges: RowChange[] = [];
       const conflictChanges: RowChange[] = [];
-      
+
       try {
         let myRows, theirRows, ancestorRows;
         try { myRows = myDb.exec(`SELECT * FROM ${tableName}`); } catch { continue; }
@@ -528,7 +546,7 @@ export default function MergeDialog({
         if (ancestorDb) {
           try { ancestorRows = ancestorDb.exec(`SELECT * FROM ${tableName}`); } catch { ancestorRows = null; }
         }
-        
+
         const myColumns = myRows[0]?.columns || [];
         const theirColumns = theirRows[0]?.columns || [];
         const ancestorColumns = ancestorRows?.[0]?.columns || [];
@@ -536,11 +554,11 @@ export default function MergeDialog({
         const theirData = theirRows[0]?.values || [];
         const ancestorData = ancestorRows?.[0]?.values || [];
         const primaryKey = config.primaryKey;
-        
+
         const myMap = new Map<string, { row: any[]; columns: string[]; hash: string }>();
         const theirMap = new Map<string, { row: any[]; columns: string[]; hash: string }>();
         const ancestorMap = new Map<string, { row: any[]; columns: string[]; hash: string }>();
-        
+
         for (const row of myData) {
           const key = getNaturalKey(myColumns, row, primaryKey);
           const hash = hashRowWithoutId(myColumns, row);
@@ -558,16 +576,16 @@ export default function MergeDialog({
             ancestorMap.set(key, { row, columns: ancestorColumns, hash });
           }
         }
-        
+
         const allKeys = new Set([...myMap.keys(), ...theirMap.keys(), ...ancestorMap.keys()]);
-        
+
         for (const key of allKeys) {
           const mine = myMap.get(key);
           const theirs = theirMap.get(key);
           const ancestor = ancestorMap.get(key);
-          
+
           if (mine && theirs && mine.hash === theirs.hash) continue;
-          
+
           let changeType: ChangeType;
           let autoMerge = false;
           let rowData: any;
@@ -576,7 +594,7 @@ export default function MergeDialog({
           let columns: string[];
           let conflictFields: string[] | undefined;
           let db = myDb;
-          
+
           if (isThreeWay && ancestorMap.size > 0) {
             if (!ancestor) {
               if (mine && theirs) {
@@ -645,7 +663,7 @@ export default function MergeDialog({
               } else {
                 const mineChanged = mine!.hash !== ancestor.hash;
                 const theirsChanged = theirs!.hash !== ancestor.hash;
-                
+
                 if (!mineChanged && theirsChanged) {
                   changeType = "theirs-modified";
                   autoMerge = true;
@@ -691,14 +709,14 @@ export default function MergeDialog({
               conflictFields = findDifferingFields(rowData, theirDataRow, mine!.columns);
             }
           }
-          
+
           let description: string;
           try {
             description = config.describeRow(rowData, db);
           } catch {
             description = JSON.stringify(rowData).slice(0, 50);
           }
-          
+
           const change: RowChange = {
             table: tableName,
             rowHash: key,
@@ -711,7 +729,7 @@ export default function MergeDialog({
             autoMerge,
             conflictFields,
           };
-          
+
           if (autoMerge) {
             autoMergeChanges.push(change);
             autoCount++;
@@ -720,7 +738,7 @@ export default function MergeDialog({
           }
           changes.push(change);
         }
-        
+
         if (autoMergeChanges.length > 0 || conflictChanges.length > 0) {
           groups.push({
             table: tableName,
@@ -743,7 +761,7 @@ export default function MergeDialog({
     setAutoMergeCount(autoCount);
     setConflictCount(conflictCt);
     setExpandedTables(initialExpanded);
-    
+
     const initialChoices = new Map<string, "mine" | "theirs">();
     for (const change of changes) {
       if (!change.autoMerge) {
@@ -782,13 +800,13 @@ export default function MergeDialog({
 
   function handleMerge() {
     const choicesByTable = new Map<string, MergeChoice>();
-    
+
     for (const change of allChanges) {
       if (!choicesByTable.has(change.table)) {
         choicesByTable.set(change.table, { table: change.table, rowsToAdd: [], rowsToRemove: [] });
       }
       const choice = choicesByTable.get(change.table)!;
-      
+
       if (change.autoMerge) {
         switch (change.changeType) {
           case "theirs-added":
@@ -809,7 +827,7 @@ export default function MergeDialog({
       } else {
         const changeId = `${change.table}:${change.rowHash}`;
         const userChoice = conflictChoices.get(changeId) || "theirs";
-        
+
         if (userChoice === "theirs" && change.theirData) {
           const addCols = change.columns.filter(c => c.toLowerCase() !== 'id');
           const addData: Record<string, any> = {};
@@ -826,7 +844,7 @@ export default function MergeDialog({
         }
       }
     }
-    
+
     const finalChoices = Array.from(choicesByTable.values()).filter(
       c => c.rowsToAdd.length > 0 || c.rowsToRemove.length > 0
     );
@@ -998,7 +1016,7 @@ export default function MergeDialog({
                                     {group.conflictChanges.map((change, idx) => {
                                       const changeId = `${change.table}:${change.rowHash}`;
                                       const choice = conflictChoices.get(changeId) || "theirs";
-                                      
+
                                       return (
                                         <div key={idx} className={`${styles.changeItem} ${styles.changeItemConflict}`}>
                                           <div className={styles.changeIcon} style={{ color: tokens.colorPaletteRedForeground1 }}>
@@ -1007,7 +1025,7 @@ export default function MergeDialog({
                                           <div className={styles.changeDescription}>
                                             <Text size={200} weight="semibold">{change.description}</Text>
                                             <Text className={styles.changeTypeLabel}>{getChangeLabel(change.changeType)}</Text>
-                                            
+
                                             {change.conflictFields && change.conflictFields.length > 0 && (
                                               <div className={styles.conflictDetail}>
                                                 <Text size={200} weight="semibold">Differing fields:</Text>
@@ -1023,7 +1041,7 @@ export default function MergeDialog({
                                                 )}
                                               </div>
                                             )}
-                                            
+
                                             <div className={styles.conflictOptions}>
                                               <Button
                                                 appearance={choice === "mine" ? "primary" : "secondary"}
@@ -1057,7 +1075,7 @@ export default function MergeDialog({
                       <>
                         <div className={styles.helpText}>
                           <Text size={200}>
-                            <strong>Two-way merge mode:</strong> Without a common ancestor, we can't determine 
+                            <strong>Two-way merge mode:</strong> Without a common ancestor, we can't determine
                             who made each change. Review each difference and choose which version to keep.
                           </Text>
                         </div>
@@ -1078,7 +1096,7 @@ export default function MergeDialog({
                                   const changeId = `${change.table}:${change.rowHash}`;
                                   const choice = conflictChoices.get(changeId) || "theirs";
                                   const isMine = change.changeType === "legacy-mine";
-                                  
+
                                   return (
                                     <div key={idx} className={`${styles.changeItem} ${isMine ? styles.changeItemMine : styles.changeItemTheirs}`}>
                                       <div className={styles.changeIcon}>
@@ -1087,7 +1105,7 @@ export default function MergeDialog({
                                       <div className={styles.changeDescription}>
                                         <Text size={200}>{change.description}</Text>
                                         <Text className={styles.changeTypeLabel}>{getChangeLabel(change.changeType)}</Text>
-                                        
+
                                         <div className={styles.conflictOptions}>
                                           {isMine ? (
                                             <>
@@ -1141,7 +1159,7 @@ export default function MergeDialog({
                 onClick={handleMerge}
                 disabled={loading}
               >
-                {isThreeWay && conflictCount === 0 
+                {isThreeWay && conflictCount === 0
                   ? `Apply ${autoMergeCount} Auto-Merged Changes`
                   : `Complete Merge`
                 }

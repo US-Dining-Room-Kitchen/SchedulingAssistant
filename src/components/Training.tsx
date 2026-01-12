@@ -20,9 +20,9 @@ import {
   DialogContent,
 } from "@fluentui/react-components";
 import { CheckmarkCircle20Regular, Circle20Regular, Warning20Regular, Edit20Regular } from "@fluentui/react-icons";
-import { 
-  SIX_MONTHS_MS, 
-  TWO_MONTHS_MS, 
+import {
+  SIX_MONTHS_MS,
+  TWO_MONTHS_MS,
   REQUIRED_TRAINING_AREAS,
   type RequiredArea,
   isInTrainingPeriod,
@@ -35,6 +35,7 @@ interface TrainingProps {
   groups: any[];
   all: (sql: string, params?: any[]) => any[];
   run: (sql: string, params?: any[]) => void;
+  refresh: () => void;
 }
 
 const useTrainingStyles = makeStyles({
@@ -176,9 +177,10 @@ type TraineeData = {
   lastRotationDate: Date | null;
 };
 
-export default function Training({ people, roles, groups, all, run }: TrainingProps) {
+export default function Training({ people, roles, groups, all, run, refresh }: TrainingProps) {
   const s = useTrainingStyles();
   const [showInactiveTrainees, setShowInactiveTrainees] = useState(false);
+  const [showAllTrainees, setShowAllTrainees] = useState(false); // Default to false (Full-Time Brothers only)
   const [trainees, setTrainees] = useState<TraineeData[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedOverride, setSelectedOverride] = useState<{
@@ -212,10 +214,14 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
 
       const startDate = new Date(person.start_date);
       const endDate = person.end_date ? new Date(person.end_date) : null;
-      
+
       // Calculate if person is in first 6 months
       const isInTraining = isInTrainingPeriod(startDate, endDate, now);
-      
+
+      // Default filter: Only show Full-Time Brothers unless "Show all trainees" or "Show inactive" is checked
+      const isFullTimeBrother = person.brother_sister === "Brother" && !person.commuter;
+      if (!showAllTrainees && !showInactiveTrainees && !isFullTimeBrother) continue;
+
       if (!isInTraining && !showInactiveTrainees) continue;
 
       const weeksRemaining = weeksRemainingInTraining(startDate, now);
@@ -284,8 +290,8 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
           if (personOverrides.has(area)) {
             const overrideCompleted = personOverrides.get(area)!;
             const current = areasProgress.get(area);
-            areasProgress.set(area, { 
-              lastMonth: current?.lastMonth || null, 
+            areasProgress.set(area, {
+              lastMonth: current?.lastMonth || null,
               completed: overrideCompleted,
               isOverride: true
             });
@@ -312,7 +318,7 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
       }
 
       const completionPercentage = (completedAreas.size / REQUIRED_TRAINING_AREAS.length) * 100;
-      
+
       // Determine alert level
       let alertLevel: "danger" | "warning" | "info" | null = null;
       let needsAttention = false;
@@ -364,7 +370,7 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
     });
 
     setTrainees(traineeData);
-  }, [people, all, showInactiveTrainees, refreshTrigger]);
+  }, [people, all, showInactiveTrainees, showAllTrainees, refreshTrigger]);
 
   // Get trainees needing urgent attention
   const urgentTrainees = useMemo(
@@ -400,7 +406,7 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
     lines.push("<h1>Training Progress Report</h1>");
     lines.push(`<p>Generated on ${new Date().toLocaleDateString()}</p>`);
     lines.push(`<p>Total Trainees: ${activeTrainees.length}</p>`);
-    
+
     lines.push("<table>");
     lines.push("<thead><tr>");
     lines.push("<th>Name</th>");
@@ -419,7 +425,7 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
       lines.push(`<td>${trainee.startDate.toLocaleDateString()}</td>`);
       lines.push(`<td>${trainee.weeksRemaining}</td>`);
       lines.push(`<td>${Math.round(trainee.completionPercentage)}%</td>`);
-      
+
       for (const area of REQUIRED_TRAINING_AREAS) {
         const completed = trainee.completedAreas.has(area);
         const className = completed ? "complete" : "incomplete";
@@ -428,7 +434,7 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
       }
       lines.push("</tr>");
     }
-    
+
     lines.push("</tbody></table>");
     lines.push("</body></html>");
 
@@ -446,7 +452,7 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
   const getSuggestedArea = (trainee: TraineeData): RequiredArea | null => {
     const incomplete = REQUIRED_TRAINING_AREAS.filter((area) => !trainee.completedAreas.has(area));
     if (incomplete.length === 0) return null;
-    
+
     // Prioritize based on weeks remaining
     // If less time, suggest areas not yet started
     return incomplete[0];
@@ -485,6 +491,7 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
 
     // Trigger re-render to fetch updated data
     setRefreshTrigger(prev => prev + 1);
+    refresh();
   };
 
   // Handle canceling the override
@@ -507,6 +514,12 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
           label="Show completed training periods"
           checked={showInactiveTrainees}
           onChange={(_, data) => setShowInactiveTrainees(!!data.checked)}
+        />
+        <Checkbox
+          label="Show all first-term trainees"
+          checked={showAllTrainees}
+          onChange={(_, data) => setShowAllTrainees(!!data.checked)}
+          title="Includes Sisters and Commuters within their first 6 months"
         />
         <div style={{ flex: 1 }} />
         <Button appearance="primary" onClick={exportReport} disabled={activeTrainees.length === 0}>
@@ -543,7 +556,7 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
                 </Body1>
               </Card>
             )}
-            
+
             {warningTrainees.length > 0 && (
               <Card className={s.alertCard}>
                 <CardHeader
@@ -589,7 +602,7 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
           <div className={s.traineesGrid}>
             {activeTrainees.map((trainee) => {
               const suggestedArea = getSuggestedArea(trainee);
-              
+
               return (
                 <Card key={trainee.person.id} className={s.traineeCard}>
                   <div className={s.traineeHeader}>
@@ -619,8 +632,8 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
                         trainee.completionPercentage === 100
                           ? "success"
                           : trainee.completionPercentage >= 50
-                          ? "brand"
-                          : "warning"
+                            ? "brand"
+                            : "warning"
                       }
                     />
                     <div className={s.statsRow}>
@@ -638,8 +651,8 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
                       const progress = trainee.areasProgress.get(area);
                       const isOverride = progress?.isOverride || false;
                       return (
-                        <div 
-                          key={area} 
+                        <div
+                          key={area}
                           className={s.checklistItem}
                           onClick={() => handleAreaClick(trainee.person.id, `${trainee.person.last_name}, ${trainee.person.first_name}`, area, completed)}
                           title="Click to manually override"
@@ -660,8 +673,8 @@ export default function Training({ people, roles, groups, all, run }: TrainingPr
                             )}
                           </div>
                           {isOverride && (
-                            <Badge 
-                              appearance="tint" 
+                            <Badge
+                              appearance="tint"
                               color="informative"
                               size="small"
                               className={s.overrideBadge}
